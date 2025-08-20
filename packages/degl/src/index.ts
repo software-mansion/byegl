@@ -1,3 +1,5 @@
+import { FakeWebGLContext } from './fake-webgl-context';
+
 const stepsToRestore: (() => unknown)[] = [];
 
 export function enable() {
@@ -11,10 +13,10 @@ export function enable() {
     contextId: string,
     ...args: unknown[]
   ) {
-    if (contextId === 'webgl' || contextId === 'webgl2') {
+    if (contextId === 'webgl') {
       console.log('WebGL context intercepted:', contextId);
       // TODO: Return WebGPU-based WebGL implementation
-      // return null;
+      return new FakeWebGLContext();
     }
 
     return originalGetContext!.call(this, contextId, ...args);

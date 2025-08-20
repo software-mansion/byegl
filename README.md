@@ -1,4 +1,5 @@
-# WebGL on WebGPU
+# DeGL
+> Pronounced like "deagle"
 
 This project aims to reimplement the WebGL API on top of WebGPU, which will allow established WebGL-based projects to gradually migrate to the WebGPU over time.
 [The API coverage can be seen here](#api-coverage).
@@ -7,6 +8,8 @@ This project aims to reimplement the WebGL API on top of WebGPU, which will allo
 - webgl-on-webgpu
 - wgpu-gl
 - webgpu-gl
+- degl
+- ungl
 
 # Tasks
 - [x] Scaffold project (the core package, and an example app)
