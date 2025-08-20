@@ -22,8 +22,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch"
+    "build": "tsdown"
   },
   "devDependencies": {
     "tsdown": "^0.14.1",

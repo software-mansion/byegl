@@ -4,5 +4,11 @@
   "version": "0.0.0",
   "keywords": [],
   "author": "",
-  "license": "MIT"
+  "scripts": {
+    "dev": "pnpm -r dev"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0"
+  }
 }

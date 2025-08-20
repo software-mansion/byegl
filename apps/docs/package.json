@@ -12,6 +12,10 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",
     "astro": "^5.13.2",
+    "remeda": "^2.30.0",
     "tailwindcss": "^4.1.12"
+  },
+  "devDependencies": {
+    "daisyui": "^5.0.50"
   }
 }

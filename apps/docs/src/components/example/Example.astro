@@ -1,0 +1,20 @@
+<canvas width="400" height="400" id="ground-truth-canvas"></canvas>
+<canvas width="400" height="400" id="canvas"></canvas>
+
+<script>
+    import { examples } from "../../examples/index.ts";
+    import { getCurrentExampleFromUrl, runExample } from "./example-runner.ts";
+
+    function runCurrentExample() {
+        const exampleKey = getCurrentExampleFromUrl();
+        if (!exampleKey) {
+            return;
+        }
+        const example = examples[exampleKey];
+        runExample(example);
+    }
+
+    // Listening to when the current URL changes
+    window.addEventListener("hashchange", runCurrentExample);
+    runCurrentExample();
+</script>
