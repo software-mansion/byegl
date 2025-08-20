@@ -1,3 +1,4 @@
+import * as glOnWgpu from 'webgl-on-webgpu';
 import type { ExampleContent } from '../../examples/index.ts';
 
 export function getCurrentExampleFromUrl(): string | undefined {
@@ -21,5 +22,11 @@ export function runExample(example: ExampleContent) {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
   example.execute(groundTruthCanvas);
-  example.execute(canvas);
+
+  try {
+    glOnWgpu.enable();
+    example.execute(canvas);
+  } finally {
+    glOnWgpu.disable();
+  }
 }

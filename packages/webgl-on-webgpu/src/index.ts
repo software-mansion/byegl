@@ -1,7 +1,28 @@
+const stepsToRestore: (() => unknown)[] = [];
+
 export function enable() {
-  // TODO: Intercept every call to `.getContext('webgl')`
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  stepsToRestore.push(() => {
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  HTMLCanvasElement.prototype.getContext = function (
+    this: HTMLCanvasElement,
+    contextId: string,
+    ...args: unknown[]
+  ) {
+    if (contextId === 'webgl' || contextId === 'webgl2') {
+      console.log('WebGL context intercepted:', contextId);
+      // TODO: Return WebGPU-based WebGL implementation
+      // return null;
+    }
+
+    return originalGetContext!.call(this, contextId, ...args);
+  } as any;
 }
 
 export function disable() {
-  // TODO: Restore the original behavior of `.getContext('webgl')`
+  for (const step of stepsToRestore) {
+    step();
+  }
 }

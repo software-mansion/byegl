@@ -1,2 +1,6 @@
+# Project files
 node_modules
 dist
+
+# Zed editor
+.zed
