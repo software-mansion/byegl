@@ -26,6 +26,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.12
         version: 4.1.12
+      webgl-on-webgpu:
+        specifier: workspace:*
+        version: link:../../packages/webgl-on-webgpu
     devDependencies:
       daisyui:
         specifier: ^5.0.50
