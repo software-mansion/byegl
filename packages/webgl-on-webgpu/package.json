@@ -1,0 +1,32 @@
+{
+  "name": "webgl-on-webgpu",
+  "version": "0.0.0",
+  "description": "A reimplementation of the WebGL API on top of WebGPU, allowing for gradual migration into the future of 3d on the web",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch"
+  },
+  "devDependencies": {
+    "tsdown": "^0.14.1",
+    "typescript": "^5.9.2"
+  }
+}
