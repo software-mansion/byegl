@@ -5,7 +5,9 @@
   "keywords": [],
   "author": "",
   "scripts": {
-    "dev": "pnpm -r dev"
+    "dev": "pnpm -r dev",
+    "test:style": "biome check",
+    "fix": "biome check --write"
   },
   "license": "MIT",
   "devDependencies": {

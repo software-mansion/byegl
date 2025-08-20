@@ -1,4 +1,4 @@
-import { mapKeys, mapValues, pipe } from "remeda";
+import { mapKeys, mapValues, pipe } from 'remeda';
 
 export interface ExampleMeta {
   name: string;
@@ -12,21 +12,21 @@ export interface ExampleContent {
 }
 
 const mapExampleKeys = mapKeys((key: string) =>
-  key.replace(/^\.\/(.*)\/.*$/, "$1"),
+  key.replace(/^\.\/(.*)\/.*$/, '$1'),
 );
 
 const metaFiles = pipe(
-  import.meta.glob("./**/meta.json", {
+  import.meta.glob('./**/meta.json', {
     eager: true,
-    import: "default",
+    import: 'default',
   }) as Record<string, ExampleMeta>,
   mapExampleKeys,
 );
 
 const executableFiles = pipe(
-  import.meta.glob("./**/*.ts", {
+  import.meta.glob('./**/*.ts', {
     eager: true,
-    import: "default",
+    import: 'default',
   }) as Record<string, ExampleExecute>,
   mapExampleKeys,
 );

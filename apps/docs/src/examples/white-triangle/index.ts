@@ -1,8 +1,8 @@
 export default function whiteTriangle(canvas: HTMLCanvasElement) {
-  const gl = canvas.getContext("webgl");
+  const gl = canvas.getContext('webgl');
 
   if (!gl) {
-    throw new Error("WebGL not supported");
+    throw new Error('WebGL not supported');
   }
 
   const vertexShaderSource = `
@@ -32,7 +32,7 @@ export default function whiteTriangle(canvas: HTMLCanvasElement) {
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
 
-  const positionLocation = gl.getAttribLocation(program, "a_position");
+  const positionLocation = gl.getAttribLocation(program, 'a_position');
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(
