@@ -1,17 +1,39 @@
-<canvas width="400" height="400" id="ground-truth-canvas"></canvas>
-<canvas width="400" height="400" id="canvas"></canvas>
+<main id="example--main" class="group flex justify-center items-center gap-2">
+    <div
+        class="group-[[data-show-example]]:contents not-group-[[data-show-example]]:hidden"
+    >
+        <div>
+            <h2>Actual</h2>
+            <canvas width="400" height="400" id="canvas"></canvas>
+        </div>
+        <div>
+            <h2>Ground Truth</h2>
+            <canvas width="400" height="400" id="ground-truth-canvas"></canvas>
+        </div>
+    </div>
+    <p
+        class="group-[[data-show-example]]:hidden not-group-[[data-show-example]]:block"
+    >
+        Choose an example from the list 💜
+    </p>
+</main>
 
 <script>
     import { examples } from "../../examples/index.ts";
     import { getCurrentExampleFromUrl, runExample } from "./example-runner.ts";
 
     function runCurrentExample() {
+        const exampleMainEl = document.getElementById(
+            "example--main",
+        ) as HTMLDivElement;
         const exampleKey = getCurrentExampleFromUrl();
         if (!exampleKey) {
+            delete exampleMainEl.dataset.showExample;
             return;
         }
         const example = examples[exampleKey];
         runExample(example);
+        exampleMainEl.dataset.showExample = "true";
     }
 
     // Listening to when the current URL changes

@@ -1,17 +1,8 @@
 ---
-
+import Layout from "../layouts/Layout.astro";
 ---
 
-<html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <meta name="viewport" content="width=device-width" />
-        <meta name="generator" content={Astro.generator} />
-        <title>WebGL on WebGPU</title>
-    </head>
-    <body>
-        <h1>WebGL on WebGPU</h1>
-        <a href="/examples">Examples</a>
-    </body>
-</html>
+<Layout>
+    <h1 class="text-2xl">WebGL on WebGPU</h1>
+    <a class="btn" href="/examples">Examples</a>
+</Layout>

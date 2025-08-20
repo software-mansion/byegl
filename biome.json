@@ -16,7 +16,8 @@
     "enabled": true,
     "rules": {
       "recommended": true
-    }
+    },
+    "includes": ["!*.astro"]
   },
   "javascript": {
     "formatter": {
