@@ -35,6 +35,6 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@iwoplaza/shaderkit": "^0.5.0"
+    "@iwoplaza/shaderkit": "^0.5.2"
   }
 }

@@ -1,16 +1,202 @@
 import * as shaderkit from '@iwoplaza/shaderkit';
 import { WgslGenerator } from './wgsl-generator.ts';
 
+interface AttributeInfo {
+  id: string;
+  location: number;
+  type: string;
+}
+
 export class ShaderkitWGSLGenerator implements WgslGenerator {
+  /** Used to track variable declarations with the `attribute` qualifier */
+  #lastAttributeIdx = -1;
+  #shaderType: 'vertex' | 'fragment' =
+    'vertex' /* does not matter, will get overriden */;
+
+  #attributes = new Map<number, AttributeInfo>();
+  #lastUniqueIdSuffix = -1;
+
+  uniqueId(primer?: string | undefined): string {
+    return `${primer ?? 'item'}_${++this.#lastUniqueIdSuffix}`;
+  }
+
+  #fakeVertexMainId = this.uniqueId('fake_vertex');
+  #fakeFragmentMainId = this.uniqueId('fake_fragment');
+
+  generateTypeSpecifier(
+    typeSpecifier: shaderkit.Identifier | shaderkit.ArraySpecifier,
+  ): string {
+    if (typeSpecifier.type === 'Identifier') {
+      if (typeSpecifier.name === 'vec2') {
+        return 'vec2f';
+      }
+      if (typeSpecifier.name === 'vec3') {
+        return 'vec3f';
+      }
+      if (typeSpecifier.name === 'vec4') {
+        return 'vec4f';
+      }
+      if (typeSpecifier.name === 'mat2') {
+        return 'mat2f';
+      }
+      if (typeSpecifier.name === 'mat3') {
+        return 'mat3f';
+      }
+      if (typeSpecifier.name === 'mat4') {
+        return 'mat4f';
+      }
+      return typeSpecifier.name;
+    }
+
+    throw new Error(`Unsupported type specifier: ${typeSpecifier.type}`);
+  }
+
+  generateExpression(expression: shaderkit.Expression): string {
+    if (expression.type === 'Identifier') {
+      return expression.name;
+    }
+
+    if (expression.type === 'Literal') {
+      return expression.value;
+    }
+
+    if (expression.type === 'CallExpression') {
+      console.log(expression);
+      if (expression.callee.type !== 'Identifier') {
+        throw new Error(`Unsupported callee type: ${expression.callee.type}`);
+      }
+      const funcName = expression.callee.name;
+      const args = expression.arguments
+        .map((arg) => this.generateExpression(arg))
+        .join(', ');
+      return `${funcName}(${args});`;
+    }
+
+    if (expression.type === 'AssignmentExpression') {
+      if (expression.left.type !== 'Identifier') {
+        throw new Error(`Unsupported left type: ${expression.left.type}`);
+      }
+      const left = expression.left.name;
+      const right = this.generateExpression(expression.right);
+      return `${left} = ${right};`;
+    }
+
+    if (expression.type === 'BinaryExpression') {
+      const left = this.generateExpression(expression.left);
+      const right = this.generateExpression(expression.right);
+      return `${left} ${expression.operator} ${right}`;
+    }
+
+    if (expression.type === 'UnaryExpression') {
+      const argument = this.generateExpression(expression.argument);
+      return `${expression.operator}${argument}`;
+    }
+
+    throw new Error(`Unsupported expression type: ${expression.type}`);
+  }
+
+  generateStatement(statement: shaderkit.Statement): string {
+    if (statement.type === 'VariableDeclaration') {
+      for (const decl of statement.declarations) {
+        if (decl.qualifiers.includes('attribute')) {
+          do {
+            this.#lastAttributeIdx++;
+          } while (this.#attributes.has(this.#lastAttributeIdx));
+
+          this.#attributes.set(this.#lastAttributeIdx, {
+            id: decl.id.name,
+            location: this.#lastAttributeIdx,
+            type: this.generateTypeSpecifier(decl.typeSpecifier),
+          });
+          return '';
+        }
+
+        // TODO: Handle manual layout qualifiers (e.g. layout(location=0))
+      }
+    }
+
+    if (statement.type === 'FunctionDeclaration') {
+      let funcName = statement.id.name;
+      let params = statement.params.map((param) => param.id?.name).join(', ');
+
+      if (funcName === 'main') {
+        // We're generating the entry function!
+        // We approach it by generating a "fake" entry function
+        // that gets called by the actual entry function.
+        funcName =
+          this.#shaderType === 'vertex'
+            ? this.#fakeVertexMainId
+            : this.#fakeFragmentMainId;
+      }
+
+      const body = statement.body?.body
+        .map((stmt) => this.generateStatement(stmt))
+        .join('\n');
+
+      return `fn ${funcName}(${params}) {\n${body}\n}`;
+    }
+
+    if (statement.type === 'ExpressionStatement') {
+      return this.generateExpression(statement.expression);
+    }
+
+    if (statement.type === 'PrecisionQualifierStatement') {
+      // No-op
+      return '';
+    }
+
+    // TOOD: Implement the logic to generate a statement
+    throw new Error(`Cannot generate ${statement.type} statements yet.`);
+  }
+
   generate(vertexCode: string, fragmentCode: string): string {
+    // Initializing
+    this.#lastAttributeIdx = -1;
+
     const vertexAst = shaderkit.parse(vertexCode);
     const fragmentAst = shaderkit.parse(fragmentCode);
 
-    return `
-      // Generated by degl
+    let result = `// Generated by degl
 
-      ${vertexCode}
-      ${fragmentCode}
-    `;
+var<private> gl_Position: vec4<f32>;
+var<private> gl_FragColor: vec4<f32>;`;
+
+    this.#shaderType = 'vertex';
+    for (const statement of vertexAst.body) {
+      result += this.generateStatement(statement) + '\n';
+    }
+
+    this.#shaderType = 'fragment';
+    for (const statement of fragmentAst.body) {
+      result += this.generateStatement(statement) + '\n';
+    }
+
+    // Adding attribute proxies
+    for (const attribute of this.#attributes.values()) {
+      result += `var<private> ${attribute.id}: ${attribute.type};\n`;
+    }
+
+    result = '' + result;
+
+    // Generating the real entry functions
+    result += `\
+
+@vertex
+fn ${this.uniqueId('vert_main')}() -> @builtin(position) vec4f {
+  // TODO: Assign attributes to the appropriate proxies
+  ${this.#fakeFragmentMainId}();
+  return gl_Position;
+}
+
+@fragment
+fn ${this.uniqueId('frag_main')}() -> @location(0) vec4f {
+  ${this.#fakeFragmentMainId}();
+  return gl_FragColor;
+}
+`;
+
+    console.log(`Generated wgsl: ${result}`);
+
+    return result;
   }
 }

@@ -1,4 +1,5 @@
 import { MockWGSLGenerator } from '../common/mock-wgsl-generator.ts';
+import { ShaderkitWGSLGenerator } from '../common/shaderkit-wgsl-generator.ts';
 import { DeGLContext } from './degl-context.ts';
 
 export async function enable() {
@@ -20,7 +21,8 @@ export async function enable() {
     ...args: unknown[]
   ) {
     if (contextId === 'webgl') {
-      const wgslGen = new MockWGSLGenerator();
+      const wgslGen = new ShaderkitWGSLGenerator();
+      // const wgslGen = new MockWGSLGenerator();
       return new DeGLContext(device, this, wgslGen);
     }
 

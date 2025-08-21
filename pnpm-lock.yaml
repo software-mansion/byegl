@@ -37,8 +37,8 @@ importers:
   packages/degl:
     dependencies:
       '@iwoplaza/shaderkit':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.2
+        version: 0.5.2
     devDependencies:
       '@webgpu/types':
         specifier: ^0.1.64
@@ -420,8 +420,8 @@ packages:
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
 
-  '@iwoplaza/shaderkit@0.5.0':
-    resolution: {integrity: sha512-NOcvZgM/4Uj5VLbxRByA2jHWzLaWI8sbN+KGdVnVpinO4XIQnZP9TU7vMw7gOjee5WWU3qxpLyFl834gjSs4iA==}
+  '@iwoplaza/shaderkit@0.5.2':
+    resolution: {integrity: sha512-m23u+FiPMtggx1De3SXxBgmLdYdujLQRergPe1A73r+FlDQKYp3bSqDIYhmUpqa3AZdc7Hnf5E83lKrzv23lgw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2262,7 +2262,7 @@ snapshots:
     dependencies:
       minipass: 7.1.2
 
-  '@iwoplaza/shaderkit@0.5.0': {}
+  '@iwoplaza/shaderkit@0.5.2': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
