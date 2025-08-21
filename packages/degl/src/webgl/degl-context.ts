@@ -29,8 +29,6 @@ class DeGLBufferInternal {
   }
 
   set arrayStride(value: number) {
-    console.log('Updating arrayStride', value);
-
     if (this.vertexBufferLayout.arrayStride === value) {
       return;
     }
@@ -75,6 +73,7 @@ class DeGLBufferInternal {
     if (!this.dirty) {
       return this.#gpuBuffer!;
     }
+    this.dirty = false;
 
     // Cleaning up old buffer, if it exists
     this.#gpuBuffer?.destroy();
@@ -393,9 +392,6 @@ export class DeGLContext {
       WebGLRenderingContext.ARRAY_BUFFER,
     )?.[$internal];
 
-    console.log('Bound Array Buffer:', boundArrayBuffer);
-    console.log('Vertex Buffer Layout:', boundArrayBuffer?.vertexBufferLayout);
-
     program.wgpuPipeline = this.#device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
@@ -465,7 +461,6 @@ export class DeGLContext {
 
     renderPass.setPipeline(pipeline);
     if (vertexBuffer) {
-      console.log('Using a vertex buffer');
       renderPass.setVertexBuffer(0, vertexBuffer.gpuBuffer);
     }
     renderPass.draw(count, 1, first, 0);
