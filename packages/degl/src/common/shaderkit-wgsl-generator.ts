@@ -2,7 +2,14 @@ import * as shaderkit from '@iwoplaza/shaderkit';
 import { WgslGenerator } from './wgsl-generator.ts';
 
 interface AttributeInfo {
+  /**
+   * The name of the attribute in the global scope (the proxy)
+   */
   id: string;
+  /**
+   * The name of the attribute in the local scope (the param in the entry function)
+   */
+  paramId: string;
   location: number;
   type: string;
 }
@@ -105,6 +112,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
           this.#attributes.set(this.#lastAttributeIdx, {
             id: decl.id.name,
+            paramId: this.uniqueId(decl.id.name),
             location: this.#lastAttributeIdx,
             type: this.generateTypeSpecifier(decl.typeSpecifier),
           });
@@ -179,12 +187,20 @@ var<private> gl_FragColor: vec4<f32>;`;
     result = '' + result;
 
     // Generating the real entry functions
+    const attribParams = [...this.#attributes.values()]
+      .map(
+        (attribute) =>
+          `@location(${attribute.location}) ${attribute.paramId}: ${attribute.type}`,
+      )
+      .join(', ');
+
     result += `\
 
 @vertex
-fn ${this.uniqueId('vert_main')}() -> @builtin(position) vec4f {
-  // TODO: Assign attributes to the appropriate proxies
-  ${this.#fakeFragmentMainId}();
+fn ${this.uniqueId('vert_main')}(${attribParams}) -> @builtin(position) vec4f {
+  ${[...this.#attributes.values()].map((attribute) => `${attribute.id} = ${attribute.paramId};`)}
+
+  ${this.#fakeVertexMainId}();
   return gl_Position;
 }
 
