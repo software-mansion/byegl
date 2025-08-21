@@ -22,7 +22,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "package.json",
+    "README.md"
   ],
   "scripts": {
     "build": "tsdown src/webgl/index.ts src/webgl2/index.ts --dts"
