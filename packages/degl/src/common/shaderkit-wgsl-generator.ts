@@ -70,7 +70,6 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (expression.type === 'CallExpression') {
-      console.log(expression);
       if (expression.callee.type !== 'Identifier') {
         throw new Error(`Unsupported callee type: ${expression.callee.type}`);
       }

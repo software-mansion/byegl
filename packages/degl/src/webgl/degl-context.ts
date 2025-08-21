@@ -2,16 +2,64 @@ import type { WgslGenerator } from '../common/wgsl-generator.ts';
 
 const $internal = Symbol('degl internals');
 
+class DeGLBufferInternal {
+  readonly device: GPUDevice;
+  dirty = true;
+
+  #byteLength: number | undefined;
+  #gpuBuffer: GPUBuffer | undefined;
+
+  constructor(device: GPUDevice) {
+    this.device = device;
+  }
+
+  get byteLength(): number | undefined {
+    return this.#byteLength;
+  }
+
+  set byteLength(value: number) {
+    if (value !== this.#byteLength) {
+      this.#byteLength = value;
+      this.dirty = true;
+    }
+  }
+
+  get gpuBuffer(): GPUBuffer {
+    if (!this.dirty) {
+      return this.#gpuBuffer!;
+    }
+
+    // Cleaning up old buffer, if it exists
+    this.#gpuBuffer?.destroy();
+
+    this.#gpuBuffer = this.device.createBuffer({
+      size: this.#byteLength!,
+      usage:
+        GPUBufferUsage.COPY_DST |
+        GPUBufferUsage.COPY_SRC |
+        GPUBufferUsage.VERTEX,
+    });
+
+    return this.#gpuBuffer;
+  }
+}
+
+class DeGLBuffer {
+  readonly [$internal]: DeGLBufferInternal;
+
+  constructor(device: GPUDevice) {
+    this[$internal] = new DeGLBufferInternal(device);
+  }
+}
+
 class DeGLShader implements WebGLShader {
   readonly [$internal]: {
-    hash: string;
     type: GLenum;
     source: string | undefined;
   };
 
-  constructor(hash: string, type: GLenum) {
+  constructor(type: GLenum) {
     this[$internal] = {
-      hash,
       type,
       source: undefined,
     };
@@ -24,10 +72,12 @@ class DeGLProgram implements WebGLProgram {
     frag: DeGLShader | undefined;
     attributeLocationMap: Map<string, number> | undefined;
     wgpuShaderModule: GPUShaderModule | undefined;
-    /**
-     * A string built up when creating the pipeline, used to compare whether we should recreate the pipeline
-     */
     pipelineHash: string;
+    /**
+     * If true, we should recreate the pipeline instead of
+     * reusing the cached object
+     */
+    dirty: boolean;
     wgpuPipeline: GPURenderPipeline | undefined;
   };
 
@@ -38,6 +88,7 @@ class DeGLProgram implements WebGLProgram {
       frag: undefined,
       wgpuShaderModule: undefined,
       pipelineHash: '',
+      dirty: true,
       wgpuPipeline: undefined,
     };
   }
@@ -97,12 +148,19 @@ export class DeGLContext {
   #wgslGen: WgslGenerator;
   #canvasContext: GPUCanvasContext;
 
+  //
   // GL state
+  //
+
   #program: DeGLProgram | undefined;
   /**
    * Set using gl.enableVertexAttribArray and gl.disableVertexAttribArray.
    */
   #enabledVertexAttribArrays = new Set<number>();
+  /**
+   * The currently bound buffer. Set using gl.bindBuffer.
+   */
+  #boundBufferMap: Map<GLenum, DeGLBuffer | null> = new Map();
 
   constructor(
     device: GPUDevice,
@@ -124,17 +182,8 @@ export class DeGLContext {
     this.#canvasContext = canvasCtx;
   }
 
-  #prevUniqueId = -1;
-
-  /**
-   * Returns a unique id
-   */
-  #uniqueId() {
-    return ++this.#prevUniqueId;
-  }
-
   createShader(type: GLenum): WebGLShader | null {
-    return new DeGLShader(`${this.#uniqueId()}`, type);
+    return new DeGLShader(type);
   }
 
   shaderSource(shader: DeGLShader, source: string): void {
@@ -168,17 +217,51 @@ export class DeGLContext {
   }
 
   createBuffer(): WebGLBuffer {
-    // TODO: Implement buffer creation
-    // return new DeGLBuffer();
-    return {};
+    return new DeGLBuffer(this.#device);
   }
 
-  bindBuffer(target: GLenum, buffer: WebGLBuffer | null): void {
-    // TODO: Implement buffer binding
+  bindBuffer(target: GLenum, buffer: DeGLBuffer | null): void {
+    if (buffer) {
+      this.#boundBufferMap.set(target, buffer);
+    } else {
+      this.#boundBufferMap.delete(target);
+    }
   }
 
-  bufferData(target: GLenum, size: GLsizeiptr, usage: GLenum): void {
-    // TODO: Implement buffer data
+  bufferData(
+    target: GLenum,
+    dataOrSize: AllowSharedBufferSource | GLsizeiptr | null,
+    usage: GLenum,
+  ): void {
+    const buffer = this.#boundBufferMap.get(target);
+    if (!buffer) {
+      throw new Error(`Buffer not bound to ${target}`);
+    }
+    const $buffer = buffer[$internal];
+
+    if (typeof dataOrSize === 'number') {
+      // Initializing the buffer with a certain size
+      $buffer.byteLength = dataOrSize;
+    } else if (dataOrSize === null) {
+      // Keeping the previous size, so nothing to do here
+    } else {
+      // Updating the buffer to match the size of the new buffer
+      $buffer.byteLength = dataOrSize.byteLength;
+    }
+
+    if (typeof dataOrSize === 'number' || dataOrSize === null) {
+      if (!$buffer.dirty) {
+        // If the buffer won't be recreated, wipe the buffer to
+        // replicate WebGL behavior
+        this.#device.queue.writeBuffer(
+          $buffer.gpuBuffer,
+          0,
+          new Uint8Array($buffer.byteLength ?? 0),
+        );
+      }
+    } else {
+      this.#device.queue.writeBuffer($buffer.gpuBuffer, 0, dataOrSize);
+    }
   }
 
   enableVertexAttribArray(index: GLuint): void {

@@ -41,6 +41,8 @@ export default function whiteTriangle(canvas: HTMLCanvasElement) {
     new Float32Array([-1, -1, 1, -1, 0, 1]),
     gl.STATIC_DRAW,
   );
+  // Uncomment to test if this call reinitializes the buffer data
+  // gl.bufferData(gl.ARRAY_BUFFER, 6 * 4, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
