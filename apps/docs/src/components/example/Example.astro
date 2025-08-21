@@ -1,14 +1,22 @@
-<main id="example--main" class="group flex justify-center items-center gap-2">
+<main
+    id="example--main"
+    class="group flex justify-center flex-wrap items-center gap-2 place-content-center"
+>
     <div
         class="group-[[data-show-example]]:contents not-group-[[data-show-example]]:hidden"
     >
         <div>
-            <h2>Actual</h2>
-            <canvas width="400" height="400" id="canvas"></canvas>
+            <h2 class="text-center">Actual</h2>
+            <canvas width="400" height="400" class="h-[40vh]" id="canvas"
+            ></canvas>
         </div>
         <div>
-            <h2>Ground Truth</h2>
-            <canvas width="400" height="400" id="ground-truth-canvas"></canvas>
+            <h2 class="text-center">Ground Truth</h2>
+            <canvas
+                width="400"
+                height="400"
+                class="h-[40vh]"
+                id="ground-truth-canvas"></canvas>
         </div>
     </div>
     <p

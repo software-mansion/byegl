@@ -1,18 +1,23 @@
 ---
-import Example from '../components/example/Example.astro';
-import Layout from '../layouts/Layout.astro';
+import Example from "../components/example/Example.astro";
+import { examples } from "../examples";
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
     <div class="h-screen grid grid-cols-[auto_minmax(0,1fr)] items-stretch">
         <aside class="border-r border-slate-200 px-4">
             <h1 class="text-2xl text-center my-4">Examples</h1>
-            <ul>
-                <li>
-                    <a class="btn min-w-48" href="#white-triangle"
-                        >White Triangle
-                    </a>
-                </li>
+            <ul class="">
+                {
+                    Object.entries(examples).map(([id, example]) => (
+                        <li>
+                            <a class="btn min-w-48 w-full" href={`#${id}`}>
+                                {example.meta.name}
+                            </a>
+                        </li>
+                    ))
+                }
             </ul>
         </aside>
 

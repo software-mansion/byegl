@@ -2,15 +2,62 @@ import type { WgslGenerator } from '../common/wgsl-generator.ts';
 
 const $internal = Symbol('degl internals');
 
+/**
+ * The internal state of degl buffers
+ */
 class DeGLBufferInternal {
   readonly device: GPUDevice;
   dirty = true;
+
+  vertexBufferLayout = {
+    arrayStride: 0,
+    attributes: [] as GPUVertexAttribute[],
+    // NOTE: Assuming vertex step mode
+    stepMode: 'vertex',
+  } satisfies GPUVertexBufferLayout;
+
+  /**
+   * Used to determine if the pipeline should be recreated
+   */
+  vertexBufferLayoutDirty = true;
 
   #byteLength: number | undefined;
   #gpuBuffer: GPUBuffer | undefined;
 
   constructor(device: GPUDevice) {
     this.device = device;
+  }
+
+  set arrayStride(value: number) {
+    console.log('Updating arrayStride', value);
+
+    if (this.vertexBufferLayout.arrayStride === value) {
+      return;
+    }
+
+    this.vertexBufferLayout.arrayStride = value;
+    this.vertexBufferLayoutDirty = true;
+  }
+
+  setAttribute(newAttrib: GPUVertexAttribute) {
+    let attrib: GPUVertexAttribute | undefined =
+      this.vertexBufferLayout.attributes.find(
+        (a) => a.shaderLocation === newAttrib.shaderLocation,
+      );
+    if (!attrib) {
+      attrib = newAttrib;
+      this.vertexBufferLayout.attributes.push(attrib);
+      this.vertexBufferLayoutDirty = true;
+    }
+
+    if (
+      attrib.format !== newAttrib.format ||
+      attrib.offset !== newAttrib.offset
+    ) {
+      attrib.format = newAttrib.format;
+      attrib.offset = newAttrib.offset;
+      this.vertexBufferLayoutDirty = true;
+    }
   }
 
   get byteLength(): number | undefined {
@@ -33,6 +80,7 @@ class DeGLBufferInternal {
     this.#gpuBuffer?.destroy();
 
     this.#gpuBuffer = this.device.createBuffer({
+      label: 'DeGL Vertex Buffer',
       size: this.#byteLength!,
       usage:
         GPUBufferUsage.COPY_DST |
@@ -66,31 +114,26 @@ class DeGLShader implements WebGLShader {
   }
 }
 
+class DeGlProgramInternals {
+  vert: DeGLShader | undefined;
+  frag: DeGLShader | undefined;
+  attributeLocationMap: Map<string, number> | undefined;
+  wgpuShaderModule: GPUShaderModule | undefined;
+  /**
+   * If true, we should recreate the pipeline instead of
+   * reusing the cached object
+   */
+  dirty = true;
+  wgpuPipeline: GPURenderPipeline | undefined;
+
+  constructor() {}
+}
+
 class DeGLProgram implements WebGLProgram {
-  readonly [$internal]: {
-    vert: DeGLShader | undefined;
-    frag: DeGLShader | undefined;
-    attributeLocationMap: Map<string, number> | undefined;
-    wgpuShaderModule: GPUShaderModule | undefined;
-    pipelineHash: string;
-    /**
-     * If true, we should recreate the pipeline instead of
-     * reusing the cached object
-     */
-    dirty: boolean;
-    wgpuPipeline: GPURenderPipeline | undefined;
-  };
+  readonly [$internal]: DeGlProgramInternals;
 
   constructor() {
-    this[$internal] = {
-      vert: undefined,
-      attributeLocationMap: undefined,
-      frag: undefined,
-      wgpuShaderModule: undefined,
-      pipelineHash: '',
-      dirty: true,
-      wgpuPipeline: undefined,
-    };
+    this[$internal] = new DeGlProgramInternals();
   }
 }
 
@@ -153,14 +196,16 @@ export class DeGLContext {
   //
 
   #program: DeGLProgram | undefined;
+
   /**
    * Set using gl.enableVertexAttribArray and gl.disableVertexAttribArray.
    */
   #enabledVertexAttribArrays = new Set<number>();
+
   /**
-   * The currently bound buffer. Set using gl.bindBuffer.
+   * The currently bound buffers. Set using gl.bindBuffer.
    */
-  #boundBufferMap: Map<GLenum, DeGLBuffer | null> = new Map();
+  #boundBufferMap: Map<GLenum, DeGLBuffer> = new Map();
 
   constructor(
     device: GPUDevice,
@@ -280,7 +325,27 @@ export class DeGLContext {
     stride: GLsizei,
     offset: GLintptr,
   ): void {
-    // TODO: Implement vertex attribute pointer setup
+    const $arrayBuffer = this.#boundBufferMap.get(
+      WebGLRenderingContext.ARRAY_BUFFER,
+    )?.[$internal];
+
+    if (!$arrayBuffer) {
+      throw new Error('No ARRAY_BUFFER bound');
+    }
+
+    // Technically, the stride in WebGL can be set separately for each attribute,
+    // but in WebGPU, it's set for the entire buffer.
+    //
+    // We assume that the stride is the same for all attributes,
+    // and if it changes, it changes for each attribute at once.
+    $arrayBuffer.arrayStride = stride;
+
+    $arrayBuffer.setAttribute({
+      shaderLocation: index,
+      // TODO: Adapt format based on type and size
+      format: 'float32x2',
+      offset,
+    });
   }
 
   clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
@@ -320,32 +385,28 @@ export class DeGLContext {
   }
 
   #createOrReusePipeline(): GPURenderPipeline {
-    const $program = this.#program![$internal];
+    const program = this.#program![$internal];
+    const boundArrayBuffer = this.#boundBufferMap.get(
+      WebGLRenderingContext.ARRAY_BUFFER,
+    )?.[$internal];
 
-    // TODO: Compute the hash
-    // TODO: Recreate only when the hash changes
+    console.log('Bound Array Buffer:', boundArrayBuffer);
+    console.log('Vertex Buffer Layout:', boundArrayBuffer?.vertexBufferLayout);
 
-    $program.wgpuPipeline = this.#device.createRenderPipeline({
+    program.wgpuPipeline = this.#device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
       vertex: {
-        module: $program.wgpuShaderModule!,
-        buffers: [
-          // TODO: Infer this based on what the shader expects
-          {
-            arrayStride: 2 * Float32Array.BYTES_PER_ELEMENT,
-            attributes: [
-              {
-                format: 'float32x2',
-                offset: 0,
-                shaderLocation: 0,
-              },
-            ],
-          },
-        ],
+        module: program.wgpuShaderModule!,
+        // NOTE: Assuming only one vertex buffer
+        // Perhaps the WebGL API allows for more, but haven't
+        // found a way to do that yet.
+        buffers: boundArrayBuffer
+          ? [boundArrayBuffer.vertexBufferLayout]
+          : undefined,
       },
       fragment: {
-        module: $program.wgpuShaderModule!,
+        module: program.wgpuShaderModule!,
         targets: [
           {
             format: this.#format,
@@ -354,7 +415,7 @@ export class DeGLContext {
       },
     });
 
-    return $program.wgpuPipeline;
+    return program.wgpuPipeline;
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
@@ -363,23 +424,26 @@ export class DeGLContext {
     }
 
     const pipeline = this.#createOrReusePipeline();
+    const vertexBuffer = this.#boundBufferMap.get(
+      WebGLRenderingContext.ARRAY_BUFFER,
+    )?.[$internal];
 
     // TODO: Remove mock and respect actual APIs
-    const vertexBuffer = this.#device.createBuffer({
-      label: 'DeGL Vertex Buffer',
-      size: 6 * Float32Array.BYTES_PER_ELEMENT,
-      usage: GPUBufferUsage.VERTEX,
-      mappedAtCreation: true,
-    });
-    const f32View = new Float32Array(vertexBuffer.getMappedRange());
-    // new Float32Array([-1, -1, 1, -1, 0, 1]),
-    f32View[0] = -1;
-    f32View[1] = -1;
-    f32View[2] = 1;
-    f32View[3] = -1;
-    f32View[4] = 0;
-    f32View[5] = 1;
-    vertexBuffer.unmap();
+    // const vertexBuffer = this.#device.createBuffer({
+    //   label: 'DeGL Vertex Buffer',
+    //   size: 6 * Float32Array.BYTES_PER_ELEMENT,
+    //   usage: GPUBufferUsage.VERTEX,
+    //   mappedAtCreation: true,
+    // });
+    // const f32View = new Float32Array(vertexBuffer.getMappedRange());
+    // // new Float32Array([-1, -1, 1, -1, 0, 1]),
+    // f32View[0] = -1;
+    // f32View[1] = -1;
+    // f32View[2] = 1;
+    // f32View[3] = -1;
+    // f32View[4] = 0;
+    // f32View[5] = 1;
+    // vertexBuffer.unmap();
 
     const encoder = this.#device.createCommandEncoder({
       label: 'DeGL Command Encoder',
@@ -397,7 +461,10 @@ export class DeGLContext {
     });
 
     renderPass.setPipeline(pipeline);
-    renderPass.setVertexBuffer(0, vertexBuffer);
+    if (vertexBuffer) {
+      console.log('Using a vertex buffer');
+      renderPass.setVertexBuffer(0, vertexBuffer.gpuBuffer);
+    }
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
 
