@@ -2,19 +2,22 @@
   "name": "degl",
   "version": "0.0.0",
   "description": "A reimplementation of the WebGL API on top of WebGPU, allowing for gradual migration into the future of 3d on the web",
+  "author": "Iwo Plaza (https://iwoplaza.dev)",
+  "license": "MIT",
   "type": "module",
-  "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    "./webgl": "./src/webgl/index.ts",
+    "./webgl2": "./src/webgl2/index.ts"
   },
   "publishConfig": {
-    "main": "./dist/index.js",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "exports": {
-      ".": {
-        "import": "./dist/index.js",
-        "types": "./dist/index.d.ts"
+      "./webgl": {
+        "import": "./dist/webgl/index.js",
+        "types": "./dist/webgl/index.d.ts"
+      },
+      "./webgl2": {
+        "import": "./dist/webgl2/index.js",
+        "types": "./dist/webgl2/index.d.ts"
       }
     }
   },
@@ -22,9 +25,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown src/webgl/index.ts src/webgl2/index.ts --dts"
   },
   "devDependencies": {
+    "@webgpu/types": "^0.1.64",
     "tsdown": "^0.14.1",
     "typescript": "^5.9.2"
   },

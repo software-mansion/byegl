@@ -1,4 +1,4 @@
-import * as glOnWgpu from 'webgl-on-webgpu';
+import * as degl from 'degl/webgl';
 import type { ExampleContent } from '../../examples/index.ts';
 
 export function getCurrentExampleFromUrl(): string | undefined {
@@ -12,7 +12,7 @@ export function getCurrentExampleFromUrl(): string | undefined {
   return key;
 }
 
-export function runExample(example: ExampleContent) {
+export async function runExample(example: ExampleContent) {
   console.log('Running example: ', example.meta.name);
 
   const groundTruthCanvas = document.getElementById(
@@ -23,10 +23,10 @@ export function runExample(example: ExampleContent) {
 
   example.execute(groundTruthCanvas);
 
+  const disable = await degl.enable();
   try {
-    glOnWgpu.enable();
     example.execute(canvas);
   } finally {
-    glOnWgpu.disable();
+    disable();
   }
 }
