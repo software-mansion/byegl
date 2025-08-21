@@ -52,8 +52,15 @@ export default function main(canvas: HTMLCanvasElement) {
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   const colorLocation = gl.getAttribLocation(program, 'a_color');
 
+  // Turn on the position and color attributes
+  gl.enableVertexAttribArray(positionLocation);
+  gl.enableVertexAttribArray(colorLocation);
+
   // lookup uniforms
   const matrixLocation = gl.getUniformLocation(program, 'u_matrix');
+
+  // disabling program for now
+  gl.useProgram(null);
 
   // Create a buffer to put positions in
   const positionBuffer = gl.createBuffer();
@@ -108,12 +115,6 @@ export default function main(canvas: HTMLCanvasElement) {
     // Enable the depth buffer
     gl.enable(gl.DEPTH_TEST);
 
-    // Tell it to use our program (pair of shaders)
-    gl.useProgram(program);
-
-    // Turn on the position attribute
-    gl.enableVertexAttribArray(positionLocation);
-
     // Bind the position buffer.
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
@@ -132,9 +133,6 @@ export default function main(canvas: HTMLCanvasElement) {
       offset,
     );
 
-    // Turn on the color attribute
-    gl.enableVertexAttribArray(colorLocation);
-
     // Bind the color buffer.
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
 
@@ -152,6 +150,9 @@ export default function main(canvas: HTMLCanvasElement) {
       stride,
       offset,
     );
+
+    // Tell it to use our program (pair of shaders)
+    gl.useProgram(program);
 
     // Compute the matrices
     let matrix = m4.projection(canvas.clientWidth, canvas.clientHeight, 400);

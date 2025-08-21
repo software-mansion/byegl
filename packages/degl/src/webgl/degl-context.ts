@@ -325,6 +325,9 @@ export class DeGLContext {
     stride: GLsizei,
     offset: GLintptr,
   ): void {
+    // TODO: Pick based on the type
+    const bytesPerElement = Float32Array.BYTES_PER_ELEMENT;
+
     const $arrayBuffer = this.#boundBufferMap.get(
       WebGLRenderingContext.ARRAY_BUFFER,
     )?.[$internal];
@@ -338,7 +341,7 @@ export class DeGLContext {
     //
     // We assume that the stride is the same for all attributes,
     // and if it changes, it changes for each attribute at once.
-    $arrayBuffer.arrayStride = stride;
+    $arrayBuffer.arrayStride = stride === 0 ? size * bytesPerElement : stride;
 
     $arrayBuffer.setAttribute({
       shaderLocation: index,
