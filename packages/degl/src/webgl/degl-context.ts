@@ -20,15 +20,15 @@ class DeGLProgram implements WebGLProgram {
   readonly [$internal]: {
     vert: DeGLShader | undefined;
     frag: DeGLShader | undefined;
-    wgpuShaderModule: GPUShaderModule | undefined;
+    attributeLocationMap: Map<string, number> | undefined;
     wgpuPipeline: GPURenderPipeline | undefined;
   };
 
   constructor() {
     this[$internal] = {
       vert: undefined,
+      attributeLocationMap: undefined,
       frag: undefined,
-      wgpuShaderModule: undefined,
       wgpuPipeline: undefined,
     };
   }
@@ -90,8 +90,11 @@ export class DeGLContext {
   }
 
   getAttribLocation(program: DeGLProgram, name: string): GLint {
-    // TODO: Implement attribute location retrieval
-    return 0;
+    const $program = program[$internal];
+    if ($program.attributeLocationMap === undefined) {
+      throw new Error('Program not linked');
+    }
+    return $program.attributeLocationMap.get(name) ?? -1;
   }
 
   createBuffer(): WebGLBuffer {
@@ -141,21 +144,23 @@ export class DeGLContext {
       );
     }
 
-    const wgsl = this.#wgslGen.generate(
+    const result = this.#wgslGen.generate(
       vert[$internal].source ?? '',
       frag[$internal].source ?? '',
     );
 
-    $program.wgpuShaderModule = this.#device.createShaderModule({
+    $program.attributeLocationMap = result.attributeLocationMap;
+
+    const module = this.#device.createShaderModule({
       label: 'DeGL Shader Module',
-      code: wgsl,
+      code: result.wgsl,
     });
 
     $program.wgpuPipeline = this.#device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
       vertex: {
-        module: $program.wgpuShaderModule,
+        module,
         buffers: [
           // TODO: Infer this based on what the shader expects
           {
@@ -171,7 +176,7 @@ export class DeGLContext {
         ],
       },
       fragment: {
-        module: $program.wgpuShaderModule,
+        module,
         targets: [
           {
             format: this.#format,
