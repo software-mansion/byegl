@@ -1,5 +1,4 @@
-import * as shaderkit from 'shaderkit';
-import { generate } from '../common/wgsl-generator';
+import type { WgslGenerator } from '../common/wgsl-generator.ts';
 
 const $internal = Symbol('degl-internals');
 
@@ -38,16 +37,20 @@ class DeGLProgram implements WebGLProgram {
 export class DeGLContext {
   #device: GPUDevice;
   #format: GPUTextureFormat;
-  #canvas: HTMLCanvasElement;
+  #wgslGen: WgslGenerator;
   #canvasContext: GPUCanvasContext;
 
   // GL state
   #program: DeGLProgram | undefined;
 
-  constructor(device: GPUDevice, canvas: HTMLCanvasElement) {
+  constructor(
+    device: GPUDevice,
+    canvas: HTMLCanvasElement,
+    wgslGen: WgslGenerator,
+  ) {
     this.#device = device;
     this.#format = navigator.gpu.getPreferredCanvasFormat();
-    this.#canvas = canvas;
+    this.#wgslGen = wgslGen;
     const canvasCtx = canvas.getContext('webgpu');
     if (!canvasCtx) {
       throw new Error('Failed to get WebGPU context');
@@ -138,13 +141,10 @@ export class DeGLContext {
       );
     }
 
-    // const vertAst = shaderkit.parse(vert[$internal].source ?? '');
-    // const fragAst = shaderkit.parse(frag[$internal].source ?? '');
-    // TODO: Actually parse the shaders once the patch to shaderkit is merged
-    const vertAst: shaderkit.Program = { type: 'Program', body: [] };
-    const fragAst: shaderkit.Program = { type: 'Program', body: [] };
-
-    const wgsl = generate(vertAst, fragAst);
+    const wgsl = this.#wgslGen.generate(
+      vert[$internal].source ?? '',
+      frag[$internal].source ?? '',
+    );
 
     $program.wgpuShaderModule = this.#device.createShaderModule({
       label: 'DeGL Shader Module',

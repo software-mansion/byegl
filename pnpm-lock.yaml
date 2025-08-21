@@ -36,7 +36,7 @@ importers:
 
   packages/degl:
     dependencies:
-      shaderkit:
+      '@iwoplaza/shaderkit':
         specifier: ^0.5.0
         version: 0.5.0
     devDependencies:
@@ -419,6 +419,9 @@ packages:
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
+
+  '@iwoplaza/shaderkit@0.5.0':
+    resolution: {integrity: sha512-NOcvZgM/4Uj5VLbxRByA2jHWzLaWI8sbN+KGdVnVpinO4XIQnZP9TU7vMw7gOjee5WWU3qxpLyFl834gjSs4iA==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1614,9 +1617,6 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  shaderkit@0.5.0:
-    resolution: {integrity: sha512-AB65quy1xRgyI4lMpqQ0unyDBUSLQR68nlvLsqREHiLDPIv/6Vucwzcs3JtTcdofTqhDSLczpyZmkRfphMSHjw==}
-
   sharp@0.33.5:
     resolution: {integrity: sha512-haPVm1EkS9pgvHrQ/F3Xy+hgcuMV0Wm9vfIBSiwZ05k+xgb0PkBQpGsAA/oWdDobNaZTH5ppvHtzCFbnSEwHVw==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
@@ -2261,6 +2261,8 @@ snapshots:
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
       minipass: 7.1.2
+
+  '@iwoplaza/shaderkit@0.5.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -3718,8 +3720,6 @@ snapshots:
       fsevents: 2.3.3
 
   semver@7.7.2: {}
-
-  shaderkit@0.5.0: {}
 
   sharp@0.33.5:
     dependencies:

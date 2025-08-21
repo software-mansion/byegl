@@ -1,3 +1,4 @@
+import { MockWGSLGenerator } from '../common/mock-wgsl-generator.ts';
 import { DeGLContext } from './degl-context.ts';
 
 export async function enable() {
@@ -19,7 +20,8 @@ export async function enable() {
     ...args: unknown[]
   ) {
     if (contextId === 'webgl') {
-      return new DeGLContext(device, this);
+      const wgslGen = new MockWGSLGenerator();
+      return new DeGLContext(device, this, wgslGen);
     }
 
     return originalGetContext!.call(this, contextId, ...args);
