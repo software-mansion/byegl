@@ -14,6 +14,21 @@ interface AttributeInfo {
   type: string;
 }
 
+const glslToWgslTypeMap = {
+  vec2: 'vec2f',
+  vec3: 'vec3f',
+  vec4: 'vec4f',
+  ivec2: 'vec2i',
+  ivec3: 'vec3i',
+  ivec4: 'vec4i',
+  uvec2: 'vec2u',
+  uvec3: 'vec3u',
+  uvec4: 'vec4u',
+  mat2: 'mat2f',
+  mat3: 'mat3f',
+  mat4: 'mat4f',
+};
+
 export class ShaderkitWGSLGenerator implements WgslGenerator {
   /** Used to track variable declarations with the `attribute` qualifier */
   #lastAttributeIdx = -1;
@@ -34,23 +49,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     typeSpecifier: shaderkit.Identifier | shaderkit.ArraySpecifier,
   ): string {
     if (typeSpecifier.type === 'Identifier') {
-      if (typeSpecifier.name === 'vec2') {
-        return 'vec2f';
-      }
-      if (typeSpecifier.name === 'vec3') {
-        return 'vec3f';
-      }
-      if (typeSpecifier.name === 'vec4') {
-        return 'vec4f';
-      }
-      if (typeSpecifier.name === 'mat2') {
-        return 'mat2f';
-      }
-      if (typeSpecifier.name === 'mat3') {
-        return 'mat3f';
-      }
-      if (typeSpecifier.name === 'mat4') {
-        return 'mat4f';
+      if (typeSpecifier.name in glslToWgslTypeMap) {
+        return glslToWgslTypeMap[
+          typeSpecifier.name as keyof typeof glslToWgslTypeMap
+        ];
       }
       return typeSpecifier.name;
     }
