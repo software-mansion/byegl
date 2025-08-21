@@ -12,7 +12,13 @@ export function getCurrentExampleFromUrl(): string | undefined {
   return key;
 }
 
+let prevCleanup: (() => void) | undefined;
+let prevGroundTruthCleanup: (() => void) | undefined;
+
 export async function runExample(example: ExampleContent) {
+  prevCleanup?.();
+  prevGroundTruthCleanup?.();
+
   console.log('Running example: ', example.meta.name);
 
   const groundTruthCanvas = document.getElementById(
@@ -21,11 +27,11 @@ export async function runExample(example: ExampleContent) {
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
-  example.execute(groundTruthCanvas);
+  prevGroundTruthCleanup = await example.execute(groundTruthCanvas);
 
   const disable = await degl.enable();
   try {
-    example.execute(canvas);
+    prevCleanup = await example.execute(canvas);
   } finally {
     disable();
   }

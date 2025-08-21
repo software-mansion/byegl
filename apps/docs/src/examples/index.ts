@@ -4,7 +4,9 @@ export interface ExampleMeta {
   name: string;
 }
 
-export type ExampleExecute = (canvas: HTMLCanvasElement) => Promise<void>;
+export type ExampleExecute = (
+  canvas: HTMLCanvasElement,
+) => Promise<() => void | undefined>;
 
 export interface ExampleContent {
   meta: ExampleMeta;

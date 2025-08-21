@@ -82,7 +82,7 @@ export default function main(canvas: HTMLCanvasElement) {
   var scale = [1, 1, 1];
 
   function animate(timestamp: number) {
-    requestAnimationFrame(animate);
+    handle = requestAnimationFrame(animate);
 
     // TODO: Animate position and rotation
     translation[0] = Math.sin(timestamp * 0.001);
@@ -90,7 +90,7 @@ export default function main(canvas: HTMLCanvasElement) {
     drawScene();
   }
 
-  requestAnimationFrame(animate);
+  let handle = requestAnimationFrame(animate);
 
   // Draw the scene.
   function drawScene() {
@@ -98,6 +98,7 @@ export default function main(canvas: HTMLCanvasElement) {
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
     // Clear the canvas.
+    gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Turn on culling. By default backfacing triangles
@@ -153,11 +154,7 @@ export default function main(canvas: HTMLCanvasElement) {
     );
 
     // Compute the matrices
-    var matrix = m4.projection(
-      gl.canvas.clientWidth,
-      gl.canvas.clientHeight,
-      400,
-    );
+    let matrix = m4.projection(canvas.clientWidth, canvas.clientHeight, 400);
     matrix = m4.translate(
       matrix,
       translation[0],
@@ -178,6 +175,10 @@ export default function main(canvas: HTMLCanvasElement) {
     var count = 16 * 6;
     gl.drawArrays(primitiveType, offset, count);
   }
+
+  return () => {
+    cancelAnimationFrame(handle);
+  };
 }
 
 const m4 = {
