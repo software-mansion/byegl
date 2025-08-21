@@ -1,15 +1,17 @@
 import type { WgslGenerator } from '../common/wgsl-generator.ts';
 
-const $internal = Symbol('degl-internals');
+const $internal = Symbol('degl internals');
 
 class DeGLShader implements WebGLShader {
   readonly [$internal]: {
+    hash: string;
     type: GLenum;
     source: string | undefined;
   };
 
-  constructor(type: GLenum) {
+  constructor(hash: string, type: GLenum) {
     this[$internal] = {
+      hash,
       type,
       source: undefined,
     };
@@ -21,6 +23,11 @@ class DeGLProgram implements WebGLProgram {
     vert: DeGLShader | undefined;
     frag: DeGLShader | undefined;
     attributeLocationMap: Map<string, number> | undefined;
+    wgpuShaderModule: GPUShaderModule | undefined;
+    /**
+     * A string built up when creating the pipeline, used to compare whether we should recreate the pipeline
+     */
+    pipelineHash: string;
     wgpuPipeline: GPURenderPipeline | undefined;
   };
 
@@ -29,6 +36,8 @@ class DeGLProgram implements WebGLProgram {
       vert: undefined,
       attributeLocationMap: undefined,
       frag: undefined,
+      wgpuShaderModule: undefined,
+      pipelineHash: '',
       wgpuPipeline: undefined,
     };
   }
@@ -115,8 +124,17 @@ export class DeGLContext {
     this.#canvasContext = canvasCtx;
   }
 
+  #prevUniqueId = -1;
+
+  /**
+   * Returns a unique id
+   */
+  #uniqueId() {
+    return ++this.#prevUniqueId;
+  }
+
   createShader(type: GLenum): WebGLShader | null {
-    return new DeGLShader(type);
+    return new DeGLShader(`${this.#uniqueId()}`, type);
   }
 
   shaderSource(shader: DeGLShader, source: string): void {
@@ -211,12 +229,24 @@ export class DeGLContext {
       label: 'DeGL Shader Module',
       code: result.wgsl,
     });
+    $program.wgpuShaderModule = module;
+  }
+
+  useProgram(program: DeGLProgram): void {
+    this.#program = program;
+  }
+
+  #createOrReusePipeline(): GPURenderPipeline {
+    const $program = this.#program![$internal];
+
+    // TODO: Compute the hash
+    // TODO: Recreate only when the hash changes
 
     $program.wgpuPipeline = this.#device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
       vertex: {
-        module,
+        module: $program.wgpuShaderModule!,
         buffers: [
           // TODO: Infer this based on what the shader expects
           {
@@ -232,7 +262,7 @@ export class DeGLContext {
         ],
       },
       fragment: {
-        module,
+        module: $program.wgpuShaderModule!,
         targets: [
           {
             format: this.#format,
@@ -240,10 +270,8 @@ export class DeGLContext {
         ],
       },
     });
-  }
 
-  useProgram(program: DeGLProgram): void {
-    this.#program = program;
+    return $program.wgpuPipeline;
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
@@ -251,7 +279,7 @@ export class DeGLContext {
       throw new Error('No program bound');
     }
 
-    const $program = this.#program[$internal];
+    const pipeline = this.#createOrReusePipeline();
 
     // TODO: Remove mock and respect actual APIs
     const vertexBuffer = this.#device.createBuffer({
@@ -285,7 +313,7 @@ export class DeGLContext {
       ],
     });
 
-    renderPass.setPipeline($program.wgpuPipeline!);
+    renderPass.setPipeline(pipeline);
     renderPass.setVertexBuffer(0, vertexBuffer);
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
