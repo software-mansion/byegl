@@ -2,6 +2,16 @@ import type { WgslGenerator } from '../common/wgsl-generator.ts';
 
 const $internal = Symbol('degl internals');
 
+interface VertexBufferSegment {
+  buffer: DeGLBufferInternal;
+  arrayStride: number;
+  /**
+   * Where from the original buffer does the data for this segment start
+   */
+  dataOffset: number;
+  attribute: GPUVertexAttribute;
+}
+
 /**
  * The internal state of degl buffers
  */
@@ -9,53 +19,11 @@ class DeGLBufferInternal {
   readonly device: GPUDevice;
   dirty = true;
 
-  vertexBufferLayout = {
-    arrayStride: 0,
-    attributes: [] as GPUVertexAttribute[],
-    // NOTE: Assuming vertex step mode
-    stepMode: 'vertex',
-  } satisfies GPUVertexBufferLayout;
-
-  /**
-   * Used to determine if the pipeline should be recreated
-   */
-  vertexBufferLayoutDirty = true;
-
   #byteLength: number | undefined;
   #gpuBuffer: GPUBuffer | undefined;
 
   constructor(device: GPUDevice) {
     this.device = device;
-  }
-
-  set arrayStride(value: number) {
-    if (this.vertexBufferLayout.arrayStride === value) {
-      return;
-    }
-
-    this.vertexBufferLayout.arrayStride = value;
-    this.vertexBufferLayoutDirty = true;
-  }
-
-  setAttribute(newAttrib: GPUVertexAttribute) {
-    let attrib: GPUVertexAttribute | undefined =
-      this.vertexBufferLayout.attributes.find(
-        (a) => a.shaderLocation === newAttrib.shaderLocation,
-      );
-    if (!attrib) {
-      attrib = newAttrib;
-      this.vertexBufferLayout.attributes.push(attrib);
-      this.vertexBufferLayoutDirty = true;
-    }
-
-    if (
-      attrib.format !== newAttrib.format ||
-      attrib.offset !== newAttrib.offset
-    ) {
-      attrib.format = newAttrib.format;
-      attrib.offset = newAttrib.offset;
-      this.vertexBufferLayoutDirty = true;
-    }
   }
 
   get byteLength(): number | undefined {
@@ -136,53 +104,16 @@ class DeGLProgram implements WebGLProgram {
   }
 }
 
-interface VertexAttribPointer {
-  /**
-   * A GLint specifying the number of components per vertex attribute. Must be 1, 2, 3, or 4.
-   */
-  size: GLint;
-
-  /**
-   * A GLenum specifying the data type of each component in the array. Possible values:
-   *
-   * - gl.BYTE: signed 8-bit integer, with values in [-128, 127]
-   * - gl.SHORT: signed 16-bit integer, with values in [-32768, 32767]
-   * - gl.UNSIGNED_BYTE: unsigned 8-bit integer, with values in [0, 255]
-   * - gl.UNSIGNED_SHORT: unsigned 16-bit integer, with values in [0,65535]
-   * - gl.FLOAT: 32-bit IEEE floating point number
-   *
-   * When using a WebGL 2 context, the following values are available additionally:
-   *
-   * - gl.HALF_FLOAT: 16-bit IEEE floating point number
-   * - gl.INT: 32-bit signed binary integer
-   * - gl.UNSIGNED_INT: 32-bit unsigned binary integer
-   * - gl.INT_2_10_10_10_REV: 32-bit signed integer with values in [-512, 511]
-   * - gl.UNSIGNED_INT_2_10_10_10_REV: 32-bit unsigned integer with values in [0, 1023]
-   */
-  type: GLenum;
-
-  /**
-   * A GLboolean specifying whether integer data values should be normalized into a certain range when being cast to a float.
-   * For types gl.BYTE and gl.SHORT, normalizes the values to [-1, 1] if true.
-   * For types gl.UNSIGNED_BYTE and gl.UNSIGNED_SHORT, normalizes the values to [0, 1] if true.
-   * For types gl.FLOAT and gl.HALF_FLOAT, this parameter has no effect.
-   */
-  normalized: GLboolean;
-
-  /**
-   * A GLsizei specifying the offset in bytes between the beginning of consecutive vertex attributes.
-   * Cannot be negative or larger than 255. If stride is 0, the attribute is assumed to be tightly packed,
-   * that is, the attributes are not interleaved but each attribute is in a separate block, and the next
-   * vertex' attribute follows immediately after the current vertex.
-   */
-  stride: GLsizei;
-
-  /**
-   * A GLintptr specifying an offset in bytes of the first component in the vertex attribute array.
-   * Must be a multiple of the byte length of type.
-   */
-  offset: GLintptr;
-}
+const typeAndSizeToVertexFormat: Record<
+  number,
+  Record<number, GPUVertexFormat>
+> = {
+  [WebGLRenderingContext.FLOAT]: {
+    2: 'float32x2',
+    3: 'float32x3',
+    4: 'float32x4',
+  },
+};
 
 export class DeGLContext {
   #device: GPUDevice;
@@ -206,6 +137,14 @@ export class DeGLContext {
    */
   #boundBufferMap: Map<GLenum, DeGLBuffer> = new Map();
 
+  #vertexBufferSegments: VertexBufferSegment[] = [];
+
+  get #enabledVertexBufferSegments(): VertexBufferSegment[] {
+    return this.#vertexBufferSegments.filter((segment) =>
+      this.#enabledVertexAttribArrays.has(segment.attribute.shaderLocation),
+    );
+  }
+
   constructor(
     device: GPUDevice,
     canvas: HTMLCanvasElement,
@@ -224,6 +163,46 @@ export class DeGLContext {
       alphaMode: 'premultiplied',
     });
     this.#canvasContext = canvasCtx;
+  }
+
+  #setAttribute(
+    newAttrib: GPUVertexAttribute,
+    arrayStride: number,
+    dataOffset: number,
+  ) {
+    const currentlyBoundBuffer = this.#boundBufferMap.get(
+      WebGLRenderingContext.ARRAY_BUFFER,
+    )?.[$internal];
+
+    if (!currentlyBoundBuffer) {
+      throw new Error('No buffer bound to ARRAY_BUFFER');
+    }
+
+    let segment: VertexBufferSegment | undefined =
+      this.#vertexBufferSegments.find(
+        (seg) => seg.attribute.shaderLocation === newAttrib.shaderLocation,
+      );
+
+    if (!segment) {
+      segment = {
+        buffer: currentlyBoundBuffer,
+        arrayStride,
+        dataOffset: 0,
+        attribute: newAttrib,
+      };
+      this.#vertexBufferSegments.push(segment);
+    }
+
+    if (
+      segment.arrayStride !== arrayStride ||
+      segment.dataOffset !== dataOffset ||
+      segment.attribute.format !== newAttrib.format ||
+      segment.attribute.offset !== newAttrib.offset
+    ) {
+      segment.arrayStride = arrayStride;
+      segment.dataOffset = dataOffset;
+      segment.attribute = newAttrib;
+    }
   }
 
   createShader(type: GLenum): WebGLShader | null {
@@ -316,6 +295,11 @@ export class DeGLContext {
     this.#enabledVertexAttribArrays.delete(index);
   }
 
+  /**
+   * My best guess right now is that this function associates a buffer with a specific
+   * attribute location, globally (meaning if we change programs, it sticks).
+   * TODO: Verify this in an example
+   */
   vertexAttribPointer(
     index: GLuint,
     size: GLint,
@@ -327,27 +311,18 @@ export class DeGLContext {
     // TODO: Pick based on the type
     const bytesPerElement = Float32Array.BYTES_PER_ELEMENT;
 
-    const $arrayBuffer = this.#boundBufferMap.get(
-      WebGLRenderingContext.ARRAY_BUFFER,
-    )?.[$internal];
-
-    if (!$arrayBuffer) {
-      throw new Error('No ARRAY_BUFFER bound');
-    }
-
-    // Technically, the stride in WebGL can be set separately for each attribute,
-    // but in WebGPU, it's set for the entire buffer.
-    //
-    // We assume that the stride is the same for all attributes,
-    // and if it changes, it changes for each attribute at once.
-    $arrayBuffer.arrayStride = stride === 0 ? size * bytesPerElement : stride;
-
-    $arrayBuffer.setAttribute({
-      shaderLocation: index,
-      // TODO: Adapt format based on type and size
-      format: 'float32x2',
+    this.#setAttribute(
+      {
+        shaderLocation: index,
+        // TODO: Adapt format based on type and size
+        format: typeAndSizeToVertexFormat[type][size] ?? 'float32x2',
+        // The global offset handles the local offset as well
+        offset: 0,
+      },
+      // If the stride is 0, WebGL uses the size as the stride
+      stride === 0 ? size * bytesPerElement : stride,
       offset,
-    });
+    );
   }
 
   clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
@@ -392,17 +367,20 @@ export class DeGLContext {
       WebGLRenderingContext.ARRAY_BUFFER,
     )?.[$internal];
 
+    const vertexLayout = this.#enabledVertexBufferSegments.map(
+      (segment): GPUVertexBufferLayout => ({
+        arrayStride: segment.arrayStride,
+        attributes: [segment.attribute],
+        stepMode: 'vertex',
+      }),
+    );
+
     program.wgpuPipeline = this.#device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
       vertex: {
         module: program.wgpuShaderModule!,
-        // NOTE: Assuming only one vertex buffer
-        // Perhaps the WebGL API allows for more, but haven't
-        // found a way to do that yet.
-        buffers: boundArrayBuffer
-          ? [boundArrayBuffer.vertexBufferLayout]
-          : undefined,
+        buffers: vertexLayout,
       },
       fragment: {
         module: program.wgpuShaderModule!,
@@ -423,26 +401,6 @@ export class DeGLContext {
     }
 
     const pipeline = this.#createOrReusePipeline();
-    const vertexBuffer = this.#boundBufferMap.get(
-      WebGLRenderingContext.ARRAY_BUFFER,
-    )?.[$internal];
-
-    // TODO: Remove mock and respect actual APIs
-    // const vertexBuffer = this.#device.createBuffer({
-    //   label: 'DeGL Vertex Buffer',
-    //   size: 6 * Float32Array.BYTES_PER_ELEMENT,
-    //   usage: GPUBufferUsage.VERTEX,
-    //   mappedAtCreation: true,
-    // });
-    // const f32View = new Float32Array(vertexBuffer.getMappedRange());
-    // // new Float32Array([-1, -1, 1, -1, 0, 1]),
-    // f32View[0] = -1;
-    // f32View[1] = -1;
-    // f32View[2] = 1;
-    // f32View[3] = -1;
-    // f32View[4] = 0;
-    // f32View[5] = 1;
-    // vertexBuffer.unmap();
 
     const encoder = this.#device.createCommandEncoder({
       label: 'DeGL Command Encoder',
@@ -460,9 +418,17 @@ export class DeGLContext {
     });
 
     renderPass.setPipeline(pipeline);
-    if (vertexBuffer) {
-      renderPass.setVertexBuffer(0, vertexBuffer.gpuBuffer);
+
+    // Vertex buffers
+    let vertexBufferIdx = 0;
+    for (const segment of this.#enabledVertexBufferSegments) {
+      renderPass.setVertexBuffer(
+        vertexBufferIdx++,
+        segment.buffer.gpuBuffer,
+        segment.dataOffset,
+      );
     }
+
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
 

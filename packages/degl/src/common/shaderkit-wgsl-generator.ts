@@ -14,6 +14,31 @@ interface AttributeInfo {
   type: string;
 }
 
+interface VaryingInfo {
+  /**
+   * The name of the varying in the global scope of the vertex shader and
+   * the fragment shader (they have to match in order for WebGL to be able to link them)
+   *
+   * Will be used as the name of the proxy for use by the fragment entry function (and transitive dependencies)
+   */
+  id: string;
+  /**
+   * The key in the Varying struct that holds the varying value
+   */
+  propKey: string;
+  location: number;
+  type: string;
+}
+
+interface UniformInfo {
+  /**
+   * The name of the uniform in the global scope
+   */
+  id: string;
+  bindingIdx: number;
+  type: string;
+}
+
 const glslToWgslTypeMap = {
   vec2: 'vec2f',
   vec3: 'vec3f',
@@ -30,12 +55,24 @@ const glslToWgslTypeMap = {
 };
 
 export class ShaderkitWGSLGenerator implements WgslGenerator {
-  /** Used to track variable declarations with the `attribute` qualifier */
-  #lastAttributeIdx = -1;
+  /**
+   * NOTE: Always assuming 0, but it may be wise to make this customizable
+   */
+  #bindingGroupIdx = 0;
+
   #shaderType: 'vertex' | 'fragment' =
     'vertex' /* does not matter, will get overriden */;
 
+  /** Used to track variable declarations with the `attribute` qualifier */
+  #lastAttributeIdx = -1;
   #attributes = new Map<number, AttributeInfo>();
+  /** Used to track variable declarations with the `varying` qualifier */
+  #lastVaryingIdx = -1;
+  #varyings = new Map<number, VaryingInfo>();
+  /** Used to track variable declarations with the `uniform` qualifier */
+  #lastBindingIdx = -1;
+  #uniforms = new Map<number, UniformInfo>();
+
   #lastUniqueIdSuffix = -1;
 
   uniqueId(primer?: string | undefined): string {
@@ -114,16 +151,59 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             this.#lastAttributeIdx++;
           } while (this.#attributes.has(this.#lastAttributeIdx));
 
+          const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+
           this.#attributes.set(this.#lastAttributeIdx, {
             id: decl.id.name,
             paramId: this.uniqueId(decl.id.name),
             location: this.#lastAttributeIdx,
-            type: this.generateTypeSpecifier(decl.typeSpecifier),
+            type: wgslType,
           });
 
           // Defining proxies
-          code += `var<private> ${decl.id.name}: ${this.generateTypeSpecifier(decl.typeSpecifier)};\n`;
+          code += `/* attribute */ var<private> ${decl.id.name}: ${wgslType};\n`;
         }
+
+        if (decl.qualifiers.includes('varying')) {
+          // Finding the next available varying index
+          do {
+            this.#lastVaryingIdx++;
+          } while (this.#varyings.has(this.#lastVaryingIdx));
+
+          if (this.#shaderType === 'vertex') {
+            // Only generating in the vertex shader
+            const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+
+            this.#varyings.set(this.#lastVaryingIdx, {
+              id: decl.id.name,
+              // Arbitrary, choosing the vertex name to be the prop key
+              propKey: decl.id.name,
+              location: this.#lastVaryingIdx,
+              type: wgslType,
+            });
+
+            // Defining proxies
+            code += `/* varying */ var<private> ${decl.id.name}: ${wgslType};\n`;
+          }
+        }
+
+        if (decl.qualifiers.includes('uniform')) {
+          // Finding the next available uniform index
+          do {
+            this.#lastBindingIdx++;
+          } while (this.#uniforms.has(this.#lastBindingIdx));
+
+          const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+
+          this.#uniforms.set(this.#lastBindingIdx, {
+            id: decl.id.name,
+            bindingIdx: this.#lastBindingIdx,
+            type: this.generateTypeSpecifier(decl.typeSpecifier),
+          });
+
+          code += `@group(${this.#bindingGroupIdx}) @binding(${this.#lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslType};\n`;
+        }
+
         // TODO: Handle manual layout qualifiers (e.g. layout(location=0))
       }
       return code;
@@ -165,6 +245,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
   generate(vertexCode: string, fragmentCode: string): WgslGeneratorResult {
     // Initializing
     this.#lastAttributeIdx = -1;
+    this.#lastBindingIdx = -1;
 
     const vertexAst = shaderkit.parse(vertexCode);
     const fragmentAst = shaderkit.parse(fragmentCode);
@@ -176,11 +257,13 @@ var<private> gl_FragColor: vec4<f32>;
 
 `;
 
+    this.#lastVaryingIdx = -1;
     this.#shaderType = 'vertex';
     for (const statement of vertexAst.body) {
       wgsl += this.generateStatement(statement);
     }
 
+    this.#lastVaryingIdx = -1;
     this.#shaderType = 'fragment';
     for (const statement of fragmentAst.body) {
       wgsl += this.generateStatement(statement);
@@ -194,18 +277,51 @@ var<private> gl_FragColor: vec4<f32>;
       )
       .join(', ');
 
-    wgsl += `\
+    // Vertex output struct
+    const vertOutStructId = this.uniqueId('VertexOut');
+    const posOutParamId = this.uniqueId('posOut');
+    wgsl += `
+struct ${vertOutStructId} {
+  @builtin(position) ${posOutParamId}: vec4f,
+${[...this.#varyings.values()].map((varying) => `  @location(${varying.location}) ${varying.id}: ${varying.type},`).join('\n')}
+}
 
+`;
+
+    // Fragment input struct
+    let fragInStructId: string | undefined;
+    if (this.#varyings.size > 0) {
+      fragInStructId = this.uniqueId('FragmentIn');
+      const fragInParams = [...this.#varyings.values()]
+        .map(
+          (varying) =>
+            `  @location(${varying.location}) ${varying.id}: ${varying.type},`,
+        )
+        .join('\n');
+      wgsl += `
+struct ${fragInStructId} {
+${fragInParams}
+}
+
+`;
+    }
+
+    wgsl += `
 @vertex
-fn ${this.uniqueId('vert_main')}(${attribParams}) -> @builtin(position) vec4f {
+fn ${this.uniqueId('vert_main')}(${attribParams}) -> ${vertOutStructId} {
 ${[...this.#attributes.values()].map((attribute) => `  ${attribute.id} = ${attribute.paramId};\n`).join('')}
 
   ${this.#fakeVertexMainId}();
-  return gl_Position;
+  var output: ${vertOutStructId};
+  output.${posOutParamId} = gl_Position;
+${[...this.#varyings.values()].map((varying) => `  output.${varying.id} = ${varying.id};\n`).join('')}
+  return output;
 }
 
 @fragment
-fn ${this.uniqueId('frag_main')}() -> @location(0) vec4f {
+fn ${this.uniqueId('frag_main')}(${fragInStructId ? `input: ${fragInStructId}` : ''}) -> @location(0) vec4f {
+  // Filling proxies with varying data
+${[...this.#varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
   ${this.#fakeFragmentMainId}();
   return gl_FragColor;
 }
