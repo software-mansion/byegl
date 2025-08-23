@@ -3,7 +3,7 @@ import * as d from 'typegpu/data';
 
 export const layoutUint8 = tgpu.bindGroupLayout({
   input: { storage: d.arrayOf(d.u32) },
-  output: { storage: d.arrayOf(d.u32) },
+  output: { storage: d.arrayOf(d.u32), access: 'mutable' },
 });
 
 /**
@@ -17,19 +17,36 @@ export const remapUint8_3to4 = tgpu['~unstable'].computeFn({
   // At which offset should we start reading the input array (in bytes).
   const inByteOffset = gid.x * 3;
   const u32Start = d.u32(inByteOffset / 4);
+  const u32Offset = d.u32(inByteOffset % 4);
 
   const highU32 = layoutUint8.$.input[u32Start];
-  const lowU32 = layoutUint8.$.input[u32Start + 1];
 
-  const u32Offset = d.u32(inByteOffset % 4) * 8;
+  let r = 0;
+  let g = 0;
+  let b = 0;
 
-  const r = (highU32 >> (24 - u32Offset)) & 0xff;
-  const g =
-    ((highU32 >> (16 - u32Offset)) & 0xff) |
-    ((lowU32 >> (32 + 16 - u32Offset)) & 0xff);
-  const b =
-    ((highU32 >> (8 - u32Offset)) & 0xff) |
-    ((lowU32 >> (32 + 8 - u32Offset)) & 0xff);
+  let lowU32 = 0;
+  if (u32Start + 1 < layoutUint8.$.input.length) {
+    lowU32 = layoutUint8.$.input[u32Start + 1];
+  }
 
-  layoutUint8.$.output[gid.x] = (r << 24) | (g << 16) | (b << 8);
+  if (u32Offset === 0) {
+    r = highU32 & 0xff;
+    g = (highU32 >> 8) & 0xff;
+    b = (highU32 >> 16) & 0xff;
+  } else if (u32Offset === 1) {
+    r = (highU32 >> 8) & 0xff;
+    g = (highU32 >> 16) & 0xff;
+    b = (highU32 >> 24) & 0xff;
+  } else if (u32Offset === 2) {
+    r = (highU32 >> 16) & 0xff;
+    g = (highU32 >> 24) & 0xff;
+    b = lowU32 & 0xff;
+  } else if (u32Offset === 3) {
+    r = (highU32 >> 24) & 0xff;
+    g = lowU32 & 0xff;
+    b = (lowU32 >> 8) & 0xff;
+  }
+
+  layoutUint8.$.output[gid.x] = r | (g << 8) | (b << 16);
 });
