@@ -119,37 +119,41 @@ export default function main(canvas: HTMLCanvasElement) {
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
     // Tell the position attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-    var size = 3; // 3 components per iteration
-    var type = gl.FLOAT; // the data is 32bit floats
-    var normalize = false; // don't normalize the data
-    var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
-    var offset = 0; // start at the beginning of the buffer
-    gl.vertexAttribPointer(
-      positionLocation,
-      size,
-      type,
-      normalize,
-      stride,
-      offset,
-    );
+    {
+      const size = 3; // 3 components per iteration
+      const type = gl.FLOAT; // the data is 32bit floats
+      const normalize = false; // don't normalize the data
+      const stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
+      const offset = 0; // start at the beginning of the buffer
+      gl.vertexAttribPointer(
+        positionLocation,
+        size,
+        type,
+        normalize,
+        stride,
+        offset,
+      );
+    }
 
     // Bind the color buffer.
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
 
     // Tell the attribute how to get data out of colorBuffer (ARRAY_BUFFER)
-    var size = 3; // 3 components per iteration
-    var type = gl.UNSIGNED_BYTE; // the data is 8bit unsigned values
-    var normalize = true; // normalize the data (convert from 0-255 to 0-1)
-    var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
-    var offset = 0; // start at the beginning of the buffer
-    gl.vertexAttribPointer(
-      colorLocation,
-      size,
-      type,
-      normalize,
-      stride,
-      offset,
-    );
+    {
+      const size = 3; // 3 components per iteration
+      const type = gl.UNSIGNED_BYTE; // the data is 8bit unsigned values
+      const normalize = true; // normalize the data (convert from 0-255 to 0-1)
+      const stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
+      const offset = 0; // start at the beginning of the buffer
+      gl.vertexAttribPointer(
+        colorLocation,
+        size,
+        type,
+        normalize,
+        stride,
+        offset,
+      );
+    }
 
     // Tell it to use our program (pair of shaders)
     gl.useProgram(program);

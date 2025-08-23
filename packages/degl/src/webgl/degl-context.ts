@@ -17,10 +17,20 @@ interface VertexBufferSegment {
  */
 class DeGLBufferInternal {
   readonly device: GPUDevice;
-  dirty = true;
 
   #byteLength: number | undefined;
+
   #gpuBuffer: GPUBuffer | undefined;
+  gpuBufferDirty = true;
+
+  /**
+   * Since this buffer can be bound to a vertex attribute using a format
+   * that is not natively supported by WebGPU (unorm8x3), we allocate a
+   * secondary buffer that holds the data remapped to match the expected
+   * format.
+   */
+  #unorm8x3VariantBuffer: GPUBuffer | undefined;
+  unorm8x3VariantBufferDirty = true;
 
   constructor(device: GPUDevice) {
     this.device = device;
@@ -33,15 +43,15 @@ class DeGLBufferInternal {
   set byteLength(value: number) {
     if (value !== this.#byteLength) {
       this.#byteLength = value;
-      this.dirty = true;
+      this.gpuBufferDirty = true;
     }
   }
 
   get gpuBuffer(): GPUBuffer {
-    if (!this.dirty) {
+    if (!this.gpuBufferDirty) {
       return this.#gpuBuffer!;
     }
-    this.dirty = false;
+    this.gpuBufferDirty = false;
 
     // Cleaning up old buffer, if it exists
     this.#gpuBuffer?.destroy();
@@ -56,6 +66,29 @@ class DeGLBufferInternal {
     });
 
     return this.#gpuBuffer;
+  }
+
+  get unorm8x3VariantBuffer(): GPUBuffer {
+    // if (!this.dirty) {
+    //   return this.#gpuBuffer!;
+    // }
+    // this.dirty = false;
+    // // Cleaning up old buffer, if it exists
+    // this.#gpuBuffer?.destroy();
+    // this.#gpuBuffer = this.device.createBuffer({
+    //   label: 'DeGL Vertex Buffer',
+    //   size: this.#byteLength!,
+    //   usage:
+    //     GPUBufferUsage.COPY_DST |
+    //     GPUBufferUsage.COPY_SRC |
+    //     GPUBufferUsage.VERTEX,
+    // });
+    // return this.#gpuBuffer;
+  }
+
+  destroy() {
+    this.#gpuBuffer?.destroy();
+    this.#unorm8x3VariantBuffer?.destroy();
   }
 }
 
@@ -85,12 +118,8 @@ class DeGlProgramInternals {
   vert: DeGLShader | undefined;
   frag: DeGLShader | undefined;
   attributeLocationMap: Map<string, number> | undefined;
+  uniformLocationMap: Map<string, number> | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
-  /**
-   * If true, we should recreate the pipeline instead of
-   * reusing the cached object
-   */
-  dirty = true;
   wgpuPipeline: GPURenderPipeline | undefined;
 
   constructor() {}
@@ -104,7 +133,24 @@ class DeGLProgram implements WebGLProgram {
   }
 }
 
-const typeAndSizeToVertexFormat: Record<
+const normalizedVertexFormatCatalog: Record<
+  number,
+  Record<
+    number,
+    | GPUVertexFormat
+    // The following are actually missing from WebGPU right now :(
+    // We implement remappings into compatible formats ourselves
+    | 'unorm8x3'
+  >
+> = {
+  [WebGLRenderingContext.UNSIGNED_BYTE]: {
+    2: 'unorm8x2',
+    3: 'unorm8x3',
+    4: 'unorm8x4',
+  },
+};
+
+const unnormalizedVertexFormatCatalog: Record<
   number,
   Record<number, GPUVertexFormat>
 > = {
@@ -113,12 +159,51 @@ const typeAndSizeToVertexFormat: Record<
     3: 'float32x3',
     4: 'float32x4',
   },
+  [WebGLRenderingContext.UNSIGNED_BYTE]: {
+    2: 'uint8x2',
+    // 3 is actually missing from WebGPU right now :(
+    4: 'uint8x4',
+  },
+};
+
+const vertexFormatRemappings: Record<
+  string,
+  (bufferView: ArrayBufferView<ArrayBufferLike>) => {
+    newFormat: string;
+    buffer: ArrayBuffer;
+  }
+> = {
+  unorm8x3: (input: ArrayBufferView<ArrayBufferLike> | ArrayBufferLike) => {
+    if (input.byteLength % 3 !== 0) {
+      throw new Error('Invalid buffer size');
+    }
+    const elementCount = input.byteLength / 3;
+    const resultBuffer = new ArrayBuffer(elementCount * 4);
+    const resultView = new Uint8Array(resultBuffer);
+
+    const u8View =
+      'byteOffset' in input
+        ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
+        : new Uint8Array(input);
+
+    for (let i = 0, j = 0; i < u8View.byteLength; i += 3, j += 4) {
+      const r = u8View[i];
+      const g = u8View[i + 1];
+      const b = u8View[i + 2];
+      resultView[j] = r;
+      resultView[j + 1] = g;
+      resultView[j + 2] = b;
+    }
+
+    return { newFormat: 'unorm8x4', buffer: resultBuffer };
+  },
 };
 
 export class DeGLContext {
   #device: GPUDevice;
   #format: GPUTextureFormat;
   #wgslGen: WgslGenerator;
+  #canvas: HTMLCanvasElement;
   #canvasContext: GPUCanvasContext;
 
   //
@@ -162,6 +247,7 @@ export class DeGLContext {
       format: this.#format,
       alphaMode: 'premultiplied',
     });
+    this.#canvas = canvas;
     this.#canvasContext = canvasCtx;
   }
 
@@ -205,6 +291,14 @@ export class DeGLContext {
     }
   }
 
+  get canvas() {
+    return this.#canvas;
+  }
+
+  enable(cap: GLenum) {
+    // TODO: Enable capabilities
+  }
+
   createShader(type: GLenum): WebGLShader | null {
     return new DeGLShader(type);
   }
@@ -239,8 +333,22 @@ export class DeGLContext {
     return $program.attributeLocationMap.get(name) ?? -1;
   }
 
+  getUniformLocation(program: DeGLProgram, name: string): GLint {
+    const $program = program[$internal];
+    if ($program.uniformLocationMap === undefined) {
+      throw new Error('Program not linked');
+    }
+    return $program.uniformLocationMap.get(name) ?? -1;
+  }
+
   createBuffer(): WebGLBuffer {
     return new DeGLBuffer(this.#device);
+  }
+
+  deleteBuffer(buffer: DeGLBuffer | null): void {
+    if (buffer) {
+      buffer[$internal].destroy();
+    }
   }
 
   bindBuffer(target: GLenum, buffer: DeGLBuffer | null): void {
@@ -283,6 +391,9 @@ export class DeGLContext {
         );
       }
     } else {
+      // Maybe the data needs remapping?
+      // TODO: We can't actually remap here, since we don't know the format of the data
+      //       We have to defer allocating the buffer until the user calls vertexAttribPointer.
       this.#device.queue.writeBuffer($buffer.gpuBuffer, 0, dataOrSize);
     }
   }
@@ -349,6 +460,7 @@ export class DeGLContext {
     );
 
     $program.attributeLocationMap = result.attributeLocationMap;
+    $program.uniformLocationMap = result.uniformLocationMap;
 
     const module = this.#device.createShaderModule({
       label: 'DeGL Shader Module',
@@ -361,7 +473,11 @@ export class DeGLContext {
     this.#program = program;
   }
 
-  #createOrReusePipeline(): GPURenderPipeline {
+  viewport(x: number, y: number, width: number, height: number): void {
+    // TODO: Change which part of the target texture we're drawing to
+  }
+
+  #createPipeline(): GPURenderPipeline {
     const program = this.#program![$internal];
     const boundArrayBuffer = this.#boundBufferMap.get(
       WebGLRenderingContext.ARRAY_BUFFER,
@@ -400,7 +516,7 @@ export class DeGLContext {
       throw new Error('No program bound');
     }
 
-    const pipeline = this.#createOrReusePipeline();
+    const pipeline = this.#createPipeline();
 
     const encoder = this.#device.createCommandEncoder({
       label: 'DeGL Command Encoder',

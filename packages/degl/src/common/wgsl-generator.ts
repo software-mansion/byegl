@@ -11,6 +11,17 @@ export interface WgslGeneratorResult {
    * ```
    */
   attributeLocationMap: Map<string, number>;
+
+  /**
+   * A mapping of name to numeric index for uniforms.
+   * Valid for definitions using the `uniform` qualifier.
+   * @example
+   * ```ts
+   * // uniform mat4 u_worldMat;
+   * result.uniformLocationMap.get('u_worldMat') // 0
+   * ```
+   */
+  uniformLocationMap: Map<string, number>;
 }
 
 export interface WgslGenerator {

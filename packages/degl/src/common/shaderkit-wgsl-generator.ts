@@ -336,6 +336,11 @@ ${[...this.#varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
           return [info.id, info.location] as const;
         }),
       ),
+      uniformLocationMap: new Map(
+        [...this.#uniforms.values()].map((info) => {
+          return [info.id, info.bindingIdx] as const;
+        }),
+      ),
     };
   }
 }
