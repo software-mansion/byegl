@@ -39,6 +39,9 @@ importers:
       '@iwoplaza/shaderkit':
         specifier: ^0.5.2
         version: 0.5.2
+      typegpu:
+        specifier: ^0.7.1
+        version: 0.7.1
     devDependencies:
       '@webgpu/types':
         specifier: ^0.1.64
@@ -49,6 +52,9 @@ importers:
       typescript:
         specifier: ^5.9.2
         version: 5.9.2
+      unplugin-typegpu:
+        specifier: ^0.2.2
+        version: 0.2.2(typegpu@0.7.1)
 
 packages:
 
@@ -85,6 +91,10 @@ packages:
     resolution: {integrity: sha512-7+Ey1mAgYqFAx2h0RuoxcQT5+MlG3GTV0TQrgr7/ZliKsm/MNDxVVutlWaziMq7wJNAz8MTqz55XLpWvva6StA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  '@babel/standalone@7.28.3':
+    resolution: {integrity: sha512-VHmaaU23OkxShTtkwXlte7/uHDK8v55J9YLMqlucjnYujeB9YgrYCHU6LREqUegTVq+/KlLgjoUu8lbeI3XQPA==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/types@7.28.2':
     resolution: {integrity: sha512-ruv7Ae4J5dUYULmeXw1gmb7rYRz57OWCPM57pHojnLq/3Z1CK2lNSLTCVjxVk1F/TZHwOZZrOWi0ur95BbLxNQ==}
@@ -1265,6 +1275,10 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
+  magic-string-ast@1.0.2:
+    resolution: {integrity: sha512-8ngQgLhcT0t3YBdn9CGkZqCYlvwW9pm7aWJwd7AxseVWf1RU8ZHCQvG1mt3N5vvUme+pXTcHB8G/7fE666U8Vw==}
+    engines: {node: '>=20.18.0'}
+
   magic-string@0.30.17:
     resolution: {integrity: sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==}
 
@@ -1674,6 +1688,14 @@ packages:
   tiny-inflate@1.0.3:
     resolution: {integrity: sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw==}
 
+  tinyest-for-wgsl@0.1.2:
+    resolution: {integrity: sha512-yJ49SoJIpEi4ADsBVNE54GVJ5JZMIAKNkRueeNpYhIiq0z1Nn9THJNMNP1b9HI0VQt7LzCrxT0ZP29muiUtcRg==}
+    engines: {node: '>=12.20.0'}
+
+  tinyest@0.1.1:
+    resolution: {integrity: sha512-YNHlB8BOXgW6RPzrfqqAkgyY9xj33sjXJcJlOl3MwY0BXXx26m3JUqf5yV8iBdwJPNe51DmxypR9Zbbd266biQ==}
+    engines: {node: '>=12.20.0'}
+
   tinyexec@0.3.2:
     resolution: {integrity: sha512-KQQR9yN7R5+OSwaK0XQoj22pwHoTlgYqmUscPYoknOoWCWfj/5/ABTMRi69FrKU5ffPVh5QcFikpWJI/P1ocHA==}
 
@@ -1741,6 +1763,13 @@ packages:
     resolution: {integrity: sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA==}
     engines: {node: '>=16'}
 
+  typed-binary@4.3.2:
+    resolution: {integrity: sha512-HT3pIBM2njCZUmeczDaQUUErGiM6GXFCqMsHegE12HCoBtvHCkfR10JJni0TeGOTnLilTd6YFyj+YhflqQDrDQ==}
+
+  typegpu@0.7.1:
+    resolution: {integrity: sha512-PyP/ZRsX8lCX27fNzBE5TjwxC8Vj88RcLlCv4VXg5sVd6gBuiPZTJQoC5HR15hjTJoRAfayT/TXQ4phWOkA/aA==}
+    engines: {node: '>=12.20.0'}
+
   typescript@5.9.2:
     resolution: {integrity: sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==}
     engines: {node: '>=14.17'}
@@ -1799,6 +1828,15 @@ packages:
 
   unist-util-visit@5.0.0:
     resolution: {integrity: sha512-MR04uvD+07cwl/yhVuVWAtw+3GOR/knlL55Nd/wAdblk27GCVt3lqpTivy/tkJcZoNPzTwS1Y+KMojlLDhoTzg==}
+
+  unplugin-typegpu@0.2.2:
+    resolution: {integrity: sha512-5pbwv0cTMRMxRCQXEPAMUsUoAKMQsz2B4zlhpRRHNy3qtMk+rP3Uxe/5zZUtr2yAASCVO2iciblH5HqcUoijjQ==}
+    peerDependencies:
+      typegpu: ^0.7.0
+
+  unplugin@2.3.8:
+    resolution: {integrity: sha512-lkaSIlxceytPyt9yfb1h7L9jDFqwMqvUZeGsKB7Z8QrvAO3xZv2S+xMQQYzxk0AGJHcQhbcvhKEstrMy99jnuQ==}
+    engines: {node: '>=18.12.0'}
 
   unstorage@1.16.1:
     resolution: {integrity: sha512-gdpZ3guLDhz+zWIlYP1UwQ259tG5T5vYRzDaHMkQ1bBY1SQPutvZnrRjTFaWUUpseErJIgAZS51h6NOcZVZiqQ==}
@@ -1922,6 +1960,9 @@ packages:
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
+  webpack-virtual-modules@0.6.2:
+    resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
+
   whatwg-url@5.0.0:
     resolution: {integrity: sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==}
 
@@ -2040,6 +2081,8 @@ snapshots:
   '@babel/parser@7.28.3':
     dependencies:
       '@babel/types': 7.28.2
+
+  '@babel/standalone@7.28.3': {}
 
   '@babel/types@7.28.2':
     dependencies:
@@ -3115,6 +3158,10 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
+  magic-string-ast@1.0.2:
+    dependencies:
+      magic-string: 0.30.17
+
   magic-string@0.30.17:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -3812,6 +3859,12 @@ snapshots:
 
   tiny-inflate@1.0.3: {}
 
+  tinyest-for-wgsl@0.1.2:
+    dependencies:
+      tinyest: 0.1.1
+
+  tinyest@0.1.1: {}
+
   tinyexec@0.3.2: {}
 
   tinyexec@1.0.1: {}
@@ -3868,6 +3921,13 @@ snapshots:
     optional: true
 
   type-fest@4.41.0: {}
+
+  typed-binary@4.3.2: {}
+
+  typegpu@0.7.1:
+    dependencies:
+      tinyest: 0.1.1
+      typed-binary: 4.3.2
 
   typescript@5.9.2: {}
 
@@ -3954,6 +4014,26 @@ snapshots:
       unist-util-is: 6.0.0
       unist-util-visit-parents: 6.0.1
 
+  unplugin-typegpu@0.2.2(typegpu@0.7.1):
+    dependencies:
+      '@babel/standalone': 7.28.3
+      defu: 6.1.4
+      estree-walker: 3.0.3
+      magic-string-ast: 1.0.2
+      pathe: 2.0.3
+      picomatch: 4.0.3
+      tinyest: 0.1.1
+      tinyest-for-wgsl: 0.1.2
+      typegpu: 0.7.1
+      unplugin: 2.3.8
+
+  unplugin@2.3.8:
+    dependencies:
+      '@jridgewell/remapping': 2.3.5
+      acorn: 8.15.0
+      picomatch: 4.0.3
+      webpack-virtual-modules: 0.6.2
+
   unstorage@1.16.1:
     dependencies:
       anymatch: 3.1.3
@@ -4002,6 +4082,8 @@ snapshots:
   web-namespaces@2.0.1: {}
 
   webidl-conversions@3.0.1: {}
+
+  webpack-virtual-modules@0.6.2: {}
 
   whatwg-url@5.0.0:
     dependencies:
