@@ -27,14 +27,16 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsdown src/webgl/index.ts src/webgl2/index.ts --dts"
+    "build": "tsdown"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.64",
     "tsdown": "^0.14.1",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "unplugin-typegpu": "^0.2.2"
   },
   "dependencies": {
-    "@iwoplaza/shaderkit": "^0.5.2"
+    "@iwoplaza/shaderkit": "^0.5.2",
+    "typegpu": "^0.7.1"
   }
 }

@@ -1,3 +1,10 @@
 packages:
   - packages/*
   - apps/*
+
+onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
+  - edgedriver
+  - esbuild
+  - geckodriver
+  - sharp

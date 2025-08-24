@@ -34,15 +34,49 @@ gl.attachShader(program, fragmentShader);
 gl.linkProgram(program);
 ```
 
-Use WGSL shaders in regular WebGL pipelines:
+The code above can be replaced with:
 
 ```ts
-const program = degl.createProgram(wgslCode);
+const program = degl.createWGSLProgram(gl, wgslCode);
 //    ^? DeGLProgram
 ```
 
+### Using a WebGPU buffer in WebGL
+
+```ts
+const device = degl.getDevice(gl);
+//    ^? GPUDevice
+
+// Using WebGPU to allocate a buffer
+const wgpuBuffer = device.createBuffer({
+  size: 4 * 4,
+  usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+});
+
+const buffer = degl.importWebGPUBuffer(gl, wgpuBuffer);
+//    ^? WebGLBuffer
+```
+
+### Using a WebGPU texture in WebGL
+
+```ts
+const device = degl.getDevice(gl);
+//    ^? GPUDevice
+
+// Using WebGPU to allocate a texture
+const wgpuTexture = device.createTexture({
+  size: [32, 32],
+  format: 'rgba8unorm',
+  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+});
+
+const texture = degl.importWebGPUTexture(gl, wgpuTexture);
+//    ^? WebGLTexture
+```
+
 ## Tasks
-- [ ] Buffer data
-- [ ] Vertex attrib pointers
+- [ ] The `importWebGPUBuffer` hook to import a WebGPU buffer into WebGL
+- [ ] The `importWebGPUTexture` hook to import a WebGPU texture into WebGL
+- [ ] Merge WebGL and WebGL2 entry-points into one, as they don't have many deviations
 
 ## API coverage

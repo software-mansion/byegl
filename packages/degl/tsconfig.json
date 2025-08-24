@@ -13,6 +13,6 @@
     "emitDeclarationOnly": true,
     "types": ["@webgpu/types"]
   },
-  "include": ["src/**/*"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
