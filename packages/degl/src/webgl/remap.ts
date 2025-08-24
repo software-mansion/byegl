@@ -1,16 +1,15 @@
 import tgpu from 'typegpu';
 import * as d from 'typegpu/data';
 
-export const layoutUint8 = tgpu.bindGroupLayout({
+export const layout = tgpu.bindGroupLayout({
   input: { storage: d.arrayOf(d.u32) },
   output: { storage: d.arrayOf(d.u32), access: 'mutable' },
 });
 
 /**
- * Remaps uint8x3 to uint8x4. Expects a thread to handle a single u32 (uint8x4) element
- * of the output.
+ * Remaps 8x3 to 8x4. Expects a thread to handle a single u32 (8x4) element of the output.
  */
-export const remapUint8_3to4 = tgpu['~unstable'].computeFn({
+export const remap8x3to8x4 = tgpu['~unstable'].computeFn({
   workgroupSize: [1],
   in: { gid: d.builtin.globalInvocationId },
 })(({ gid }) => {
@@ -19,15 +18,15 @@ export const remapUint8_3to4 = tgpu['~unstable'].computeFn({
   const u32Start = d.u32(inByteOffset / 4);
   const u32Offset = d.u32(inByteOffset % 4);
 
-  const highU32 = layoutUint8.$.input[u32Start];
+  const highU32 = layout.$.input[u32Start];
 
   let r = 0;
   let g = 0;
   let b = 0;
 
   let lowU32 = 0;
-  if (u32Start + 1 < layoutUint8.$.input.length) {
-    lowU32 = layoutUint8.$.input[u32Start + 1];
+  if (u32Start + 1 < layout.$.input.length) {
+    lowU32 = layout.$.input[u32Start + 1];
   }
 
   if (u32Offset === 0) {
@@ -48,5 +47,5 @@ export const remapUint8_3to4 = tgpu['~unstable'].computeFn({
     b = (lowU32 >> 8) & 0xff;
   }
 
-  layoutUint8.$.output[gid.x] = r | (g << 8) | (b << 16);
+  layout.$.output[gid.x] = r | (g << 8) | (b << 16);
 });

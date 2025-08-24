@@ -1,9 +1,9 @@
 import tgpu from 'typegpu';
 import * as d from 'typegpu/data';
 import { describe, expect, it } from 'vitest';
-import { layoutUint8, remapUint8_3to4 } from '../src/webgl/remap.ts';
+import { layout, remap8x3to8x4 } from '../src/webgl/remap.ts';
 
-describe('remapUint8_3to4', () => {
+describe('remap8x3to8x4', () => {
   it('should work', async () => {
     const root = await tgpu.init();
 
@@ -38,16 +38,16 @@ describe('remapUint8_3to4', () => {
       root.unwrap(storageBuffer4),
     );
 
-    const bindGroup = root.createBindGroup(layoutUint8, {
+    const bindGroup = root.createBindGroup(layout, {
       input: storageBuffer3,
       output: storageBuffer4,
     });
 
     const pipeline = root['~unstable']
-      .withCompute(remapUint8_3to4)
+      .withCompute(remap8x3to8x4)
       .createPipeline()
       // ---
-      .with(layoutUint8, bindGroup);
+      .with(layout, bindGroup);
 
     pipeline.dispatchWorkgroups(3);
 

@@ -1,39 +1,53 @@
+import { TgpuRoot } from 'typegpu';
 import type { WgslGenerator } from '../common/wgsl-generator.ts';
+import { layout, remap8x3to8x4 } from './remap.ts';
+import { $internal } from './types.ts';
+import { DeGLUniformLocation } from './uniform.ts';
 
-const $internal = Symbol('degl internals');
+const gl = WebGLRenderingContext;
+
+type RemappedVertexFormat = 'unorm8x3';
 
 interface VertexBufferSegment {
   buffer: DeGLBufferInternal;
-  arrayStride: number;
   /**
-   * Where from the original buffer does the data for this segment start
+   * Where from the original buffer does the data for this segment start.
    */
-  dataOffset: number;
-  attribute: GPUVertexAttribute;
+  offset: number;
+  stride: number;
+  format: GPUVertexFormat | RemappedVertexFormat;
+  remappedStride: number;
+  remappedFormat: GPUVertexFormat;
+  /**
+   * The numeric location associated with this attribute, which will correspond with a
+   * <a href="https://gpuweb.github.io/gpuweb/wgsl/#input-output-locations">"@location" attribute</a>
+   * declared in the {@link GPURenderPipelineDescriptor#vertex}.{@link GPUProgrammableStage#module | module}.
+   */
+  shaderLocation: GPUIndex32;
 }
 
 /**
  * The internal state of degl buffers
  */
 class DeGLBufferInternal {
-  readonly device: GPUDevice;
+  readonly #root: TgpuRoot;
 
   #byteLength: number | undefined;
-
   #gpuBuffer: GPUBuffer | undefined;
   gpuBufferDirty = true;
 
   /**
    * Since this buffer can be bound to a vertex attribute using a format
-   * that is not natively supported by WebGPU (unorm8x3), we allocate a
-   * secondary buffer that holds the data remapped to match the expected
-   * format.
+   * that is not natively supported by WebGPU (e.g. unorm8x3), we allocate a
+   * secondary buffer that holds the data remapped to match the expected format.
+   *
+   * This one remaps an 8x3 buffer into an 8x4 buffer.
    */
-  #unorm8x3VariantBuffer: GPUBuffer | undefined;
-  unorm8x3VariantBufferDirty = true;
+  #variant8x3to8x4: GPUBuffer | undefined;
+  variant8x3to8x4Dirty = true;
 
-  constructor(device: GPUDevice) {
-    this.device = device;
+  constructor(root: TgpuRoot) {
+    this.#root = root;
   }
 
   get byteLength(): number | undefined {
@@ -44,6 +58,7 @@ class DeGLBufferInternal {
     if (value !== this.#byteLength) {
       this.#byteLength = value;
       this.gpuBufferDirty = true;
+      this.variant8x3to8x4Dirty = true;
     }
   }
 
@@ -56,47 +71,68 @@ class DeGLBufferInternal {
     // Cleaning up old buffer, if it exists
     this.#gpuBuffer?.destroy();
 
-    this.#gpuBuffer = this.device.createBuffer({
+    this.#gpuBuffer = this.#root.device.createBuffer({
       label: 'DeGL Vertex Buffer',
       size: this.#byteLength!,
       usage:
         GPUBufferUsage.COPY_DST |
         GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.VERTEX,
+        GPUBufferUsage.VERTEX |
+        GPUBufferUsage.STORAGE,
     });
 
     return this.#gpuBuffer;
   }
 
-  get unorm8x3VariantBuffer(): GPUBuffer {
-    // if (!this.dirty) {
-    //   return this.#gpuBuffer!;
-    // }
-    // this.dirty = false;
-    // // Cleaning up old buffer, if it exists
-    // this.#gpuBuffer?.destroy();
-    // this.#gpuBuffer = this.device.createBuffer({
-    //   label: 'DeGL Vertex Buffer',
-    //   size: this.#byteLength!,
-    //   usage:
-    //     GPUBufferUsage.COPY_DST |
-    //     GPUBufferUsage.COPY_SRC |
-    //     GPUBufferUsage.VERTEX,
-    // });
-    // return this.#gpuBuffer;
+  get variant8x3to8x4(): GPUBuffer {
+    const elements = Math.floor(this.#byteLength! / 3);
+
+    if (this.variant8x3to8x4Dirty) {
+      // Recreate the variant buffer
+      this.variant8x3to8x4Dirty = false;
+      // Cleaning up old buffer, if it exists
+      this.#variant8x3to8x4?.destroy();
+      this.#variant8x3to8x4 = this.#root.device.createBuffer({
+        label: 'DeGL Vertex Buffer (8x3 -> 8x4)',
+        size: elements * 4,
+        usage:
+          GPUBufferUsage.COPY_DST |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.VERTEX |
+          GPUBufferUsage.STORAGE,
+      });
+    }
+
+    const gpuBuffer = this.gpuBuffer;
+
+    const bindGroup = this.#root.createBindGroup(layout, {
+      input: gpuBuffer,
+      output: this.#variant8x3to8x4!,
+    });
+
+    // Remapping in a compute shader
+    const pipeline = this.#root['~unstable']
+      .withCompute(remap8x3to8x4)
+      .createPipeline()
+      // ---
+      .with(layout, bindGroup);
+
+    pipeline.dispatchWorkgroups(elements);
+
+    return this.#variant8x3to8x4!;
   }
 
   destroy() {
     this.#gpuBuffer?.destroy();
-    this.#unorm8x3VariantBuffer?.destroy();
+    this.#variant8x3to8x4?.destroy();
   }
 }
 
 class DeGLBuffer {
   readonly [$internal]: DeGLBufferInternal;
 
-  constructor(device: GPUDevice) {
-    this[$internal] = new DeGLBufferInternal(device);
+  constructor(root: TgpuRoot) {
+    this[$internal] = new DeGLBufferInternal(root);
   }
 }
 
@@ -143,7 +179,7 @@ const normalizedVertexFormatCatalog: Record<
     | 'unorm8x3'
   >
 > = {
-  [WebGLRenderingContext.UNSIGNED_BYTE]: {
+  [gl.UNSIGNED_BYTE]: {
     2: 'unorm8x2',
     3: 'unorm8x3',
     4: 'unorm8x4',
@@ -154,12 +190,12 @@ const unnormalizedVertexFormatCatalog: Record<
   number,
   Record<number, GPUVertexFormat>
 > = {
-  [WebGLRenderingContext.FLOAT]: {
+  [gl.FLOAT]: {
     2: 'float32x2',
     3: 'float32x3',
     4: 'float32x4',
   },
-  [WebGLRenderingContext.UNSIGNED_BYTE]: {
+  [gl.UNSIGNED_BYTE]: {
     2: 'uint8x2',
     // 3 is actually missing from WebGPU right now :(
     4: 'uint8x4',
@@ -200,7 +236,7 @@ const vertexFormatRemappings: Record<
 };
 
 export class DeGLContext {
-  #device: GPUDevice;
+  #root: TgpuRoot;
   #format: GPUTextureFormat;
   #wgslGen: WgslGenerator;
   #canvas: HTMLCanvasElement;
@@ -226,16 +262,16 @@ export class DeGLContext {
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
-      this.#enabledVertexAttribArrays.has(segment.attribute.shaderLocation),
+      this.#enabledVertexAttribArrays.has(segment.shaderLocation),
     );
   }
 
   constructor(
-    device: GPUDevice,
+    root: TgpuRoot,
     canvas: HTMLCanvasElement,
     wgslGen: WgslGenerator,
   ) {
-    this.#device = device;
+    this.#root = root;
     this.#format = navigator.gpu.getPreferredCanvasFormat();
     this.#wgslGen = wgslGen;
     const canvasCtx = canvas.getContext('webgpu');
@@ -243,7 +279,7 @@ export class DeGLContext {
       throw new Error('Failed to get WebGPU context');
     }
     canvasCtx.configure({
-      device: this.#device,
+      device: this.#root.device,
       format: this.#format,
       alphaMode: 'premultiplied',
     });
@@ -251,43 +287,30 @@ export class DeGLContext {
     this.#canvasContext = canvasCtx;
   }
 
-  #setAttribute(
-    newAttrib: GPUVertexAttribute,
-    arrayStride: number,
-    dataOffset: number,
-  ) {
-    const currentlyBoundBuffer = this.#boundBufferMap.get(
-      WebGLRenderingContext.ARRAY_BUFFER,
-    )?.[$internal];
-
-    if (!currentlyBoundBuffer) {
-      throw new Error('No buffer bound to ARRAY_BUFFER');
-    }
-
+  #setAttribute(newSegment: VertexBufferSegment) {
     let segment: VertexBufferSegment | undefined =
       this.#vertexBufferSegments.find(
-        (seg) => seg.attribute.shaderLocation === newAttrib.shaderLocation,
+        (seg) => seg.shaderLocation === newSegment.shaderLocation,
       );
 
     if (!segment) {
-      segment = {
-        buffer: currentlyBoundBuffer,
-        arrayStride,
-        dataOffset: 0,
-        attribute: newAttrib,
-      };
+      segment = newSegment;
       this.#vertexBufferSegments.push(segment);
+      return;
     }
 
     if (
-      segment.arrayStride !== arrayStride ||
-      segment.dataOffset !== dataOffset ||
-      segment.attribute.format !== newAttrib.format ||
-      segment.attribute.offset !== newAttrib.offset
+      segment.stride !== newSegment.stride ||
+      segment.offset !== newSegment.offset ||
+      segment.buffer !== newSegment.buffer ||
+      segment.format !== newSegment.format ||
+      segment.shaderLocation !== newSegment.shaderLocation
     ) {
-      segment.arrayStride = arrayStride;
-      segment.dataOffset = dataOffset;
-      segment.attribute = newAttrib;
+      segment.stride = newSegment.stride;
+      segment.offset = newSegment.offset;
+      segment.buffer = newSegment.buffer;
+      segment.format = newSegment.format;
+      segment.shaderLocation = newSegment.shaderLocation;
     }
   }
 
@@ -318,9 +341,9 @@ export class DeGLContext {
   attachShader(program: DeGLProgram, shader: DeGLShader): void {
     const $shader = shader[$internal];
 
-    if ($shader.type === WebGLRenderingContext.VERTEX_SHADER) {
+    if ($shader.type === gl.VERTEX_SHADER) {
       program[$internal].vert = shader;
-    } else if ($shader.type === WebGLRenderingContext.FRAGMENT_SHADER) {
+    } else if ($shader.type === gl.FRAGMENT_SHADER) {
       program[$internal].frag = shader;
     }
   }
@@ -333,16 +356,20 @@ export class DeGLContext {
     return $program.attributeLocationMap.get(name) ?? -1;
   }
 
-  getUniformLocation(program: DeGLProgram, name: string): GLint {
-    const $program = program[$internal];
-    if ($program.uniformLocationMap === undefined) {
+  getUniformLocation(
+    program_: DeGLProgram,
+    name: string,
+  ): WebGLUniformLocation | null {
+    const program = program_[$internal];
+    if (program.uniformLocationMap === undefined) {
       throw new Error('Program not linked');
     }
-    return $program.uniformLocationMap.get(name) ?? -1;
+    const idx = program.uniformLocationMap.get(name);
+    return idx !== undefined ? new DeGLUniformLocation(idx) : null;
   }
 
   createBuffer(): WebGLBuffer {
-    return new DeGLBuffer(this.#device);
+    return new DeGLBuffer(this.#root);
   }
 
   deleteBuffer(buffer: DeGLBuffer | null): void {
@@ -381,10 +408,10 @@ export class DeGLContext {
     }
 
     if (typeof dataOrSize === 'number' || dataOrSize === null) {
-      if (!$buffer.dirty) {
+      if (!$buffer.gpuBufferDirty) {
         // If the buffer won't be recreated, wipe the buffer to
         // replicate WebGL behavior
-        this.#device.queue.writeBuffer(
+        this.#root.device.queue.writeBuffer(
           $buffer.gpuBuffer,
           0,
           new Uint8Array($buffer.byteLength ?? 0),
@@ -394,7 +421,7 @@ export class DeGLContext {
       // Maybe the data needs remapping?
       // TODO: We can't actually remap here, since we don't know the format of the data
       //       We have to defer allocating the buffer until the user calls vertexAttribPointer.
-      this.#device.queue.writeBuffer($buffer.gpuBuffer, 0, dataOrSize);
+      this.#root.device.queue.writeBuffer($buffer.gpuBuffer, 0, dataOrSize);
     }
   }
 
@@ -422,18 +449,38 @@ export class DeGLContext {
     // TODO: Pick based on the type
     const bytesPerElement = Float32Array.BYTES_PER_ELEMENT;
 
-    this.#setAttribute(
-      {
-        shaderLocation: index,
-        // TODO: Adapt format based on type and size
-        format: typeAndSizeToVertexFormat[type][size] ?? 'float32x2',
-        // The global offset handles the local offset as well
-        offset: 0,
-      },
-      // If the stride is 0, WebGL uses the size as the stride
-      stride === 0 ? size * bytesPerElement : stride,
-      offset,
-    );
+    let format =
+      (normalized
+        ? normalizedVertexFormatCatalog
+        : unnormalizedVertexFormatCatalog)[type][size] ?? 'float32x2';
+
+    let remappedStride = stride === 0 ? size * bytesPerElement : stride;
+    let remappedFormat = format;
+
+    if (remappedFormat === 'unorm8x3') {
+      remappedFormat = 'unorm8x4';
+      remappedStride += bytesPerElement;
+    }
+
+    const currentlyBoundBuffer = this.#boundBufferMap.get(gl.ARRAY_BUFFER)?.[
+      $internal
+    ];
+
+    if (!currentlyBoundBuffer) {
+      throw new Error('No buffer bound to ARRAY_BUFFER');
+    }
+
+    const segment: VertexBufferSegment = {
+      buffer: currentlyBoundBuffer,
+      offset: offset,
+      stride: stride === 0 ? size * bytesPerElement : stride,
+      format,
+      remappedStride,
+      remappedFormat,
+      shaderLocation: index,
+    };
+
+    this.#setAttribute(segment);
   }
 
   clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
@@ -462,7 +509,7 @@ export class DeGLContext {
     $program.attributeLocationMap = result.attributeLocationMap;
     $program.uniformLocationMap = result.uniformLocationMap;
 
-    const module = this.#device.createShaderModule({
+    const module = this.#root.device.createShaderModule({
       label: 'DeGL Shader Module',
       code: result.wgsl,
     });
@@ -479,19 +526,26 @@ export class DeGLContext {
 
   #createPipeline(): GPURenderPipeline {
     const program = this.#program![$internal];
-    const boundArrayBuffer = this.#boundBufferMap.get(
-      WebGLRenderingContext.ARRAY_BUFFER,
-    )?.[$internal];
+    const boundArrayBuffer = this.#boundBufferMap.get(gl.ARRAY_BUFFER)?.[
+      $internal
+    ];
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
       (segment): GPUVertexBufferLayout => ({
-        arrayStride: segment.arrayStride,
-        attributes: [segment.attribute],
+        arrayStride: segment.remappedStride,
+        attributes: [
+          {
+            format: segment.remappedFormat,
+            // The local offset is handled by the global offset of the segment
+            offset: 0,
+            shaderLocation: segment.shaderLocation,
+          },
+        ],
         stepMode: 'vertex',
       }),
     );
 
-    program.wgpuPipeline = this.#device.createRenderPipeline({
+    program.wgpuPipeline = this.#root.device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
       vertex: {
@@ -511,6 +565,31 @@ export class DeGLContext {
     return program.wgpuPipeline;
   }
 
+  uniformMatrix4fv(
+    location: DeGLUniformLocation | null,
+    transpose: GLboolean,
+    value: Iterable<GLfloat> | Float32List,
+  ): void {
+    const numbers = [...value];
+    if (!location) {
+      throw new Error('No location provided');
+    }
+    const buffer = this.#root.device.createBuffer({
+      label: 'DeGL Uniform Matrix4fv Buffer',
+      size: numbers.length * 4,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true,
+    });
+    const data = new Float32Array(buffer.getMappedRange());
+    for (let i = 0; i < numbers.length; i++) {
+      data[i] = numbers[i];
+    }
+    buffer.unmap();
+
+    // TODO: Handle transposing
+    // TODO: Bind the buffer to the specific location
+  }
+
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
     if (!this.#program) {
       throw new Error('No program bound');
@@ -518,7 +597,7 @@ export class DeGLContext {
 
     const pipeline = this.#createPipeline();
 
-    const encoder = this.#device.createCommandEncoder({
+    const encoder = this.#root.device.createCommandEncoder({
       label: 'DeGL Command Encoder',
     });
     const renderPass = encoder.beginRenderPass({
@@ -538,17 +617,25 @@ export class DeGLContext {
     // Vertex buffers
     let vertexBufferIdx = 0;
     for (const segment of this.#enabledVertexBufferSegments) {
-      renderPass.setVertexBuffer(
-        vertexBufferIdx++,
-        segment.buffer.gpuBuffer,
-        segment.dataOffset,
-      );
+      if (segment.format === 'unorm8x3') {
+        renderPass.setVertexBuffer(
+          vertexBufferIdx++,
+          segment.buffer.variant8x3to8x4,
+          segment.offset,
+        );
+      } else {
+        renderPass.setVertexBuffer(
+          vertexBufferIdx++,
+          segment.buffer.gpuBuffer,
+          segment.offset,
+        );
+      }
     }
 
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
 
-    this.#device.queue.submit([encoder.finish()]);
+    this.#root.device.queue.submit([encoder.finish()]);
   }
 }
 
