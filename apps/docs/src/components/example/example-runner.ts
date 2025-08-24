@@ -1,4 +1,4 @@
-import * as degl from 'degl/webgl';
+import * as degl from 'degl';
 import type { ExampleContent } from '../../examples/index.ts';
 
 export function getCurrentExampleFromUrl(): string | undefined {

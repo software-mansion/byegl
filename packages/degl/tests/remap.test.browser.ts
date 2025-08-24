@@ -1,12 +1,22 @@
-import tgpu from 'typegpu';
+import tgpu, { TgpuRoot } from 'typegpu';
 import * as d from 'typegpu/data';
-import { describe, expect, it } from 'vitest';
-import { layout, remap8x3to8x4 } from '../src/webgl/remap.ts';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Remapper } from '../src/remap.ts';
 
 describe('remap8x3to8x4', () => {
-  it('should work', async () => {
-    const root = await tgpu.init();
+  let root: TgpuRoot;
+  let remapper: Remapper;
 
+  beforeAll(async () => {
+    root = await tgpu.init();
+    remapper = new Remapper(root);
+  });
+
+  afterAll(() => {
+    root.destroy();
+  });
+
+  it('should work', async () => {
     const buffer3 = root
       .createBuffer(
         d.disarrayOf(
@@ -25,33 +35,17 @@ describe('remap8x3to8x4', () => {
       .$usage('vertex')
       .$addFlags(GPUBufferUsage.STORAGE);
 
-    const storageBuffer3 = root
-      .createBuffer(d.arrayOf(d.u32, 3), root.unwrap(buffer3))
-      .$usage('storage');
+    const buffer4 = root.createBuffer(d.arrayOf(d.u32, 3)).$usage('storage');
 
-    const storageBuffer4 = root
-      .createBuffer(d.arrayOf(d.u32, 3))
-      .$usage('storage');
+    remapper.remap8x3to8x4(root.unwrap(buffer3), root.unwrap(buffer4));
 
-    const buffer4 = root.createBuffer(
+    // Reinterpreting the buffer as an array of bytes
+    const uint8ResultBuffer = root.createBuffer(
       d.disarrayOf(d.uint8, 4 * 3),
-      root.unwrap(storageBuffer4),
+      root.unwrap(buffer4),
     );
 
-    const bindGroup = root.createBindGroup(layout, {
-      input: storageBuffer3,
-      output: storageBuffer4,
-    });
-
-    const pipeline = root['~unstable']
-      .withCompute(remap8x3to8x4)
-      .createPipeline()
-      // ---
-      .with(layout, bindGroup);
-
-    pipeline.dispatchWorkgroups(3);
-
-    const result = await buffer4.read();
+    const result = await uint8ResultBuffer.read();
     expect(result).toStrictEqual([
       // uint8x4
       1, 2, 3, 0,

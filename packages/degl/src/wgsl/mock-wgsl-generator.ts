@@ -17,6 +17,7 @@ export class MockWGSLGenerator implements WgslGenerator {
         }
       `,
       attributeLocationMap: new Map([['a_position', 0]]),
+      uniformLocationMap: new Map(),
     };
   }
 }

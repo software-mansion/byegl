@@ -1,7 +1,7 @@
 import tgpu, { TgpuComputePipeline, TgpuRoot } from 'typegpu';
 import * as d from 'typegpu/data';
 
-export const layout = tgpu.bindGroupLayout({
+const layout = tgpu.bindGroupLayout({
   input: { storage: d.arrayOf(d.u32) },
   output: { storage: d.arrayOf(d.u32), access: 'mutable' },
 });
@@ -51,18 +51,17 @@ const remap8x3to8x4Shader = tgpu['~unstable'].computeFn({
 });
 
 export class Remapper {
-  #remap8x3to8x4Pipeline: TgpuComputePipeline | undefined;
+  #pipeline8x3to8x4Cache: TgpuComputePipeline | undefined;
 
   constructor(readonly root: TgpuRoot) {}
 
-  get remap8x3to8x4Pipeline() {
-    if (!this.#remap8x3to8x4Pipeline) {
-      console.log('Creating the pipeline');
-      this.#remap8x3to8x4Pipeline = this.root['~unstable']
+  get #pipeline8x3to8x4() {
+    if (!this.#pipeline8x3to8x4Cache) {
+      this.#pipeline8x3to8x4Cache = this.root['~unstable']
         .withCompute(remap8x3to8x4Shader)
         .createPipeline();
     }
-    return this.#remap8x3to8x4Pipeline;
+    return this.#pipeline8x3to8x4Cache;
   }
 
   remap8x3to8x4(input: GPUBuffer, output: GPUBuffer): void {
@@ -73,8 +72,6 @@ export class Remapper {
       output,
     });
 
-    this.remap8x3to8x4Pipeline
-      .with(layout, bindGroup)
-      .dispatchWorkgroups(elements);
+    this.#pipeline8x3to8x4.with(layout, bindGroup).dispatchWorkgroups(elements);
   }
 }

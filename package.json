@@ -5,10 +5,11 @@
   "keywords": [],
   "scripts": {
     "dev": "pnpm -r dev",
-    "test": "vitest",
-    "test:node": "vitest --project node",
+    "test:ci": "pnpm test:style && pnpm test:types",
+    "test:node": "vitest run --project node",
     "test:browser": "vitest --project browser",
     "test:style": "biome check",
+    "test:types": "pnpm -r test:types",
     "fix": "biome check --write"
   },
   "license": "MIT",

@@ -1,8 +1,8 @@
 import { TgpuRoot } from 'typegpu';
-import type { WgslGenerator } from '../common/wgsl-generator.ts';
-import { layout, Remapper } from './remap.ts';
+import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { DeGLUniformLocation } from './uniform.ts';
+import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGLRenderingContext;
 
@@ -408,10 +408,11 @@ export class DeGLContext {
         );
       }
     } else {
-      // Maybe the data needs remapping?
-      // TODO: We can't actually remap here, since we don't know the format of the data
-      //       We have to defer allocating the buffer until the user calls vertexAttribPointer.
-      this.#root.device.queue.writeBuffer($buffer.gpuBuffer, 0, dataOrSize);
+      this.#root.device.queue.writeBuffer(
+        $buffer.gpuBuffer,
+        0,
+        dataOrSize as any,
+      );
     }
   }
 
