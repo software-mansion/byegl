@@ -75,7 +75,6 @@ const texture = degl.importWebGPUTexture(gl, wgpuTexture);
 ```
 
 ## Tasks
-- [ ] Remapping buffers for unsupported vertex format (e.g. unorm8x3)
 - [ ] The `importWebGPUBuffer` hook to import a WebGPU buffer into WebGL
 - [ ] The `importWebGPUTexture` hook to import a WebGPU texture into WebGL
 - [ ] Merge WebGL and WebGL2 entry-points into one, as they don't have many deviations
