@@ -49,9 +49,9 @@ const glslToWgslTypeMap = {
   uvec2: 'vec2u',
   uvec3: 'vec3u',
   uvec4: 'vec4u',
-  mat2: 'mat2f',
-  mat3: 'mat3f',
-  mat4: 'mat4f',
+  mat2: 'mat2x2f',
+  mat3: 'mat3x3f',
+  mat4: 'mat4x4f',
 };
 
 export class ShaderkitWGSLGenerator implements WgslGenerator {

@@ -1,4 +1,4 @@
-import tgpu from 'typegpu';
+import tgpu, { TgpuComputePipeline, TgpuRoot } from 'typegpu';
 import * as d from 'typegpu/data';
 
 export const layout = tgpu.bindGroupLayout({
@@ -9,7 +9,7 @@ export const layout = tgpu.bindGroupLayout({
 /**
  * Remaps 8x3 to 8x4. Expects a thread to handle a single u32 (8x4) element of the output.
  */
-export const remap8x3to8x4 = tgpu['~unstable'].computeFn({
+const remap8x3to8x4Shader = tgpu['~unstable'].computeFn({
   workgroupSize: [1],
   in: { gid: d.builtin.globalInvocationId },
 })(({ gid }) => {
@@ -20,11 +20,11 @@ export const remap8x3to8x4 = tgpu['~unstable'].computeFn({
 
   const highU32 = layout.$.input[u32Start];
 
-  let r = 0;
-  let g = 0;
-  let b = 0;
+  let r = d.u32(0);
+  let g = d.u32(0);
+  let b = d.u32(0);
 
-  let lowU32 = 0;
+  let lowU32 = d.u32(0);
   if (u32Start + 1 < layout.$.input.length) {
     lowU32 = layout.$.input[u32Start + 1];
   }
@@ -49,3 +49,32 @@ export const remap8x3to8x4 = tgpu['~unstable'].computeFn({
 
   layout.$.output[gid.x] = r | (g << 8) | (b << 16);
 });
+
+export class Remapper {
+  #remap8x3to8x4Pipeline: TgpuComputePipeline | undefined;
+
+  constructor(readonly root: TgpuRoot) {}
+
+  get remap8x3to8x4Pipeline() {
+    if (!this.#remap8x3to8x4Pipeline) {
+      console.log('Creating the pipeline');
+      this.#remap8x3to8x4Pipeline = this.root['~unstable']
+        .withCompute(remap8x3to8x4Shader)
+        .createPipeline();
+    }
+    return this.#remap8x3to8x4Pipeline;
+  }
+
+  remap8x3to8x4(input: GPUBuffer, output: GPUBuffer): void {
+    const elements = input.size / 3; // 3 bytes per element (e.g. unorm8x3)
+
+    const bindGroup = this.root.createBindGroup(layout, {
+      input,
+      output,
+    });
+
+    this.remap8x3to8x4Pipeline
+      .with(layout, bindGroup)
+      .dispatchWorkgroups(elements);
+  }
+}

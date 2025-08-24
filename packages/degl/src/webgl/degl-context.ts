@@ -1,6 +1,6 @@
 import { TgpuRoot } from 'typegpu';
 import type { WgslGenerator } from '../common/wgsl-generator.ts';
-import { layout, remap8x3to8x4 } from './remap.ts';
+import { layout, Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { DeGLUniformLocation } from './uniform.ts';
 
@@ -31,6 +31,7 @@ interface VertexBufferSegment {
  */
 class DeGLBufferInternal {
   readonly #root: TgpuRoot;
+  readonly #remapper: Remapper;
 
   #byteLength: number | undefined;
   #gpuBuffer: GPUBuffer | undefined;
@@ -46,8 +47,9 @@ class DeGLBufferInternal {
   #variant8x3to8x4: GPUBuffer | undefined;
   variant8x3to8x4Dirty = true;
 
-  constructor(root: TgpuRoot) {
+  constructor(root: TgpuRoot, remapper: Remapper) {
     this.#root = root;
+    this.#remapper = remapper;
   }
 
   get byteLength(): number | undefined {
@@ -104,21 +106,7 @@ class DeGLBufferInternal {
     }
 
     const gpuBuffer = this.gpuBuffer;
-
-    const bindGroup = this.#root.createBindGroup(layout, {
-      input: gpuBuffer,
-      output: this.#variant8x3to8x4!,
-    });
-
-    // Remapping in a compute shader
-    const pipeline = this.#root['~unstable']
-      .withCompute(remap8x3to8x4)
-      .createPipeline()
-      // ---
-      .with(layout, bindGroup);
-
-    pipeline.dispatchWorkgroups(elements);
-
+    this.#remapper.remap8x3to8x4(this.gpuBuffer, this.#variant8x3to8x4!);
     return this.#variant8x3to8x4!;
   }
 
@@ -131,8 +119,8 @@ class DeGLBufferInternal {
 class DeGLBuffer {
   readonly [$internal]: DeGLBufferInternal;
 
-  constructor(root: TgpuRoot) {
-    this[$internal] = new DeGLBufferInternal(root);
+  constructor(root: TgpuRoot, remapper: Remapper) {
+    this[$internal] = new DeGLBufferInternal(root, remapper);
   }
 }
 
@@ -237,6 +225,7 @@ const vertexFormatRemappings: Record<
 
 export class DeGLContext {
   #root: TgpuRoot;
+  #remapper: Remapper;
   #format: GPUTextureFormat;
   #wgslGen: WgslGenerator;
   #canvas: HTMLCanvasElement;
@@ -272,6 +261,7 @@ export class DeGLContext {
     wgslGen: WgslGenerator,
   ) {
     this.#root = root;
+    this.#remapper = new Remapper(root);
     this.#format = navigator.gpu.getPreferredCanvasFormat();
     this.#wgslGen = wgslGen;
     const canvasCtx = canvas.getContext('webgpu');
@@ -369,7 +359,7 @@ export class DeGLContext {
   }
 
   createBuffer(): WebGLBuffer {
-    return new DeGLBuffer(this.#root);
+    return new DeGLBuffer(this.#root, this.#remapper);
   }
 
   deleteBuffer(buffer: DeGLBuffer | null): void {
