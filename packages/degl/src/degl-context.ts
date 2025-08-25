@@ -416,7 +416,8 @@ export class DeGLContext {
 
   uniform1f(location: DeGLUniformLocation | null, value: GLfloat) {
     if (!location) {
-      throw new Error('No location provided');
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
     }
     this.#uniformBufferCache.updateUniform(
       location,
@@ -429,24 +430,14 @@ export class DeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const numbers = [...value];
     if (!location) {
-      throw new Error('No location provided');
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
     }
-    const buffer = this.#root.device.createBuffer({
-      label: 'DeGL Uniform Matrix4fv Buffer',
-      size: numbers.length * 4,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
-    });
-    const data = new Float32Array(buffer.getMappedRange());
-    for (let i = 0; i < numbers.length; i++) {
-      data[i] = numbers[i];
-    }
-    buffer.unmap();
+    const data = new Float32Array([...value]);
 
     // TODO: Handle transposing
-    // TODO: Bind the buffer to the specific location
+    this.#uniformBufferCache.updateUniform(location, data.buffer);
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
@@ -498,15 +489,23 @@ export class DeGLContext {
         ? this.#root.device.createBindGroup({
             // TODO: Create the bind group layout manually
             layout: pipeline.getBindGroupLayout(0),
-            entries: program.uniformLocationMap!.values().map(
-              (location) =>
-                ({
+            entries: program
+              .uniformLocationMap!.values()
+              .map((location) => {
+                const buffer = this.#uniformBufferCache.getBuffer(location);
+
+                if (!buffer) {
+                  return undefined;
+                }
+
+                return {
                   binding: location,
                   resource: {
-                    buffer: this.#uniformBufferCache.getBuffer(location),
+                    buffer,
                   },
-                }) satisfies GPUBindGroupEntry,
-            ),
+                } satisfies GPUBindGroupEntry;
+              })
+              .filter((entry) => entry !== undefined),
           })
         : undefined;
 

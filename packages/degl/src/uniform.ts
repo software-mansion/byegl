@@ -9,8 +9,8 @@ export class UniformBufferCache {
     this.#root = root;
   }
 
-  getBuffer(location: number): GPUBuffer {
-    return this.#buffers.get(location)!;
+  getBuffer(location: number): GPUBuffer | undefined {
+    return this.#buffers.get(location);
   }
 
   updateUniform(location: DeGLUniformLocation, value: ArrayBuffer) {

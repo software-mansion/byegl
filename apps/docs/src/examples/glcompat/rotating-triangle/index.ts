@@ -1,4 +1,6 @@
-export default function whiteTriangle(canvas: HTMLCanvasElement) {
+import { mat4 } from 'gl-matrix';
+
+export default function (canvas: HTMLCanvasElement) {
   const gl = canvas.getContext('webgl')!;
 
   if (!gl) {
@@ -7,21 +9,23 @@ export default function whiteTriangle(canvas: HTMLCanvasElement) {
 
   const vertexShaderSource = `
     attribute vec2 a_position;
-    uniform float u_time;
+    uniform mat4 u_worldMat;
 
     void main() {
       vec2 local_pos = a_position * 0.5;
-      float angle = u_time;
-      vec2 up = vec2(-sin(angle), cos(angle));
-      vec2 right = vec2(cos(angle), sin(angle));
-      gl_Position = vec4(local_pos.x * right + local_pos.y * up, 0.0, 1.0);
+      // float angle = u_time;
+      // vec2 up = vec2(-sin(angle), cos(angle));
+      // vec2 right = vec2(cos(angle), sin(angle));
+      gl_Position = u_worldMat * vec4(local_pos, 0.0, 1.0);
     }
   `;
 
   const fragmentShaderSource = `
     precision mediump float;
+    uniform float u_time;
+
     void main() {
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      gl_FragColor = vec4(sin(u_time), 1.0, cos(u_time), 1.0);
     }
   `;
 
@@ -39,12 +43,20 @@ export default function whiteTriangle(canvas: HTMLCanvasElement) {
   gl.linkProgram(program);
 
   const timeLocation = gl.getUniformLocation(program, 'u_time');
+  const worldMatLocation = gl.getUniformLocation(program, 'u_worldMat');
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    new Float32Array([-1, -1, 1, -1, 0, 1]),
+    new Float32Array([
+      -Math.sin((2 * Math.PI) / 3),
+      -0.5,
+      Math.sin((2 * Math.PI) / 3),
+      -0.5,
+      0,
+      1,
+    ]),
     gl.STATIC_DRAW,
   );
   gl.enableVertexAttribArray(positionLocation);
@@ -54,7 +66,12 @@ export default function whiteTriangle(canvas: HTMLCanvasElement) {
     handle = requestAnimationFrame(animate);
 
     gl.useProgram(program);
+    const transform = mat4.create();
+    mat4.rotate(transform, transform, performance.now() * 0.001, [0, 0, 1]);
+
     gl.uniform1f(timeLocation, performance.now() * 0.001);
+    gl.uniformMatrix4fv(worldMatLocation, false, transform);
+
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
