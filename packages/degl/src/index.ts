@@ -3,6 +3,7 @@ import { DeGLContext } from './degl-context.ts';
 import { $internal } from './types.ts';
 import { MockWGSLGenerator } from './wgsl/mock-wgsl-generator.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';
+import { DeGLBuffer } from './buffer.ts';
 
 export async function enable() {
   const originalGetContext = HTMLCanvasElement.prototype.getContext as any;
@@ -42,10 +43,23 @@ export function getDevice(
 export function importWebGPUBuffer(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   wgpuBuffer: GPUBuffer,
-) {
+): WebGLBuffer {
   if (!(gl instanceof DeGLContext)) {
     throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
   }
 
-  return gl[$internal].device;
+  const glBuffer = gl.createBuffer() as DeGLBuffer;
+  glBuffer[$internal].importExistingWebGPUBuffer(wgpuBuffer);
+  return glBuffer;
+}
+
+export function getWebGPUBuffer(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  glBuffer: WebGLBuffer,
+): GPUBuffer {
+  if (!(gl instanceof DeGLContext)) {
+    throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
+  }
+
+  return (glBuffer as DeGLBuffer)[$internal].gpuBuffer;
 }

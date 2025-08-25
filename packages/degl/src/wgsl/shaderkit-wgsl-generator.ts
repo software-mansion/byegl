@@ -137,6 +137,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       return `${expression.operator}${argument}`;
     }
 
+    if (expression.type === 'MemberExpression') {
+      const object = this.generateExpression(expression.object);
+      const property = this.generateExpression(expression.property);
+      return `${object}.${property}`;
+    }
+
     throw new Error(`Unsupported expression type: ${expression.type}`);
   }
 

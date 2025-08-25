@@ -3,126 +3,9 @@ import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { DeGLUniformLocation } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
+import { DeGLBuffer, VertexBufferSegment } from './buffer.ts';
 
 const gl = WebGLRenderingContext;
-
-type RemappedVertexFormat = 'unorm8x3';
-
-interface VertexBufferSegment {
-  buffer: DeGLBufferInternal;
-  /**
-   * Where from the original buffer does the data for this segment start.
-   */
-  offset: number;
-  stride: number;
-  format: GPUVertexFormat | RemappedVertexFormat;
-  remappedStride: number;
-  remappedFormat: GPUVertexFormat;
-  /**
-   * The numeric location associated with this attribute, which will correspond with a
-   * <a href="https://gpuweb.github.io/gpuweb/wgsl/#input-output-locations">"@location" attribute</a>
-   * declared in the {@link GPURenderPipelineDescriptor#vertex}.{@link GPUProgrammableStage#module | module}.
-   */
-  shaderLocation: GPUIndex32;
-}
-
-/**
- * The internal state of degl buffers
- */
-class DeGLBufferInternal {
-  readonly #root: TgpuRoot;
-  readonly #remapper: Remapper;
-
-  #byteLength: number | undefined;
-  #gpuBuffer: GPUBuffer | undefined;
-  gpuBufferDirty = true;
-
-  /**
-   * Since this buffer can be bound to a vertex attribute using a format
-   * that is not natively supported by WebGPU (e.g. unorm8x3), we allocate a
-   * secondary buffer that holds the data remapped to match the expected format.
-   *
-   * This one remaps an 8x3 buffer into an 8x4 buffer.
-   */
-  #variant8x3to8x4: GPUBuffer | undefined;
-  variant8x3to8x4Dirty = true;
-
-  constructor(root: TgpuRoot, remapper: Remapper) {
-    this.#root = root;
-    this.#remapper = remapper;
-  }
-
-  get byteLength(): number | undefined {
-    return this.#byteLength;
-  }
-
-  set byteLength(value: number) {
-    if (value !== this.#byteLength) {
-      this.#byteLength = value;
-      this.gpuBufferDirty = true;
-      this.variant8x3to8x4Dirty = true;
-    }
-  }
-
-  get gpuBuffer(): GPUBuffer {
-    if (!this.gpuBufferDirty) {
-      return this.#gpuBuffer!;
-    }
-    this.gpuBufferDirty = false;
-
-    // Cleaning up old buffer, if it exists
-    this.#gpuBuffer?.destroy();
-
-    this.#gpuBuffer = this.#root.device.createBuffer({
-      label: 'DeGL Vertex Buffer',
-      size: this.#byteLength!,
-      usage:
-        GPUBufferUsage.COPY_DST |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.VERTEX |
-        GPUBufferUsage.STORAGE,
-    });
-
-    return this.#gpuBuffer;
-  }
-
-  get variant8x3to8x4(): GPUBuffer {
-    const elements = Math.floor(this.#byteLength! / 3);
-
-    if (this.variant8x3to8x4Dirty) {
-      // Recreate the variant buffer
-      this.variant8x3to8x4Dirty = false;
-      // Cleaning up old buffer, if it exists
-      this.#variant8x3to8x4?.destroy();
-      this.#variant8x3to8x4 = this.#root.device.createBuffer({
-        label: 'DeGL Vertex Buffer (8x3 -> 8x4)',
-        size: elements * 4,
-        usage:
-          GPUBufferUsage.COPY_DST |
-          GPUBufferUsage.COPY_SRC |
-          GPUBufferUsage.VERTEX |
-          GPUBufferUsage.STORAGE,
-      });
-    }
-
-    const gpuBuffer = this.gpuBuffer;
-    this.#remapper.remap8x3to8x4(this.gpuBuffer, this.#variant8x3to8x4!);
-    return this.#variant8x3to8x4!;
-  }
-
-  destroy() {
-    this.#gpuBuffer?.destroy();
-    this.#variant8x3to8x4?.destroy();
-  }
-}
-
-class DeGLBuffer {
-  readonly [$internal]: DeGLBufferInternal;
-
-  constructor(root: TgpuRoot, remapper: Remapper) {
-    this[$internal] = new DeGLBufferInternal(root, remapper);
-  }
-}
 
 class DeGLShader implements WebGLShader {
   readonly [$internal]: {
@@ -187,39 +70,6 @@ const unnormalizedVertexFormatCatalog: Record<
     2: 'uint8x2',
     // 3 is actually missing from WebGPU right now :(
     4: 'uint8x4',
-  },
-};
-
-const vertexFormatRemappings: Record<
-  string,
-  (bufferView: ArrayBufferView<ArrayBufferLike>) => {
-    newFormat: string;
-    buffer: ArrayBuffer;
-  }
-> = {
-  unorm8x3: (input: ArrayBufferView<ArrayBufferLike> | ArrayBufferLike) => {
-    if (input.byteLength % 3 !== 0) {
-      throw new Error('Invalid buffer size');
-    }
-    const elementCount = input.byteLength / 3;
-    const resultBuffer = new ArrayBuffer(elementCount * 4);
-    const resultView = new Uint8Array(resultBuffer);
-
-    const u8View =
-      'byteOffset' in input
-        ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
-        : new Uint8Array(input);
-
-    for (let i = 0, j = 0; i < u8View.byteLength; i += 3, j += 4) {
-      const r = u8View[i];
-      const g = u8View[i + 1];
-      const b = u8View[i + 2];
-      resultView[j] = r;
-      resultView[j + 1] = g;
-      resultView[j + 2] = b;
-    }
-
-    return { newFormat: 'unorm8x4', buffer: resultBuffer };
   },
 };
 
@@ -553,6 +403,9 @@ export class DeGLContext {
             format: this.#format,
           },
         ],
+      },
+      primitive: {
+        topology: 'triangle-list',
       },
     });
 
