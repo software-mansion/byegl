@@ -27,7 +27,6 @@ class DeGlProgramInternals {
   attributeLocationMap: Map<string, number> | undefined;
   uniformLocationMap: Map<string, number> | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
-  wgpuPipeline: GPURenderPipeline | undefined;
 
   constructor() {}
 }
@@ -226,6 +225,9 @@ export class DeGLContext {
 
   bindBuffer(target: GLenum, buffer: DeGLBuffer | null): void {
     if (buffer) {
+      if (target === gl.ELEMENT_ARRAY_BUFFER) {
+        buffer[$internal].boundAsIndexBuffer = true;
+      }
       this.#boundBufferMap.set(target, buffer);
     } else {
       this.#boundBufferMap.delete(target);
@@ -371,47 +373,6 @@ export class DeGLContext {
     // TODO: Change which part of the target texture we're drawing to
   }
 
-  #createPipeline(): GPURenderPipeline {
-    const program = this.#program![$internal];
-
-    const vertexLayout = this.#enabledVertexBufferSegments.map(
-      (segment): GPUVertexBufferLayout => ({
-        arrayStride: segment.remappedStride,
-        attributes: [
-          {
-            format: segment.remappedFormat,
-            // The local offset is handled by the global offset of the segment
-            offset: 0,
-            shaderLocation: segment.shaderLocation,
-          },
-        ],
-        stepMode: 'vertex',
-      }),
-    );
-
-    program.wgpuPipeline = this.#root.device.createRenderPipeline({
-      label: 'DeGL Render Pipeline',
-      layout: 'auto',
-      vertex: {
-        module: program.wgpuShaderModule!,
-        buffers: vertexLayout,
-      },
-      fragment: {
-        module: program.wgpuShaderModule!,
-        targets: [
-          {
-            format: this.#format,
-          },
-        ],
-      },
-      primitive: {
-        topology: 'triangle-list',
-      },
-    });
-
-    return program.wgpuPipeline;
-  }
-
   uniform1f(location: DeGLUniformLocation | null, value: GLfloat) {
     if (!location) {
       // Apparently, a `null` location is a no-op in WebGL
@@ -444,7 +405,40 @@ export class DeGLContext {
       throw new Error('No program bound');
     }
 
-    const pipeline = this.#createPipeline();
+    const vertexLayout = this.#enabledVertexBufferSegments.map(
+      (segment): GPUVertexBufferLayout => ({
+        arrayStride: segment.remappedStride,
+        attributes: [
+          {
+            format: segment.remappedFormat,
+            // The local offset is handled by the global offset of the segment
+            offset: 0,
+            shaderLocation: segment.shaderLocation,
+          },
+        ],
+        stepMode: 'vertex',
+      }),
+    );
+
+    const pipeline = this.#root.device.createRenderPipeline({
+      label: 'DeGL Render Pipeline',
+      layout: 'auto',
+      vertex: {
+        module: program.wgpuShaderModule!,
+        buffers: vertexLayout,
+      },
+      fragment: {
+        module: program.wgpuShaderModule!,
+        targets: [
+          {
+            format: this.#format,
+          },
+        ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+      },
+    });
 
     const encoder = this.#root.device.createCommandEncoder({
       label: 'DeGL Command Encoder',
@@ -512,6 +506,132 @@ export class DeGLContext {
     }
 
     renderPass.draw(count, 1, first, 0);
+    renderPass.end();
+
+    this.#root.device.queue.submit([encoder.finish()]);
+  }
+
+  drawElements(
+    mode: GLenum,
+    count: GLsizei,
+    type: GLenum,
+    offset: GLintptr,
+  ): void {
+    const program = this.#program?.[$internal];
+    if (!program) {
+      throw new Error('No program bound');
+    }
+
+    const vertexLayout = this.#enabledVertexBufferSegments.map(
+      (segment): GPUVertexBufferLayout => ({
+        arrayStride: segment.remappedStride,
+        attributes: [
+          {
+            format: segment.remappedFormat,
+            // The local offset is handled by the global offset of the segment
+            offset: 0,
+            shaderLocation: segment.shaderLocation,
+          },
+        ],
+        stepMode: 'vertex',
+      }),
+    );
+
+    const pipeline = this.#root.device.createRenderPipeline({
+      label: 'DeGL Render Pipeline',
+      layout: 'auto',
+      vertex: {
+        module: program.wgpuShaderModule!,
+        buffers: vertexLayout,
+      },
+      fragment: {
+        module: program.wgpuShaderModule!,
+        targets: [
+          {
+            format: this.#format,
+          },
+        ],
+      },
+      primitive: {
+        topology: 'triangle-list',
+      },
+    });
+
+    const encoder = this.#root.device.createCommandEncoder({
+      label: 'DeGL Command Encoder',
+    });
+    const renderPass = encoder.beginRenderPass({
+      label: 'DeGL Render Pass',
+      colorAttachments: [
+        {
+          view: this.#canvasContext.getCurrentTexture().createView(),
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: this.#clearColor,
+        },
+      ],
+    });
+
+    renderPass.setPipeline(pipeline);
+
+    // Vertex buffers
+    let vertexBufferIdx = 0;
+    for (const segment of this.#enabledVertexBufferSegments) {
+      if (segment.format === 'unorm8x3') {
+        renderPass.setVertexBuffer(
+          vertexBufferIdx++,
+          segment.buffer.variant8x3to8x4,
+          segment.offset,
+        );
+      } else {
+        renderPass.setVertexBuffer(
+          vertexBufferIdx++,
+          segment.buffer.gpuBuffer,
+          segment.offset,
+        );
+      }
+    }
+
+    // Index buffer
+    const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
+      $internal
+    ];
+
+    if (indexBuffer) {
+      renderPass.setIndexBuffer(indexBuffer.gpuBuffer, 'uint16');
+    }
+
+    // Uniforms
+    const group =
+      (program.uniformLocationMap?.size ?? 0) > 0
+        ? this.#root.device.createBindGroup({
+            // TODO: Create the bind group layout manually
+            layout: pipeline.getBindGroupLayout(0),
+            entries: program
+              .uniformLocationMap!.values()
+              .map((location) => {
+                const buffer = this.#uniformBufferCache.getBuffer(location);
+
+                if (!buffer) {
+                  return undefined;
+                }
+
+                return {
+                  binding: location,
+                  resource: {
+                    buffer,
+                  },
+                } satisfies GPUBindGroupEntry;
+              })
+              .filter((entry) => entry !== undefined),
+          })
+        : undefined;
+
+    if (group) {
+      renderPass.setBindGroup(0, group);
+    }
+
+    renderPass.drawIndexed(count, 1, offset, 0, 0);
     renderPass.end();
 
     this.#root.device.queue.submit([encoder.finish()]);

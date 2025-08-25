@@ -43,6 +43,11 @@ export class DeGLBufferInternal {
   #variant8x3to8x4: GPUBuffer | undefined;
   variant8x3to8x4Dirty = true;
 
+  /**
+   * If true, this buffer was bound as an index buffer at least once.
+   */
+  #boundAsIndexBuffer = false;
+
   constructor(root: TgpuRoot, remapper: Remapper) {
     this.#root = root;
     this.#remapper = remapper;
@@ -58,6 +63,15 @@ export class DeGLBufferInternal {
       this.gpuBufferDirty = true;
       this.variant8x3to8x4Dirty = true;
     }
+  }
+
+  set boundAsIndexBuffer(value: boolean) {
+    if (this.#boundAsIndexBuffer) {
+      return;
+    }
+    this.#boundAsIndexBuffer = value;
+    this.gpuBufferDirty = true;
+    this.variant8x3to8x4Dirty = true;
   }
 
   importExistingWebGPUBuffer(buffer: GPUBuffer) {
@@ -91,7 +105,8 @@ export class DeGLBufferInternal {
         GPUBufferUsage.COPY_DST |
         GPUBufferUsage.COPY_SRC |
         GPUBufferUsage.VERTEX |
-        GPUBufferUsage.STORAGE,
+        GPUBufferUsage.STORAGE |
+        (this.#boundAsIndexBuffer ? GPUBufferUsage.INDEX : 0),
     });
 
     return this.#gpuBuffer;
