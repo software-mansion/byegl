@@ -169,9 +169,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
           // Defining proxies
           code += `/* attribute */ var<private> ${decl.id.name}: ${wgslType};\n`;
-        }
-
-        if (decl.qualifiers.includes('varying')) {
+        } else if (decl.qualifiers.includes('varying')) {
           // Finding the next available varying index
           do {
             this.#lastVaryingIdx++;
@@ -192,9 +190,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             // Defining proxies
             code += `/* varying */ var<private> ${decl.id.name}: ${wgslType};\n`;
           }
-        }
-
-        if (decl.qualifiers.includes('uniform')) {
+        } else if (decl.qualifiers.includes('uniform')) {
           // Finding the next available uniform index
           do {
             this.#lastBindingIdx++;
@@ -209,6 +205,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           });
 
           code += `@group(${this.#bindingGroupIdx}) @binding(${this.#lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslType};\n`;
+        } else {
+          // Regular variable
+          const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+          if (decl.init) {
+            code += `var ${decl.id.name}: ${wgslType} = ${this.generateExpression(decl.init)};\n`;
+          } else {
+            code += `var ${decl.id.name}: ${wgslType};\n`;
+          }
         }
 
         // TODO: Handle manual layout qualifiers (e.g. layout(location=0))

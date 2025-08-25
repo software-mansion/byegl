@@ -10,7 +10,11 @@ export default function whiteTriangle(canvas: HTMLCanvasElement) {
     uniform float u_time;
 
     void main() {
-      gl_Position = vec4(a_position * 0.5 + vec2(cos(u_time), 0), 0.0, 1.0);
+      vec2 local_pos = a_position * 0.5;
+      float angle = u_time;
+      vec2 up = vec2(-sin(angle), cos(angle));
+      vec2 right = vec2(cos(angle), sin(angle));
+      gl_Position = vec4(local_pos.x * right + local_pos.y * up, 0.0, 1.0);
     }
   `;
 
