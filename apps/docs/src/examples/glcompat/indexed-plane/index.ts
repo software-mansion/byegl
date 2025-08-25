@@ -7,16 +7,23 @@ export default function (canvas: HTMLCanvasElement) {
 
   const vertexShaderSource = `
     attribute vec2 a_position;
+    attribute vec3 a_color;
+
+    varying vec3 v_color;
 
     void main() {
       gl_Position = vec4(a_position * 0.5, 0.0, 1.0);
+      v_color = a_color;
     }
   `;
 
   const fragmentShaderSource = `
     precision mediump float;
+
+    varying vec3 v_color;
+
     void main() {
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      gl_FragColor = vec4(v_color, 1.0);
     }
   `;
 
@@ -34,13 +41,47 @@ export default function (canvas: HTMLCanvasElement) {
   gl.linkProgram(program);
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
+  const colorLocation = gl.getAttribLocation(program, 'a_color');
+
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+    new Float32Array([
+      // bottom-left
+      -1, -1,
+      // bottom-right
+      1, -1,
+      // top-left
+      -1, 1,
+      // top-right
+      1, 1,
+    ]),
     gl.STATIC_DRAW,
   );
+
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+  const colorBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+      // bottom-left
+      1, 0, 0,
+      // bottom-right
+      1, 0, 1,
+      // top-left
+      0, 1, 0,
+      // top-right
+      0, 1, 1,
+    ]),
+    gl.STATIC_DRAW,
+  );
+
+  gl.enableVertexAttribArray(colorLocation);
+  gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0);
 
   const indexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
@@ -54,9 +95,6 @@ export default function (canvas: HTMLCanvasElement) {
     ]),
     gl.STATIC_DRAW,
   );
-
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
   gl.useProgram(program);
   gl.clearColor(0, 0, 0, 1);
