@@ -6,17 +6,24 @@
         class="group-[[data-show-example]]:contents not-group-[[data-show-example]]:hidden"
     >
         <div>
-            <h2 class="text-center">Actual</h2>
-            <canvas width="400" height="400" class="h-[40vh]" id="canvas"
-            ></canvas>
+            <h2 class="text-center group-[[data-uses-hooks=true]]:hidden">
+                Actual
+            </h2>
+            <canvas
+                width="1024"
+                height="1024"
+                class="h-[40vh] group-[[data-uses-hooks=true]]:h-[80vh]"
+                id="canvas"></canvas>
         </div>
         <div class="group-[[data-uses-hooks=true]]:hidden">
             <h2 class="text-center">Ground Truth</h2>
             <canvas
-                width="400"
-                height="400"
+                width="1024"
+                height="1024"
                 class="h-[40vh]"
-                id="ground-truth-canvas"></canvas>
+                id="ground-truth-canvas"
+            >
+            </canvas>
         </div>
     </div>
     <p

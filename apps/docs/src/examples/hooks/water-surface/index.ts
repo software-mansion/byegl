@@ -189,7 +189,7 @@ export default function (canvas: HTMLCanvasElement) {
     waterSurface.computeGeometry();
 
     const viewMat = mat4.create();
-    mat4.translate(viewMat, viewMat, [0, -0.3, -1.5]);
+    mat4.lookAt(viewMat, [1.5, 1, 1.5], [0, 0, 0], [0, 1, 0]);
 
     const modelMatrix = mat4.create();
     mat4.identity(modelMatrix);
