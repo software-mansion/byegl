@@ -40,6 +40,7 @@ interface UniformInfo {
 }
 
 const glslToWgslTypeMap = {
+  float: 'f32',
   vec2: 'vec2f',
   vec3: 'vec3f',
   vec4: 'vec4f',
@@ -114,7 +115,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const args = expression.arguments
         .map((arg) => this.generateExpression(arg))
         .join(', ');
-      return `${funcName}(${args});`;
+      return `${funcName}(${args})`;
     }
 
     if (expression.type === 'AssignmentExpression') {

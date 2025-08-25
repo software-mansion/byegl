@@ -1,7 +1,7 @@
 import { TgpuRoot } from 'typegpu';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
-import { DeGLUniformLocation } from './uniform.ts';
+import { DeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
 import { DeGLBuffer, VertexBufferSegment } from './buffer.ts';
 
@@ -100,6 +100,7 @@ export class DeGLContext {
   #boundBufferMap: Map<GLenum, DeGLBuffer> = new Map();
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
+  #uniformBufferCache: UniformBufferCache;
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
@@ -115,6 +116,7 @@ export class DeGLContext {
     this[$internal] = { device: root.device };
     this.#root = root;
     this.#remapper = new Remapper(root);
+    this.#uniformBufferCache = new UniformBufferCache(root);
     this.#format = navigator.gpu.getPreferredCanvasFormat();
     this.#wgslGen = wgslGen;
     const canvasCtx = canvas.getContext('webgpu');
@@ -412,6 +414,16 @@ export class DeGLContext {
     return program.wgpuPipeline;
   }
 
+  uniform1f(location: DeGLUniformLocation | null, value: GLfloat) {
+    if (!location) {
+      throw new Error('No location provided');
+    }
+    this.#uniformBufferCache.updateUniform(
+      location,
+      new Float32Array([value]).buffer,
+    );
+  }
+
   uniformMatrix4fv(
     location: DeGLUniformLocation | null,
     transpose: GLboolean,
@@ -438,7 +450,8 @@ export class DeGLContext {
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
-    if (!this.#program) {
+    const program = this.#program?.[$internal];
+    if (!program) {
       throw new Error('No program bound');
     }
 
@@ -477,6 +490,28 @@ export class DeGLContext {
           segment.offset,
         );
       }
+    }
+
+    // Uniforms
+    const group =
+      (program.uniformLocationMap?.size ?? 0) > 0
+        ? this.#root.device.createBindGroup({
+            // TODO: Create the bind group layout manually
+            layout: pipeline.getBindGroupLayout(0),
+            entries: program.uniformLocationMap!.values().map(
+              (location) =>
+                ({
+                  binding: location,
+                  resource: {
+                    buffer: this.#uniformBufferCache.getBuffer(location),
+                  },
+                }) satisfies GPUBindGroupEntry,
+            ),
+          })
+        : undefined;
+
+    if (group) {
+      renderPass.setBindGroup(0, group);
     }
 
     renderPass.draw(count, 1, first, 0);
