@@ -27,7 +27,13 @@ function createWaterSurface(
   }
   indexBuffer.unmap();
 
-  const vertexBuffer = device.createBuffer({
+  const positionBuffer = device.createBuffer({
+    size: (resolution[0] + 1) * (resolution[1] + 1) * 16, // float32x3 (with 4 byte padding)
+    usage:
+      GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+
+  const normalBuffer = device.createBuffer({
     size: (resolution[0] + 1) * (resolution[1] + 1) * 16, // float32x3 (with 4 byte padding)
     usage:
       GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -39,19 +45,33 @@ function createWaterSurface(
   });
 
   const shaderCode = /* wgsl */ `
-    @group(0) @binding(0) var<storage, read_write> vertices: array<vec3f>;
-    @group(0) @binding(1) var<uniform> time: f32;
+    @group(0) @binding(0) var<uniform> time: f32;
+    @group(0) @binding(1) var<storage, read_write> positions: array<vec3f>;
+    @group(0) @binding(2) var<storage, read_write> normals: array<vec3f>;
 
     @compute @workgroup_size(1)
     fn main(@builtin(global_invocation_id) gid: vec3u) {
       let idx = gid.x + gid.y * ${resolution[0] + 1};
-      let x = f32(gid.x) - ${resolution[0]} * 0.5;
-      let z = f32(gid.y) - ${resolution[1]} * 0.5;
+      let x = (f32(gid.x) / ${resolution[0]}) - 0.5;
+      let z = (f32(gid.y) / ${resolution[1]}) - 0.5;
 
-      var height = sin(time * 5 + x) * 0.2;
-      height += cos(time + (z * 0.4) + x * 0.3) * 0.2;
+      var height = 0.0;
+      var grad = vec3f(0, 1, 0);
 
-      vertices[idx] = vec3f(x, height, z);
+      height += sin(time * 5 + x * 8) * 0.02;
+      grad.x += cos(time * 5 + x * 8) * 0.02 * 8;
+
+      height += 0.03 * cos(time + (z * 3) + x * 4);
+      grad.x += 0.03 * sin(time + (z * 3) + x * 4) * 4;
+      grad.z += 0.03 * sin(time + (z * 3) + x * 4) * 3;
+
+      // Higher frequency
+      height += 0.01 * sin(time + x * 40 + -z * 30);
+      grad.x += 0.01 * cos(time + x * 40 + -z * 30) * 40;
+      grad.z += 0.01 * cos(time + x * 40 + -z * 30) * -30;
+
+      positions[idx] = vec3f(x, height, z);
+      normals[idx] = vec3f(-grad.x, 1, -grad.z);
     }
   `;
 
@@ -65,13 +85,15 @@ function createWaterSurface(
   const bindGroup = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
     entries: [
-      { binding: 0, resource: { buffer: vertexBuffer } },
-      { binding: 1, resource: { buffer: timeBuffer } },
+      { binding: 0, resource: { buffer: timeBuffer } },
+      { binding: 1, resource: { buffer: positionBuffer } },
+      { binding: 2, resource: { buffer: normalBuffer } },
     ],
   });
 
   return {
-    vertexBuffer,
+    positionBuffer,
+    normalBuffer,
     indexBuffer,
     computeGeometry() {
       device.queue.writeBuffer(
@@ -100,17 +122,30 @@ export default function (canvas: HTMLCanvasElement) {
 
   const vertexShaderSource = `
     attribute vec4 a_position;
+    attribute vec4 a_normal;
+
     uniform mat4 u_modelViewProjectionMatrix;
+
+    varying vec3 v_normal;
 
     void main() {
       gl_Position = u_modelViewProjectionMatrix * vec4(a_position.xyz, 1.0);
+      v_normal = a_normal.xyz;
     }
   `;
 
   const fragmentShaderSource = `
     precision mediump float;
+
+    varying vec3 v_normal;
+
     void main() {
-      gl_FragColor = vec4(0.3, 0.4, 0.7, 1.0);
+      vec3 normal = normalize(v_normal);
+      vec3 light = normalize(vec3(0.5, 0.5, 1.0));
+      float att = dot(normal, light);
+      vec3 ambient = vec3(0.3, 0.4, 0.7);
+      vec3 diffuse = vec3(0.3, 0.4, 0.7);
+      gl_FragColor = vec4(ambient + diffuse * att, 1.0);
     }
   `;
 
@@ -127,15 +162,24 @@ export default function (canvas: HTMLCanvasElement) {
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
 
-  const resolution = [32, 32] as const;
+  const resolution = [64, 64] as const;
   const waterSurface = createWaterSurface(degl.getDevice(gl), resolution);
   waterSurface.computeGeometry();
-  const positionBuffer = degl.importWebGPUBuffer(gl, waterSurface.vertexBuffer);
+  const positionBuffer = degl.importWebGPUBuffer(
+    gl,
+    waterSurface.positionBuffer,
+  );
+  const normalBuffer = degl.importWebGPUBuffer(gl, waterSurface.normalBuffer);
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 4, gl.FLOAT, false, 0, 0);
+
+  const normalLocation = gl.getAttribLocation(program, 'a_normal');
+  gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+  gl.enableVertexAttribArray(normalLocation);
+  gl.vertexAttribPointer(normalLocation, 4, gl.FLOAT, false, 0, 0);
 
   const indexBuffer = degl.importWebGPUBuffer(gl, waterSurface.indexBuffer);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
@@ -145,7 +189,7 @@ export default function (canvas: HTMLCanvasElement) {
     waterSurface.computeGeometry();
 
     const viewMat = mat4.create();
-    mat4.translate(viewMat, viewMat, [0, -2, -20]);
+    mat4.translate(viewMat, viewMat, [0, -0.3, -1.5]);
 
     const modelMatrix = mat4.create();
     mat4.identity(modelMatrix);
