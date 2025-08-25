@@ -1,4 +1,5 @@
 import * as degl from 'degl';
+import { mat4 } from 'gl-matrix';
 
 function createWaterSurface(
   device: GPUDevice,
@@ -22,11 +23,12 @@ function createWaterSurface(
     @compute @workgroup_size(1)
     fn main(@builtin(global_invocation_id) gid: vec3u) {
       let idx = gid.x + gid.y * ${resolution[0]};
-      let x = f32(gid.x);
-      let z = f32(gid.y);
+      let x = f32(gid.x) - ${resolution[0]} * 0.5;
+      let z = f32(gid.y) - ${resolution[1]} * 0.5;
 
       let start = idx * 6;
-      let height = sin(time + f32(idx) * 0.01) * 10;
+      var height = sin(time * 5 + x) * 0.2;
+      height += cos(time + (z * 0.4) + x * 0.3) * 0.2;
 
       vertices[start + 0] = vec3f(x, height, z);
       vertices[start + 1] = vec3f(x + 1, height, z);
@@ -67,6 +69,7 @@ function createWaterSurface(
       pass.setBindGroup(0, bindGroup);
       pass.dispatchWorkgroups(resolution[0], resolution[1]);
       pass.end();
+
       device.queue.submit([encoder.finish()]);
     },
   };
@@ -81,9 +84,10 @@ export default function (canvas: HTMLCanvasElement) {
 
   const vertexShaderSource = `
     attribute vec4 a_position;
+    uniform mat4 u_modelViewProjectionMatrix;
 
     void main() {
-      gl_Position = vec4(a_position.xyz * 0.1, 1.0);
+      gl_Position = u_modelViewProjectionMatrix * vec4(a_position.xyz, 1.0);
     }
   `;
 
@@ -121,7 +125,31 @@ export default function (canvas: HTMLCanvasElement) {
     handle = requestAnimationFrame(animate);
     waterSurface.computeGeometry();
 
+    const viewMat = mat4.create();
+    mat4.translate(viewMat, viewMat, [0, -2, -20]);
+
+    const modelMatrix = mat4.create();
+    mat4.identity(modelMatrix);
+
+    const projectionMatrix = mat4.create();
+    mat4.perspective(
+      projectionMatrix,
+      Math.PI / 4,
+      gl.canvas.width / gl.canvas.height,
+      0.1,
+      100.0,
+    );
+
+    const modelViewProjectionMatrix = mat4.create();
+    mat4.mul(modelViewProjectionMatrix, projectionMatrix, viewMat);
+    mat4.mul(modelViewProjectionMatrix, modelMatrix, modelViewProjectionMatrix);
+
     gl.useProgram(program);
+    gl.uniformMatrix4fv(
+      gl.getUniformLocation(program, 'u_modelViewProjectionMatrix'),
+      false,
+      modelViewProjectionMatrix,
+    );
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, resolution[0] * resolution[1] * 6);
