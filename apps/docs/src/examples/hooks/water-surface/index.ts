@@ -94,7 +94,7 @@ export default function (canvas: HTMLCanvasElement) {
   const fragmentShaderSource = `
     precision mediump float;
     void main() {
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      gl_FragColor = vec4(0.3, 0.4, 0.7, 1.0);
     }
   `;
 
@@ -150,7 +150,7 @@ export default function (canvas: HTMLCanvasElement) {
       false,
       modelViewProjectionMatrix,
     );
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0.85, 0.9, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, resolution[0] * resolution[1] * 6);
   }

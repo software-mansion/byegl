@@ -101,6 +101,7 @@ export class DeGLContext {
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
+  #clearColor: [number, number, number, number] = [0, 0, 0, 0];
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
@@ -330,7 +331,7 @@ export class DeGLContext {
   }
 
   clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
-    // TODO: Implement clear color setup
+    this.#clearColor = [r, g, b, a];
   }
 
   clear(mask: GLbitfield): void {
@@ -372,9 +373,6 @@ export class DeGLContext {
 
   #createPipeline(): GPURenderPipeline {
     const program = this.#program![$internal];
-    const boundArrayBuffer = this.#boundBufferMap.get(gl.ARRAY_BUFFER)?.[
-      $internal
-    ];
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
       (segment): GPUVertexBufferLayout => ({
@@ -458,7 +456,7 @@ export class DeGLContext {
           view: this.#canvasContext.getCurrentTexture().createView(),
           loadOp: 'clear',
           storeOp: 'store',
-          clearValue: [0.0, 0.0, 0.0, 1.0],
+          clearValue: this.#clearColor,
         },
       ],
     });

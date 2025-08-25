@@ -72,7 +72,7 @@ export default function (canvas: HTMLCanvasElement) {
     gl.uniform1f(timeLocation, performance.now() * 0.001);
     gl.uniformMatrix4fv(worldMatLocation, false, transform);
 
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0, 0.2, 0.4, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
