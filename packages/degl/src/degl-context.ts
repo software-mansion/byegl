@@ -224,6 +224,8 @@ const vertexFormatRemappings: Record<
 };
 
 export class DeGLContext {
+  readonly [$internal]: { device: GPUDevice };
+
   #root: TgpuRoot;
   #remapper: Remapper;
   #format: GPUTextureFormat;
@@ -260,6 +262,7 @@ export class DeGLContext {
     canvas: HTMLCanvasElement,
     wgslGen: WgslGenerator,
   ) {
+    this[$internal] = { device: root.device };
     this.#root = root;
     this.#remapper = new Remapper(root);
     this.#format = navigator.gpu.getPreferredCanvasFormat();

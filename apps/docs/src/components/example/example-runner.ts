@@ -17,7 +17,9 @@ let prevGroundTruthCleanup: (() => void) | undefined;
 
 export async function runExample(example: ExampleContent) {
   prevCleanup?.();
+  prevCleanup = undefined;
   prevGroundTruthCleanup?.();
+  prevGroundTruthCleanup = undefined;
 
   console.log('Running example: ', example.meta.name);
 
@@ -27,11 +29,14 @@ export async function runExample(example: ExampleContent) {
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
-  prevGroundTruthCleanup = await example.execute(groundTruthCanvas);
+  if (!example.meta.usesHooks) {
+    // Only run ground-truth if the example does not use DeGL hooks
+    prevGroundTruthCleanup = await (await example.execute())(groundTruthCanvas);
+  }
 
   const disable = await degl.enable();
   try {
-    prevCleanup = await example.execute(canvas);
+    prevCleanup = await (await example.execute())(canvas);
   } finally {
     disable();
   }

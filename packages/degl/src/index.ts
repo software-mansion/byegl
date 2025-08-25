@@ -1,5 +1,6 @@
 import tgpu from 'typegpu';
 import { DeGLContext } from './degl-context.ts';
+import { $internal } from './types.ts';
 import { MockWGSLGenerator } from './wgsl/mock-wgsl-generator.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';
 
@@ -26,4 +27,25 @@ export async function enable() {
   return () => {
     HTMLCanvasElement.prototype.getContext = originalGetContext;
   };
+}
+
+export function getDevice(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+): GPUDevice {
+  if (!(gl instanceof DeGLContext)) {
+    throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
+  }
+
+  return gl[$internal].device;
+}
+
+export function importWebGPUBuffer(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  wgpuBuffer: GPUBuffer,
+) {
+  if (!(gl instanceof DeGLContext)) {
+    throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
+  }
+
+  return gl[$internal].device;
 }

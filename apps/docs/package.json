@@ -12,11 +12,12 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",
     "astro": "^5.13.2",
+    "degl": "workspace:*",
     "remeda": "^2.30.0",
-    "tailwindcss": "^4.1.12",
-    "degl": "workspace:*"
+    "tailwindcss": "^4.1.12"
   },
   "devDependencies": {
+    "@webgpu/types": "^0.1.64",
     "daisyui": "^5.0.50"
   }
 }

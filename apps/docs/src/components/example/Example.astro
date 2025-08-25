@@ -10,7 +10,7 @@
             <canvas width="400" height="400" class="h-[40vh]" id="canvas"
             ></canvas>
         </div>
-        <div>
+        <div class="group-[[data-uses-hooks=true]]:hidden">
             <h2 class="text-center">Ground Truth</h2>
             <canvas
                 width="400"
@@ -40,8 +40,11 @@
             return;
         }
         const example = examples[exampleKey];
-        runExample(example);
         exampleMainEl.dataset.showExample = "true";
+        exampleMainEl.dataset.usesHooks = example.meta.usesHooks
+            ? "true"
+            : "false";
+        runExample(example);
     }
 
     // Listening to when the current URL changes

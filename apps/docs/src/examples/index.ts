@@ -2,6 +2,7 @@ import { mapKeys, mapValues, pipe } from 'remeda';
 
 export interface ExampleMeta {
   name: string;
+  usesHooks?: boolean | undefined;
 }
 
 export type ExampleExecute = (
@@ -10,12 +11,11 @@ export type ExampleExecute = (
 
 export interface ExampleContent {
   meta: ExampleMeta;
-  execute: ExampleExecute;
+  execute: () => Promise<ExampleExecute>;
 }
 
-const mapExampleKeys = mapKeys((key: string) =>
-  key.replace(/^\.\/(.*)\/.*$/, '$1'),
-);
+const mapExampleKeys = <T extends Record<string, unknown>>(data: T) =>
+  mapKeys(data, (key: string) => key.replace(/^\.\/(.*)\/.*$/, '$1'));
 
 const metaFiles = pipe(
   import.meta.glob('./**/meta.json', {
@@ -27,9 +27,8 @@ const metaFiles = pipe(
 
 const executableFiles = pipe(
   import.meta.glob('./**/*.ts', {
-    eager: true,
     import: 'default',
-  }) as Record<string, ExampleExecute>,
+  }) as Record<string, () => Promise<ExampleExecute>>,
   mapExampleKeys,
 );
 
