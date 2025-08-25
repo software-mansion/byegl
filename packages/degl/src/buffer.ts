@@ -48,6 +48,11 @@ export class DeGLBufferInternal {
    */
   #boundAsIndexBuffer = false;
 
+  /**
+   * If true, this buffer was imported from an existing WebGPU buffer.
+   */
+  #imported = false;
+
   constructor(root: TgpuRoot, remapper: Remapper) {
     this.#root = root;
     this.#remapper = remapper;
@@ -79,12 +84,16 @@ export class DeGLBufferInternal {
       return;
     }
 
+    this.#imported = true;
+
     // Cleaning up old buffer, if it exists
     this.#gpuBuffer?.destroy();
 
     this.#gpuBuffer = buffer;
     this.byteLength = buffer.size;
     this.gpuBufferDirty = false;
+    this.#boundAsIndexBuffer =
+      buffer.usage & GPUBufferUsage.INDEX ? true : false;
 
     this.variant8x3to8x4Dirty = true;
   }
@@ -95,8 +104,12 @@ export class DeGLBufferInternal {
     }
     this.gpuBufferDirty = false;
 
-    // Cleaning up old buffer, if it exists
-    this.#gpuBuffer?.destroy();
+    if (this.#imported) {
+      console.warn('Had to recreate imported buffer');
+    } else {
+      // Cleaning up old buffer, if it exists
+      this.#gpuBuffer?.destroy();
+    }
 
     this.#gpuBuffer = this.#root.device.createBuffer({
       label: 'DeGL Vertex Buffer',

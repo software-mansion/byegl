@@ -5,8 +5,30 @@ function createWaterSurface(
   device: GPUDevice,
   resolution: readonly [number, number],
 ) {
+  const indexBuffer = device.createBuffer({
+    size: resolution[0] * resolution[1] * 2 * 6, // uint16 per vertex
+    usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: true,
+  });
+
+  const indexData = new Uint16Array(indexBuffer.getMappedRange());
+  let idx = 0;
+  for (let y = 0; y < resolution[1]; y++) {
+    for (let x = 0; x < resolution[0]; x++) {
+      const x1y1 = y * (resolution[0] + 1) + x;
+      indexData[idx++] = x1y1;
+      indexData[idx++] = x1y1 + 1;
+      indexData[idx++] = x1y1 + resolution[0] + 2;
+
+      indexData[idx++] = x1y1;
+      indexData[idx++] = x1y1 + resolution[0] + 2;
+      indexData[idx++] = x1y1 + resolution[0] + 1;
+    }
+  }
+  indexBuffer.unmap();
+
   const vertexBuffer = device.createBuffer({
-    size: resolution[0] * resolution[1] * 6 * 16, // float32x3 (with 4 byte padding)
+    size: (resolution[0] + 1) * (resolution[1] + 1) * 16, // float32x3 (with 4 byte padding)
     usage:
       GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
@@ -22,21 +44,14 @@ function createWaterSurface(
 
     @compute @workgroup_size(1)
     fn main(@builtin(global_invocation_id) gid: vec3u) {
-      let idx = gid.x + gid.y * ${resolution[0]};
+      let idx = gid.x + gid.y * ${resolution[0] + 1};
       let x = f32(gid.x) - ${resolution[0]} * 0.5;
       let z = f32(gid.y) - ${resolution[1]} * 0.5;
 
-      let start = idx * 6;
       var height = sin(time * 5 + x) * 0.2;
       height += cos(time + (z * 0.4) + x * 0.3) * 0.2;
 
-      vertices[start + 0] = vec3f(x, height, z);
-      vertices[start + 1] = vec3f(x + 1, height, z);
-      vertices[start + 2] = vec3f(x + 1, height, z + 1);
-
-      vertices[start + 3] = vec3f(x, height, z);
-      vertices[start + 4] = vec3f(x + 1, height, z + 1);
-      vertices[start + 5] = vec3f(x, height, z + 1);
+      vertices[idx] = vec3f(x, height, z);
     }
   `;
 
@@ -57,6 +72,7 @@ function createWaterSurface(
 
   return {
     vertexBuffer,
+    indexBuffer,
     computeGeometry() {
       device.queue.writeBuffer(
         timeBuffer,
@@ -67,7 +83,7 @@ function createWaterSurface(
       const pass = encoder.beginComputePass();
       pass.setPipeline(pipeline);
       pass.setBindGroup(0, bindGroup);
-      pass.dispatchWorkgroups(resolution[0], resolution[1]);
+      pass.dispatchWorkgroups(resolution[0] + 1, resolution[1] + 1);
       pass.end();
 
       device.queue.submit([encoder.finish()]);
@@ -121,6 +137,9 @@ export default function (canvas: HTMLCanvasElement) {
   gl.enableVertexAttribArray(positionLocation);
   gl.vertexAttribPointer(positionLocation, 4, gl.FLOAT, false, 0, 0);
 
+  const indexBuffer = degl.importWebGPUBuffer(gl, waterSurface.indexBuffer);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
   function animate() {
     handle = requestAnimationFrame(animate);
     waterSurface.computeGeometry();
@@ -152,7 +171,12 @@ export default function (canvas: HTMLCanvasElement) {
     );
     gl.clearColor(0.85, 0.9, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.drawArrays(gl.TRIANGLES, 0, resolution[0] * resolution[1] * 6);
+    gl.drawElements(
+      gl.TRIANGLES,
+      resolution[0] * resolution[1] * 6,
+      gl.UNSIGNED_SHORT,
+      0,
+    );
   }
 
   let handle = requestAnimationFrame(animate);
