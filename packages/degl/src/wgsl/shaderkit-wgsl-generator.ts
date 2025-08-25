@@ -55,33 +55,36 @@ const glslToWgslTypeMap = {
   mat4: 'mat4x4f',
 };
 
+interface GenState {
+  shaderType: 'vertex' | 'fragment';
+
+  attributes: Map<number, AttributeInfo>;
+  varyings: Map<number, VaryingInfo>;
+  uniforms: Map<number, UniformInfo>;
+
+  /** Used to track variable declarations with the `attribute` qualifier */
+  lastAttributeIdx: number;
+  /** Used to track variable declarations with the `varying` qualifier */
+  lastVaryingIdx: number;
+  /** Used to track variable declarations with the `uniform` qualifier */
+  lastBindingIdx: number;
+
+  fakeVertexMainId: string;
+  fakeFragmentMainId: string;
+}
+
 export class ShaderkitWGSLGenerator implements WgslGenerator {
   /**
    * NOTE: Always assuming 0, but it may be wise to make this customizable
    */
   #bindingGroupIdx = 0;
-
-  #shaderType: 'vertex' | 'fragment' =
-    'vertex' /* does not matter, will get overriden */;
-
-  /** Used to track variable declarations with the `attribute` qualifier */
-  #lastAttributeIdx = -1;
-  #attributes = new Map<number, AttributeInfo>();
-  /** Used to track variable declarations with the `varying` qualifier */
-  #lastVaryingIdx = -1;
-  #varyings = new Map<number, VaryingInfo>();
-  /** Used to track variable declarations with the `uniform` qualifier */
-  #lastBindingIdx = -1;
-  #uniforms = new Map<number, UniformInfo>();
+  #state!: GenState;
 
   #lastUniqueIdSuffix = -1;
 
   uniqueId(primer?: string | undefined): string {
     return `${primer ?? 'item'}_${++this.#lastUniqueIdSuffix}`;
   }
-
-  #fakeVertexMainId = this.uniqueId('fake_vertex');
-  #fakeFragmentMainId = this.uniqueId('fake_fragment');
 
   generateTypeSpecifier(
     typeSpecifier: shaderkit.Identifier | shaderkit.ArraySpecifier,
@@ -148,6 +151,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
   }
 
   generateStatement(statement: shaderkit.Statement): string {
+    const state = this.#state;
     if (statement.type === 'VariableDeclaration') {
       let code = '';
 
@@ -155,15 +159,15 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         if (decl.qualifiers.includes('attribute')) {
           // Finding the next available attribute index
           do {
-            this.#lastAttributeIdx++;
-          } while (this.#attributes.has(this.#lastAttributeIdx));
+            state.lastAttributeIdx++;
+          } while (state.attributes.has(state.lastAttributeIdx));
 
           const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
 
-          this.#attributes.set(this.#lastAttributeIdx, {
+          state.attributes.set(state.lastAttributeIdx, {
             id: decl.id.name,
             paramId: this.uniqueId(decl.id.name),
-            location: this.#lastAttributeIdx,
+            location: state.lastAttributeIdx,
             type: wgslType,
           });
 
@@ -172,18 +176,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         } else if (decl.qualifiers.includes('varying')) {
           // Finding the next available varying index
           do {
-            this.#lastVaryingIdx++;
-          } while (this.#varyings.has(this.#lastVaryingIdx));
+            state.lastVaryingIdx++;
+          } while (state.varyings.has(state.lastVaryingIdx));
 
-          if (this.#shaderType === 'vertex') {
+          if (state.shaderType === 'vertex') {
             // Only generating in the vertex shader
             const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
 
-            this.#varyings.set(this.#lastVaryingIdx, {
+            state.varyings.set(state.lastVaryingIdx, {
               id: decl.id.name,
               // Arbitrary, choosing the vertex name to be the prop key
               propKey: decl.id.name,
-              location: this.#lastVaryingIdx,
+              location: state.lastVaryingIdx,
               type: wgslType,
             });
 
@@ -193,18 +197,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         } else if (decl.qualifiers.includes('uniform')) {
           // Finding the next available uniform index
           do {
-            this.#lastBindingIdx++;
-          } while (this.#uniforms.has(this.#lastBindingIdx));
+            state.lastBindingIdx++;
+          } while (state.uniforms.has(state.lastBindingIdx));
 
           const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
 
-          this.#uniforms.set(this.#lastBindingIdx, {
+          state.uniforms.set(state.lastBindingIdx, {
             id: decl.id.name,
-            bindingIdx: this.#lastBindingIdx,
+            bindingIdx: state.lastBindingIdx,
             type: this.generateTypeSpecifier(decl.typeSpecifier),
           });
 
-          code += `@group(${this.#bindingGroupIdx}) @binding(${this.#lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslType};\n`;
+          code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslType};\n`;
         } else {
           // Regular variable
           const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
@@ -229,9 +233,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         // We approach it by generating a "fake" entry function
         // that gets called by the actual entry function.
         funcName =
-          this.#shaderType === 'vertex'
-            ? this.#fakeVertexMainId
-            : this.#fakeFragmentMainId;
+          state.shaderType === 'vertex'
+            ? state.fakeVertexMainId
+            : state.fakeFragmentMainId;
       }
 
       const body = statement.body?.body
@@ -255,8 +259,21 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
   generate(vertexCode: string, fragmentCode: string): WgslGeneratorResult {
     // Initializing
-    this.#lastAttributeIdx = -1;
-    this.#lastBindingIdx = -1;
+    this.#lastUniqueIdSuffix = -1;
+    const state: GenState = (this.#state = {
+      shaderType: 'vertex',
+
+      attributes: new Map(),
+      varyings: new Map(),
+      uniforms: new Map(),
+
+      lastAttributeIdx: -1,
+      lastVaryingIdx: -1,
+      lastBindingIdx: -1,
+
+      fakeVertexMainId: this.uniqueId('fake_vertex'),
+      fakeFragmentMainId: this.uniqueId('fake_fragment'),
+    });
 
     const vertexAst = shaderkit.parse(vertexCode);
     const fragmentAst = shaderkit.parse(fragmentCode);
@@ -268,20 +285,20 @@ var<private> gl_FragColor: vec4<f32>;
 
 `;
 
-    this.#lastVaryingIdx = -1;
-    this.#shaderType = 'vertex';
+    state.lastVaryingIdx = -1;
+    state.shaderType = 'vertex';
     for (const statement of vertexAst.body) {
       wgsl += this.generateStatement(statement);
     }
 
-    this.#lastVaryingIdx = -1;
-    this.#shaderType = 'fragment';
+    state.lastVaryingIdx = -1;
+    state.shaderType = 'fragment';
     for (const statement of fragmentAst.body) {
       wgsl += this.generateStatement(statement);
     }
 
     // Generating the real entry functions
-    const attribParams = [...this.#attributes.values()]
+    const attribParams = [...state.attributes.values()]
       .map(
         (attribute) =>
           `@location(${attribute.location}) ${attribute.paramId}: ${attribute.type}`,
@@ -294,16 +311,16 @@ var<private> gl_FragColor: vec4<f32>;
     wgsl += `
 struct ${vertOutStructId} {
   @builtin(position) ${posOutParamId}: vec4f,
-${[...this.#varyings.values()].map((varying) => `  @location(${varying.location}) ${varying.id}: ${varying.type},`).join('\n')}
+${[...state.varyings.values()].map((varying) => `  @location(${varying.location}) ${varying.id}: ${varying.type},`).join('\n')}
 }
 
 `;
 
     // Fragment input struct
     let fragInStructId: string | undefined;
-    if (this.#varyings.size > 0) {
+    if (state.varyings.size > 0) {
       fragInStructId = this.uniqueId('FragmentIn');
-      const fragInParams = [...this.#varyings.values()]
+      const fragInParams = [...state.varyings.values()]
         .map(
           (varying) =>
             `  @location(${varying.location}) ${varying.id}: ${varying.type},`,
@@ -320,20 +337,20 @@ ${fragInParams}
     wgsl += `
 @vertex
 fn ${this.uniqueId('vert_main')}(${attribParams}) -> ${vertOutStructId} {
-${[...this.#attributes.values()].map((attribute) => `  ${attribute.id} = ${attribute.paramId};\n`).join('')}
+${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = ${attribute.paramId};\n`).join('')}
 
-  ${this.#fakeVertexMainId}();
+  ${state.fakeVertexMainId}();
   var output: ${vertOutStructId};
   output.${posOutParamId} = gl_Position;
-${[...this.#varyings.values()].map((varying) => `  output.${varying.id} = ${varying.id};\n`).join('')}
+${[...state.varyings.values()].map((varying) => `  output.${varying.id} = ${varying.id};\n`).join('')}
   return output;
 }
 
 @fragment
 fn ${this.uniqueId('frag_main')}(${fragInStructId ? `input: ${fragInStructId}` : ''}) -> @location(0) vec4f {
   // Filling proxies with varying data
-${[...this.#varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
-  ${this.#fakeFragmentMainId}();
+${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
+  ${this.#state.fakeFragmentMainId}();
   return gl_FragColor;
 }
 `;
@@ -343,12 +360,12 @@ ${[...this.#varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
     return {
       wgsl,
       attributeLocationMap: new Map(
-        [...this.#attributes.values()].map((info) => {
+        [...state.attributes.values()].map((info) => {
           return [info.id, info.location] as const;
         }),
       ),
       uniformLocationMap: new Map(
-        [...this.#uniforms.values()].map((info) => {
+        [...state.uniforms.values()].map((info) => {
           return [info.id, info.bindingIdx] as const;
         }),
       ),
