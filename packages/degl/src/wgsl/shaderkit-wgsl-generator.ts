@@ -71,6 +71,9 @@ interface GenState {
 
   fakeVertexMainId: string;
   fakeFragmentMainId: string;
+
+  lineStart: string;
+  definingFunction: boolean;
 }
 
 export class ShaderkitWGSLGenerator implements WgslGenerator {
@@ -127,7 +130,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       }
       const left = expression.left.name;
       const right = this.generateExpression(expression.right);
-      return `${left} = ${right};`;
+      return `${left} = ${right}`;
     }
 
     if (expression.type === 'BinaryExpression') {
@@ -213,9 +216,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Regular variable
           const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
           if (decl.init) {
-            code += `var ${decl.id.name}: ${wgslType} = ${this.generateExpression(decl.init)};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslType} = ${this.generateExpression(decl.init)};\n`;
           } else {
-            code += `var ${decl.id.name}: ${wgslType};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslType};\n`;
           }
         }
 
@@ -238,15 +241,24 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             : state.fakeFragmentMainId;
       }
 
-      const body = statement.body?.body
-        .map((stmt) => this.generateStatement(stmt))
-        .join('\n');
+      let prevDefiningFunction = state.definingFunction;
+      let prevLineStart = state.lineStart;
+      try {
+        state.definingFunction = true;
+        state.lineStart += '  ';
+        const body = statement.body?.body
+          .map((stmt) => this.generateStatement(stmt))
+          .join('');
 
-      return `\nfn ${funcName}(${params}) {\n${body}\n}\n`;
+        return `\nfn ${funcName}(${params}) {\n${body}\n}\n`;
+      } finally {
+        state.definingFunction = prevDefiningFunction;
+        state.lineStart = prevLineStart;
+      }
     }
 
     if (statement.type === 'ExpressionStatement') {
-      return this.generateExpression(statement.expression);
+      return `${state.lineStart}${this.generateExpression(statement.expression)};\n`;
     }
 
     if (statement.type === 'PrecisionQualifierStatement') {
@@ -273,6 +285,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
       fakeVertexMainId: this.uniqueId('fake_vertex'),
       fakeFragmentMainId: this.uniqueId('fake_fragment'),
+
+      lineStart: '',
+      definingFunction: false,
     });
 
     const vertexAst = shaderkit.parse(vertexCode);
