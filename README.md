@@ -74,8 +74,11 @@ const texture = degl.importWebGPUTexture(gl, wgpuTexture);
 //    ^? WebGLTexture
 ```
 
+## Things to consider when mixing GLSL and WGSL
+
+WebGL's clip-space coordinates are in the range [-1, 1] for X, Y and Z, whereas WebGPU's clip-space Z coordinates are in the range [0, 1]. This is mitigated in the generated WGSL, but when writing your own WGSL shaders, you need to be aware of this difference.
+
 ## Tasks
-- [ ] The `importWebGPUBuffer` hook to import a WebGPU buffer into WebGL
 - [ ] The `importWebGPUTexture` hook to import a WebGPU texture into WebGL
 - [ ] Merge WebGL and WebGL2 entry-points into one, as they don't have many deviations
 

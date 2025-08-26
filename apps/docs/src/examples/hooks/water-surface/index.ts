@@ -164,7 +164,6 @@ export default function (canvas: HTMLCanvasElement) {
 
   const resolution = [64, 64] as const;
   const waterSurface = createWaterSurface(degl.getDevice(gl), resolution);
-  waterSurface.computeGeometry();
   const positionBuffer = degl.importWebGPUBuffer(
     gl,
     waterSurface.positionBuffer,

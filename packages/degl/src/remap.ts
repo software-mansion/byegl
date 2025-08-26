@@ -73,5 +73,7 @@ export class Remapper {
     });
 
     this.#pipeline8x3to8x4.with(layout, bindGroup).dispatchWorkgroups(elements);
+
+    this.root['~unstable'].flush();
   }
 }

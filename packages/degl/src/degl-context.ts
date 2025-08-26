@@ -39,6 +39,13 @@ class DeGLProgram implements WebGLProgram {
   }
 }
 
+const elementSizeCatalog: Record<GLenum, number> = {
+  [gl.UNSIGNED_BYTE]: 1,
+  [gl.UNSIGNED_SHORT]: 2,
+  [gl.UNSIGNED_INT]: 4,
+  [gl.FLOAT]: 4,
+};
+
 const normalizedVertexFormatCatalog: Record<
   number,
   Record<
@@ -295,13 +302,20 @@ export class DeGLContext {
     stride: GLsizei,
     offset: GLintptr,
   ): void {
-    // TODO: Pick based on the type
-    const bytesPerElement = Float32Array.BYTES_PER_ELEMENT;
+    const bytesPerElement = elementSizeCatalog[type];
+    if (!bytesPerElement) {
+      throw new Error(`Unsupported vertex type: ${type}`);
+    }
 
-    let format =
-      (normalized
+    let format = (
+      normalized
         ? normalizedVertexFormatCatalog
-        : unnormalizedVertexFormatCatalog)[type][size] ?? 'float32x2';
+        : unnormalizedVertexFormatCatalog
+    )[type][size];
+
+    if (!format) {
+      throw new Error(`Unsupported vertex format: ${type} ${size}`);
+    }
 
     let remappedStride = stride === 0 ? size * bytesPerElement : stride;
     let remappedFormat = format;
@@ -443,11 +457,12 @@ export class DeGLContext {
     const encoder = this.#root.device.createCommandEncoder({
       label: 'DeGL Command Encoder',
     });
+    const currentTexture = this.#canvasContext.getCurrentTexture();
     const renderPass = encoder.beginRenderPass({
       label: 'DeGL Render Pass',
       colorAttachments: [
         {
-          view: this.#canvasContext.getCurrentTexture().createView(),
+          view: currentTexture.createView(),
           loadOp: 'clear',
           storeOp: 'store',
           clearValue: this.#clearColor,
@@ -560,11 +575,13 @@ export class DeGLContext {
     const encoder = this.#root.device.createCommandEncoder({
       label: 'DeGL Command Encoder',
     });
+
+    const currentTexture = this.#canvasContext.getCurrentTexture();
     const renderPass = encoder.beginRenderPass({
       label: 'DeGL Render Pass',
       colorAttachments: [
         {
-          view: this.#canvasContext.getCurrentTexture().createView(),
+          view: currentTexture.createView(),
           loadOp: 'clear',
           storeOp: 'store',
           clearValue: this.#clearColor,

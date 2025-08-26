@@ -357,6 +357,8 @@ ${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = ${attri
   ${state.fakeVertexMainId}();
   var output: ${vertOutStructId};
   output.${posOutParamId} = gl_Position;
+  // NOTE: OpenGL uses z in the range [-1, 1], while WebGPU uses z in the range [0, 1].
+  output.${posOutParamId}.z = output.${posOutParamId}.z * 0.5 + 0.5;
 ${[...state.varyings.values()].map((varying) => `  output.${varying.id} = ${varying.id};\n`).join('')}
   return output;
 }

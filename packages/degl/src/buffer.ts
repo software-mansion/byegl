@@ -126,9 +126,8 @@ export class DeGLBufferInternal {
   }
 
   get variant8x3to8x4(): GPUBuffer {
-    const elements = Math.floor(this.#byteLength! / 3);
-
     if (this.variant8x3to8x4Dirty) {
+      const elements = Math.floor(this.#byteLength! / 3);
       // Recreate the variant buffer
       this.variant8x3to8x4Dirty = false;
       // Cleaning up old buffer, if it exists
@@ -144,7 +143,6 @@ export class DeGLBufferInternal {
       });
     }
 
-    const gpuBuffer = this.gpuBuffer;
     this.#remapper.remap8x3to8x4(this.gpuBuffer, this.#variant8x3to8x4!);
     return this.#variant8x3to8x4!;
   }

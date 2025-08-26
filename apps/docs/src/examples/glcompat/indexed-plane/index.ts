@@ -67,21 +67,21 @@ export default function (canvas: HTMLCanvasElement) {
   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    new Float32Array([
+    new Uint8Array([
       // bottom-left
-      1, 0, 0,
+      255, 0, 0,
       // bottom-right
-      1, 0, 1,
+      255, 0, 255,
       // top-left
-      0, 1, 0,
+      0, 255, 0,
       // top-right
-      0, 1, 1,
+      0, 255, 255,
     ]),
     gl.STATIC_DRAW,
   );
 
   gl.enableVertexAttribArray(colorLocation);
-  gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(colorLocation, 3, gl.UNSIGNED_BYTE, true, 0, 0);
 
   const indexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
