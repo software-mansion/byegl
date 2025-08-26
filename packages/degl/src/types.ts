@@ -1,1 +1,1 @@
-export const $internal = Symbol('degl internals');
+export const $internal = Symbol('bigl internals');

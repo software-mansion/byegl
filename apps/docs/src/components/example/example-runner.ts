@@ -1,4 +1,4 @@
-import * as degl from 'degl';
+import * as bigl from 'bigl';
 import type { ExampleContent } from '../../examples/index.ts';
 
 export function getCurrentExampleFromUrl(): string | undefined {
@@ -30,11 +30,11 @@ export async function runExample(example: ExampleContent) {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
   if (!example.meta.usesHooks) {
-    // Only run ground-truth if the example does not use DeGL hooks
+    // Only run ground-truth if the example does not use BiGL hooks
     prevGroundTruthCleanup = await (await example.execute())(groundTruthCanvas);
   }
 
-  const disable = await degl.enable();
+  const disable = await bigl.enable();
   try {
     prevCleanup = await (await example.execute())(canvas);
   } finally {

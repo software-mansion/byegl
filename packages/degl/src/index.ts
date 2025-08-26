@@ -1,6 +1,6 @@
 import tgpu from 'typegpu';
-import { DeGLBuffer } from './buffer.ts';
-import { DeGLContext } from './degl-context.ts';
+import { BiGLBuffer } from './buffer.ts';
+import { BiGLContext } from './bigl-context.ts';
 import { $internal } from './types.ts';
 import { MockWGSLGenerator } from './wgsl/mock-wgsl-generator.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';
@@ -19,7 +19,7 @@ export async function enable() {
     if (contextId === 'webgl') {
       const wgslGen = new ShaderkitWGSLGenerator();
       // const wgslGen = new MockWGSLGenerator();
-      return new DeGLContext(root, this, wgslGen);
+      return new BiGLContext(root, this, wgslGen);
     }
 
     return originalGetContext!.call(this, contextId, ...args);
@@ -33,8 +33,8 @@ export async function enable() {
 export function getDevice(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
 ): GPUDevice {
-  if (!(gl instanceof DeGLContext)) {
-    throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
+  if (!(gl instanceof BiGLContext)) {
+    throw new Error('Cannot use BiGL hooks on a vanilla WebGPU context');
   }
 
   return gl[$internal].device;
@@ -44,11 +44,11 @@ export function importWebGPUBuffer(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   wgpuBuffer: GPUBuffer,
 ): WebGLBuffer {
-  if (!(gl instanceof DeGLContext)) {
-    throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
+  if (!(gl instanceof BiGLContext)) {
+    throw new Error('Cannot use BiGL hooks on a vanilla WebGPU context');
   }
 
-  const glBuffer = gl.createBuffer() as DeGLBuffer;
+  const glBuffer = gl.createBuffer() as BiGLBuffer;
   glBuffer[$internal].importExistingWebGPUBuffer(wgpuBuffer);
   return glBuffer;
 }
@@ -57,9 +57,9 @@ export function getWebGPUBuffer(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   glBuffer: WebGLBuffer,
 ): GPUBuffer {
-  if (!(gl instanceof DeGLContext)) {
-    throw new Error('Cannot use DeGL hooks on a vanilla WebGPU context');
+  if (!(gl instanceof BiGLContext)) {
+    throw new Error('Cannot use BiGL hooks on a vanilla WebGPU context');
   }
 
-  return (glBuffer as DeGLBuffer)[$internal].gpuBuffer;
+  return (glBuffer as BiGLBuffer)[$internal].gpuBuffer;
 }

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🦅 degl
+# 🐶 biGL
 
 Migrate from WebGL to WebGPU, incrementally
 
@@ -8,15 +8,15 @@ Migrate from WebGL to WebGPU, incrementally
 
 ## Intro
 
-> Pronounced like "deagle"
+> Pronounced like "beagle"
 
-This project aims to reimplement the WebGL API on top of WebGPU, which will allow established WebGL-based projects to gradually migrate to the WebGPU over time (or in other words, to "de-GL their codebase")
+This project aims to reimplement the WebGL API on top of WebGPU, which will allow established WebGL-based projects to gradually migrate to the WebGPU over time (or in other words, to "de-WebGL their codebase")
 
 [The API coverage can be seen here](#api-coverage).
 
 ## Hooks (draft)
 
-Once your WebGL app is running on WebGPU through DeGL, you get direct access to WebGPU through hooks.
+Once your WebGL app is running on WebGPU through biGL, you get direct access to WebGPU through hooks.
 
 ### Using WGSL in place of GLSL
 ```ts
@@ -37,14 +37,14 @@ gl.linkProgram(program);
 The code above can be replaced with:
 
 ```ts
-const program = degl.createWGSLProgram(gl, wgslCode);
-//    ^? DeGLProgram
+const program = bigl.createWGSLProgram(gl, wgslCode);
+//    ^? BiGLProgram
 ```
 
 ### Using a WebGPU buffer in WebGL
 
 ```ts
-const device = degl.getDevice(gl);
+const device = bigl.getDevice(gl);
 //    ^? GPUDevice
 
 // Using WebGPU to allocate a buffer
@@ -53,14 +53,14 @@ const wgpuBuffer = device.createBuffer({
   usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 });
 
-const buffer = degl.importWebGPUBuffer(gl, wgpuBuffer);
+const buffer = bigl.importWebGPUBuffer(gl, wgpuBuffer);
 //    ^? WebGLBuffer
 ```
 
 ### Using a WebGPU texture in WebGL
 
 ```ts
-const device = degl.getDevice(gl);
+const device = bigl.getDevice(gl);
 //    ^? GPUDevice
 
 // Using WebGPU to allocate a texture
@@ -70,7 +70,7 @@ const wgpuTexture = device.createTexture({
   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 });
 
-const texture = degl.importWebGPUTexture(gl, wgpuTexture);
+const texture = bigl.importWebGPUTexture(gl, wgpuTexture);
 //    ^? WebGLTexture
 ```
 

@@ -1,13 +1,13 @@
 import { TgpuRoot } from 'typegpu';
-import { DeGLBuffer, VertexBufferSegment } from './buffer.ts';
+import { BiGLBuffer, VertexBufferSegment } from './buffer.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
-import { DeGLUniformLocation, UniformBufferCache } from './uniform.ts';
+import { BiGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGLRenderingContext;
 
-class DeGLShader implements WebGLShader {
+class BiGLShader implements WebGLShader {
   readonly [$internal]: {
     type: GLenum;
     source: string | undefined;
@@ -22,8 +22,8 @@ class DeGLShader implements WebGLShader {
 }
 
 class DeGlProgramInternals {
-  vert: DeGLShader | undefined;
-  frag: DeGLShader | undefined;
+  vert: BiGLShader | undefined;
+  frag: BiGLShader | undefined;
   attributeLocationMap: Map<string, number> | undefined;
   uniformLocationMap: Map<string, number> | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
@@ -31,7 +31,7 @@ class DeGlProgramInternals {
   constructor() {}
 }
 
-class DeGLProgram implements WebGLProgram {
+class BiGLProgram implements WebGLProgram {
   readonly [$internal]: DeGlProgramInternals;
 
   constructor() {
@@ -79,7 +79,7 @@ const unnormalizedVertexFormatCatalog: Record<
   },
 };
 
-export class DeGLContext {
+export class BiGLContext {
   readonly [$internal]: { device: GPUDevice };
 
   #root: TgpuRoot;
@@ -94,7 +94,7 @@ export class DeGLContext {
   // GL state
   //
 
-  #program: DeGLProgram | undefined;
+  #program: BiGLProgram | undefined;
 
   /**
    * Set using gl.enableVertexAttribArray and gl.disableVertexAttribArray.
@@ -104,7 +104,7 @@ export class DeGLContext {
   /**
    * The currently bound buffers. Set using gl.bindBuffer.
    */
-  #boundBufferMap: Map<GLenum, DeGLBuffer> = new Map();
+  #boundBufferMap: Map<GLenum, BiGLBuffer> = new Map();
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
@@ -193,22 +193,22 @@ export class DeGLContext {
   }
 
   createShader(type: GLenum): WebGLShader | null {
-    return new DeGLShader(type);
+    return new BiGLShader(type);
   }
 
-  shaderSource(shader: DeGLShader, source: string): void {
+  shaderSource(shader: BiGLShader, source: string): void {
     shader[$internal].source = source;
   }
 
-  compileShader(_shader: DeGLShader): void {
+  compileShader(_shader: BiGLShader): void {
     // NO-OP: Deferring compilation until the program is linked
   }
 
   createProgram(): WebGLProgram {
-    return new DeGLProgram();
+    return new BiGLProgram();
   }
 
-  attachShader(program: DeGLProgram, shader: DeGLShader): void {
+  attachShader(program: BiGLProgram, shader: BiGLShader): void {
     const $shader = shader[$internal];
 
     if ($shader.type === gl.VERTEX_SHADER) {
@@ -218,7 +218,7 @@ export class DeGLContext {
     }
   }
 
-  getAttribLocation(program: DeGLProgram, name: string): GLint {
+  getAttribLocation(program: BiGLProgram, name: string): GLint {
     const $program = program[$internal];
     if ($program.attributeLocationMap === undefined) {
       throw new Error('Program not linked');
@@ -227,7 +227,7 @@ export class DeGLContext {
   }
 
   getUniformLocation(
-    program_: DeGLProgram,
+    program_: BiGLProgram,
     name: string,
   ): WebGLUniformLocation | null {
     const program = program_[$internal];
@@ -235,20 +235,20 @@ export class DeGLContext {
       throw new Error('Program not linked');
     }
     const idx = program.uniformLocationMap.get(name);
-    return idx !== undefined ? new DeGLUniformLocation(idx) : null;
+    return idx !== undefined ? new BiGLUniformLocation(idx) : null;
   }
 
   createBuffer(): WebGLBuffer {
-    return new DeGLBuffer(this.#root, this.#remapper);
+    return new BiGLBuffer(this.#root, this.#remapper);
   }
 
-  deleteBuffer(buffer: DeGLBuffer | null): void {
+  deleteBuffer(buffer: BiGLBuffer | null): void {
     if (buffer) {
       buffer[$internal].destroy();
     }
   }
 
-  bindBuffer(target: GLenum, buffer: DeGLBuffer | null): void {
+  bindBuffer(target: GLenum, buffer: BiGLBuffer | null): void {
     if (buffer) {
       if (target === gl.ELEMENT_ARRAY_BUFFER) {
         buffer[$internal].boundAsIndexBuffer = true;
@@ -376,7 +376,7 @@ export class DeGLContext {
     // TODO: Implement clear setup
   }
 
-  linkProgram(program: DeGLProgram): void {
+  linkProgram(program: BiGLProgram): void {
     const $program = program[$internal];
     const { vert, frag } = $program;
 
@@ -395,13 +395,13 @@ export class DeGLContext {
     $program.uniformLocationMap = result.uniformLocationMap;
 
     const module = this.#root.device.createShaderModule({
-      label: 'DeGL Shader Module',
+      label: 'BiGL Shader Module',
       code: result.wgsl,
     });
     $program.wgpuShaderModule = module;
   }
 
-  useProgram(program: DeGLProgram): void {
+  useProgram(program: BiGLProgram): void {
     this.#program = program;
   }
 
@@ -409,7 +409,7 @@ export class DeGLContext {
     // TODO: Change which part of the target texture we're drawing to
   }
 
-  uniform1f(location: DeGLUniformLocation | null, value: GLfloat) {
+  uniform1f(location: BiGLUniformLocation | null, value: GLfloat) {
     if (!location) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
@@ -421,7 +421,7 @@ export class DeGLContext {
   }
 
   uniformMatrix4fv(
-    location: DeGLUniformLocation | null,
+    location: BiGLUniformLocation | null,
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
@@ -479,7 +479,7 @@ export class DeGLContext {
     }
 
     const pipeline = this.#root.device.createRenderPipeline({
-      label: 'DeGL Render Pipeline',
+      label: 'BiGL Render Pipeline',
       layout: 'auto',
       vertex: {
         module: program.wgpuShaderModule!,
@@ -505,7 +505,7 @@ export class DeGLContext {
     });
 
     const renderPass = encoder.beginRenderPass({
-      label: 'DeGL Render Pass',
+      label: 'BiGL Render Pass',
       colorAttachments: [
         {
           view: currentTexture.createView(),
@@ -584,7 +584,7 @@ export class DeGLContext {
     }
 
     const encoder = this.#root.device.createCommandEncoder({
-      label: 'DeGL Command Encoder',
+      label: 'BiGL Command Encoder',
     });
     const renderPass = this.#createRenderPass(encoder);
     renderPass.draw(count, 1, first, 0);
@@ -605,7 +605,7 @@ export class DeGLContext {
     }
 
     const encoder = this.#root.device.createCommandEncoder({
-      label: 'DeGL Command Encoder',
+      label: 'BiGL Command Encoder',
     });
 
     const renderPass = this.#createRenderPass(encoder);
@@ -639,4 +639,4 @@ export class DeGLContext {
 }
 
 // Inheriting from WebGLRenderingContext
-Object.setPrototypeOf(DeGLContext.prototype, WebGLRenderingContext.prototype);
+Object.setPrototypeOf(BiGLContext.prototype, WebGLRenderingContext.prototype);
