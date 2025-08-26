@@ -23,7 +23,7 @@ export interface VertexBufferSegment {
 }
 
 /**
- * The internal state of bigl buffers
+ * The internal state of byegl buffers
  */
 export class BiGLBufferInternal {
   readonly #root: TgpuRoot;

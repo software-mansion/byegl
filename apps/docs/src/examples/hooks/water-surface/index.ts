@@ -1,4 +1,4 @@
-import * as bigl from 'bigl';
+import * as byegl from 'byegl';
 import { mat4 } from 'gl-matrix';
 
 function createWaterSurface(
@@ -163,12 +163,12 @@ export default function (canvas: HTMLCanvasElement) {
   gl.linkProgram(program);
 
   const resolution = [64, 64] as const;
-  const waterSurface = createWaterSurface(bigl.getDevice(gl), resolution);
-  const positionBuffer = bigl.importWebGPUBuffer(
+  const waterSurface = createWaterSurface(byegl.getDevice(gl), resolution);
+  const positionBuffer = byegl.importWebGPUBuffer(
     gl,
     waterSurface.positionBuffer,
   );
-  const normalBuffer = bigl.importWebGPUBuffer(gl, waterSurface.normalBuffer);
+  const normalBuffer = byegl.importWebGPUBuffer(gl, waterSurface.normalBuffer);
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -180,7 +180,7 @@ export default function (canvas: HTMLCanvasElement) {
   gl.enableVertexAttribArray(normalLocation);
   gl.vertexAttribPointer(normalLocation, 4, gl.FLOAT, false, 0, 0);
 
-  const indexBuffer = bigl.importWebGPUBuffer(gl, waterSurface.indexBuffer);
+  const indexBuffer = byegl.importWebGPUBuffer(gl, waterSurface.indexBuffer);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
 
   function animate() {

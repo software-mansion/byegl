@@ -1,6 +1,6 @@
 import tgpu from 'typegpu';
 import { BiGLBuffer } from './buffer.ts';
-import { BiGLContext } from './bigl-context.ts';
+import { BiGLContext } from './byegl-context.ts';
 import { $internal } from './types.ts';
 import { MockWGSLGenerator } from './wgsl/mock-wgsl-generator.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';

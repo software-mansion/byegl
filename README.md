@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐶 biGL
+# 🥯🐶 byegl
 
 Migrate from WebGL to WebGPU, incrementally
 
@@ -8,7 +8,7 @@ Migrate from WebGL to WebGPU, incrementally
 
 ## Intro
 
-> Pronounced like "beagle"
+> Pronounced like "bagel" or "beagle", but with a "bye"
 
 This project aims to reimplement the WebGL API on top of WebGPU, which will allow established WebGL-based projects to gradually migrate to the WebGPU over time (or in other words, to "de-WebGL their codebase")
 
@@ -37,14 +37,14 @@ gl.linkProgram(program);
 The code above can be replaced with:
 
 ```ts
-const program = bigl.createWGSLProgram(gl, wgslCode);
-//    ^? BiGLProgram
+const program = byegl.createWGSLProgram(gl, wgslCode);
+//    ^? ByeGLProgram
 ```
 
 ### Using a WebGPU buffer in WebGL
 
 ```ts
-const device = bigl.getDevice(gl);
+const device = byegl.getDevice(gl);
 //    ^? GPUDevice
 
 // Using WebGPU to allocate a buffer
@@ -53,14 +53,14 @@ const wgpuBuffer = device.createBuffer({
   usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 });
 
-const buffer = bigl.importWebGPUBuffer(gl, wgpuBuffer);
+const buffer = byegl.importWebGPUBuffer(gl, wgpuBuffer);
 //    ^? WebGLBuffer
 ```
 
 ### Using a WebGPU texture in WebGL
 
 ```ts
-const device = bigl.getDevice(gl);
+const device = byegl.getDevice(gl);
 //    ^? GPUDevice
 
 // Using WebGPU to allocate a texture
@@ -70,7 +70,7 @@ const wgpuTexture = device.createTexture({
   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 });
 
-const texture = bigl.importWebGPUTexture(gl, wgpuTexture);
+const texture = byegl.importWebGPUTexture(gl, wgpuTexture);
 //    ^? WebGLTexture
 ```
 

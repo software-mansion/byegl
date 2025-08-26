@@ -1,4 +1,4 @@
-import * as bigl from 'bigl';
+import * as byegl from 'byegl';
 import type { ExampleContent } from '../../examples/index.ts';
 
 export function getCurrentExampleFromUrl(): string | undefined {
@@ -30,11 +30,11 @@ export async function runExample(example: ExampleContent) {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
   if (!example.meta.usesHooks) {
-    // Only run ground-truth if the example does not use BiGL hooks
+    // Only run ground-truth if the example does not use ByeGL hooks
     prevGroundTruthCleanup = await (await example.execute())(groundTruthCanvas);
   }
 
-  const disable = await bigl.enable();
+  const disable = await byegl.enable();
   try {
     prevCleanup = await (await example.execute())(canvas);
   } finally {
