@@ -88,6 +88,7 @@ export class DeGLContext {
   #wgslGen: WgslGenerator;
   #canvas: HTMLCanvasElement;
   #canvasContext: GPUCanvasContext;
+  #depthTexture: GPUTexture | undefined;
 
   //
   // GL state
@@ -436,6 +437,7 @@ export class DeGLContext {
 
   #createRenderPass(encoder: GPUCommandEncoder) {
     const program = this.#program?.[$internal]!;
+    const currentTexture = this.#canvasContext.getCurrentTexture();
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
       (segment): GPUVertexBufferLayout => ({
@@ -452,6 +454,30 @@ export class DeGLContext {
       }),
     );
 
+    let depthStencil: GPUDepthStencilState | undefined;
+    let depthTextureView: GPUTextureView | undefined;
+
+    if (this.#enabledCapabilities.has(gl.DEPTH_TEST)) {
+      if (
+        !this.#depthTexture ||
+        this.#depthTexture.width !== currentTexture.width ||
+        this.#depthTexture.height !== currentTexture.height
+      ) {
+        this.#depthTexture?.destroy();
+        this.#depthTexture = this.#root.device.createTexture({
+          size: [currentTexture.width, currentTexture.height],
+          format: 'depth24plus',
+          usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+      }
+      depthTextureView = this.#depthTexture.createView();
+      depthStencil = {
+        format: 'depth24plus',
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+      };
+    }
+
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'DeGL Render Pipeline',
       layout: 'auto',
@@ -467,6 +493,7 @@ export class DeGLContext {
           },
         ],
       },
+      depthStencil,
       primitive: {
         topology: 'triangle-list',
         cullMode: this.#enabledCapabilities.has(gl.CULL_FACE)
@@ -477,7 +504,6 @@ export class DeGLContext {
       },
     });
 
-    const currentTexture = this.#canvasContext.getCurrentTexture();
     const renderPass = encoder.beginRenderPass({
       label: 'DeGL Render Pass',
       colorAttachments: [
@@ -488,6 +514,14 @@ export class DeGLContext {
           clearValue: this.#clearColor,
         },
       ],
+      depthStencilAttachment: depthTextureView
+        ? {
+            view: depthTextureView!,
+            depthLoadOp: 'clear',
+            depthStoreOp: 'store',
+            depthClearValue: 1.0,
+          }
+        : undefined,
     });
 
     renderPass.setPipeline(pipeline);
