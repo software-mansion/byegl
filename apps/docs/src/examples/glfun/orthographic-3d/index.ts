@@ -113,6 +113,9 @@ export default function main(canvas: HTMLCanvasElement) {
     // will be culled.
     gl.enable(gl.CULL_FACE);
 
+    // Set the cull face to back
+    gl.cullFace(gl.BACK);
+
     // Enable the depth buffer
     gl.enable(gl.DEPTH_TEST);
 

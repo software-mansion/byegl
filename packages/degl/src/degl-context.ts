@@ -116,6 +116,8 @@ export class DeGLContext {
    */
   #enabledCapabilities: Set<GLenum> = new Set([gl.DITHER]);
 
+  #cullFaceMode: GLenum = gl.BACK;
+
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
       this.#enabledVertexAttribArrays.has(segment.shaderLocation),
@@ -365,6 +367,10 @@ export class DeGLContext {
     this.#clearColor = [r, g, b, a];
   }
 
+  cullFace(mode: GLenum): void {
+    this.#cullFaceMode = mode;
+  }
+
   clear(mask: GLbitfield): void {
     // TODO: Implement clear setup
   }
@@ -463,6 +469,11 @@ export class DeGLContext {
       },
       primitive: {
         topology: 'triangle-list',
+        cullMode: this.#enabledCapabilities.has(gl.CULL_FACE)
+          ? this.#cullFaceMode === gl.BACK
+            ? 'back'
+            : 'front'
+          : 'none',
       },
     });
 
