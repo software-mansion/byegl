@@ -1,9 +1,9 @@
 import { TgpuRoot } from 'typegpu';
+import { DeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { DeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
-import { DeGLBuffer, VertexBufferSegment } from './buffer.ts';
 
 const gl = WebGLRenderingContext;
 
@@ -109,6 +109,13 @@ export class DeGLContext {
   #uniformBufferCache: UniformBufferCache;
   #clearColor: [number, number, number, number] = [0, 0, 0, 0];
 
+  /**
+   * The initial value for each capability with the exception of GL_DITHER is `false`.
+   *
+   * @see {@link https://registry.khronos.org/OpenGL-Refpages/es2.0/xhtml/glEnable.xml}
+   */
+  #enabledCapabilities: Set<GLenum> = new Set([gl.DITHER]);
+
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
       this.#enabledVertexAttribArrays.has(segment.shaderLocation),
@@ -170,8 +177,16 @@ export class DeGLContext {
     return this.#canvas;
   }
 
-  enable(cap: GLenum) {
-    // TODO: Enable capabilities
+  enable(cap: GLenum): void {
+    this.#enabledCapabilities.add(cap);
+  }
+
+  disable(cap: GLenum): void {
+    this.#enabledCapabilities.delete(cap);
+  }
+
+  isEnabled(cap: GLenum): boolean {
+    return this.#enabledCapabilities.has(cap);
   }
 
   createShader(type: GLenum): WebGLShader | null {
@@ -413,11 +428,8 @@ export class DeGLContext {
     this.#uniformBufferCache.updateUniform(location, data.buffer);
   }
 
-  drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
-    const program = this.#program?.[$internal];
-    if (!program) {
-      throw new Error('No program bound');
-    }
+  #createRenderPass(encoder: GPUCommandEncoder) {
+    const program = this.#program?.[$internal]!;
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
       (segment): GPUVertexBufferLayout => ({
@@ -454,9 +466,6 @@ export class DeGLContext {
       },
     });
 
-    const encoder = this.#root.device.createCommandEncoder({
-      label: 'DeGL Command Encoder',
-    });
     const currentTexture = this.#canvasContext.getCurrentTexture();
     const renderPass = encoder.beginRenderPass({
       label: 'DeGL Render Pass',
@@ -520,6 +529,19 @@ export class DeGLContext {
       renderPass.setBindGroup(0, group);
     }
 
+    return renderPass;
+  }
+
+  drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
+    const program = this.#program?.[$internal];
+    if (!program) {
+      throw new Error('No program bound');
+    }
+
+    const encoder = this.#root.device.createCommandEncoder({
+      label: 'DeGL Command Encoder',
+    });
+    const renderPass = this.#createRenderPass(encoder);
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
 
@@ -537,117 +559,33 @@ export class DeGLContext {
       throw new Error('No program bound');
     }
 
-    const vertexLayout = this.#enabledVertexBufferSegments.map(
-      (segment): GPUVertexBufferLayout => ({
-        arrayStride: segment.remappedStride,
-        attributes: [
-          {
-            format: segment.remappedFormat,
-            // The local offset is handled by the global offset of the segment
-            offset: 0,
-            shaderLocation: segment.shaderLocation,
-          },
-        ],
-        stepMode: 'vertex',
-      }),
-    );
-
-    const pipeline = this.#root.device.createRenderPipeline({
-      label: 'DeGL Render Pipeline',
-      layout: 'auto',
-      vertex: {
-        module: program.wgpuShaderModule!,
-        buffers: vertexLayout,
-      },
-      fragment: {
-        module: program.wgpuShaderModule!,
-        targets: [
-          {
-            format: this.#format,
-          },
-        ],
-      },
-      primitive: {
-        topology: 'triangle-list',
-      },
-    });
-
     const encoder = this.#root.device.createCommandEncoder({
       label: 'DeGL Command Encoder',
     });
 
-    const currentTexture = this.#canvasContext.getCurrentTexture();
-    const renderPass = encoder.beginRenderPass({
-      label: 'DeGL Render Pass',
-      colorAttachments: [
-        {
-          view: currentTexture.createView(),
-          loadOp: 'clear',
-          storeOp: 'store',
-          clearValue: this.#clearColor,
-        },
-      ],
-    });
-
-    renderPass.setPipeline(pipeline);
-
-    // Vertex buffers
-    let vertexBufferIdx = 0;
-    for (const segment of this.#enabledVertexBufferSegments) {
-      if (segment.format === 'unorm8x3') {
-        renderPass.setVertexBuffer(
-          vertexBufferIdx++,
-          segment.buffer.variant8x3to8x4,
-          segment.offset,
-        );
-      } else {
-        renderPass.setVertexBuffer(
-          vertexBufferIdx++,
-          segment.buffer.gpuBuffer,
-          segment.offset,
-        );
-      }
-    }
+    const renderPass = this.#createRenderPass(encoder);
 
     // Index buffer
     const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
       $internal
     ];
 
-    if (indexBuffer) {
-      renderPass.setIndexBuffer(indexBuffer.gpuBuffer, 'uint16');
+    if (!indexBuffer) {
+      throw new Error('No index buffer bound');
     }
 
-    // Uniforms
-    const group =
-      (program.uniformLocationMap?.size ?? 0) > 0
-        ? this.#root.device.createBindGroup({
-            // TODO: Create the bind group layout manually
-            layout: pipeline.getBindGroupLayout(0),
-            entries: program
-              .uniformLocationMap!.values()
-              .map((location) => {
-                const buffer = this.#uniformBufferCache.getBuffer(location);
+    const indexFormat =
+      type === gl.UNSIGNED_SHORT
+        ? 'uint16'
+        : type === gl.UNSIGNED_INT
+          ? 'uint32'
+          : undefined;
 
-                if (!buffer) {
-                  return undefined;
-                }
-
-                return {
-                  binding: location,
-                  resource: {
-                    buffer,
-                  },
-                } satisfies GPUBindGroupEntry;
-              })
-              .filter((entry) => entry !== undefined),
-          })
-        : undefined;
-
-    if (group) {
-      renderPass.setBindGroup(0, group);
+    if (!indexFormat) {
+      throw new Error(`Unsupported index type: ${type}`);
     }
 
+    renderPass.setIndexBuffer(indexBuffer.gpuBuffer, indexFormat);
     renderPass.drawIndexed(count, 1, offset, 0, 0);
     renderPass.end();
 

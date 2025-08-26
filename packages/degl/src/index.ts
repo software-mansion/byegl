@@ -1,9 +1,9 @@
 import tgpu from 'typegpu';
+import { DeGLBuffer } from './buffer.ts';
 import { DeGLContext } from './degl-context.ts';
 import { $internal } from './types.ts';
 import { MockWGSLGenerator } from './wgsl/mock-wgsl-generator.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';
-import { DeGLBuffer } from './buffer.ts';
 
 export async function enable() {
   const originalGetContext = HTMLCanvasElement.prototype.getContext as any;
