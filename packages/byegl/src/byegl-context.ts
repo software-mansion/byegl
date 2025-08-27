@@ -1,14 +1,14 @@
 import { TgpuRoot } from 'typegpu';
-import { BiGLBuffer, VertexBufferSegment } from './buffer.ts';
+import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
-import { BiGLUniformLocation, UniformBufferCache } from './uniform.ts';
+import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 
 const gl = WebGL2RenderingContext;
 
-class BiGLShader implements WebGLShader {
+class ByeGLShader implements WebGLShader {
   readonly [$internal]: {
     type: GLenum;
     source: string | undefined;
@@ -23,8 +23,8 @@ class BiGLShader implements WebGLShader {
 }
 
 class DeGlProgramInternals {
-  vert: BiGLShader | undefined;
-  frag: BiGLShader | undefined;
+  vert: ByeGLShader | undefined;
+  frag: ByeGLShader | undefined;
   attributeLocationMap: Map<string, number> | undefined;
   uniformLocationMap: Map<string, number> | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
@@ -32,7 +32,7 @@ class DeGlProgramInternals {
   constructor() {}
 }
 
-class BiGLProgram implements WebGLProgram {
+class ByeGLProgram implements WebGLProgram {
   readonly [$internal]: DeGlProgramInternals;
 
   constructor() {
@@ -132,7 +132,7 @@ const shaderPrecisionFormatCatalog: Record<GLenum, WebGLShaderPrecisionFormat> =
     ),
   };
 
-export class BiGLContext {
+export class ByeGLContext {
   readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
 
   #root: TgpuRoot;
@@ -147,7 +147,7 @@ export class BiGLContext {
   // GL state
   //
 
-  #program: BiGLProgram | undefined;
+  #program: ByeGLProgram | undefined;
 
   /**
    * Set using gl.enableVertexAttribArray and gl.disableVertexAttribArray.
@@ -157,7 +157,7 @@ export class BiGLContext {
   /**
    * The currently bound buffers. Set using gl.bindBuffer.
    */
-  #boundBufferMap: Map<GLenum, BiGLBuffer> = new Map();
+  #boundBufferMap: Map<GLenum, ByeGLBuffer> = new Map();
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
@@ -256,14 +256,14 @@ export class BiGLContext {
   }
 
   createShader(type: GLenum): WebGLShader | null {
-    return new BiGLShader(type);
+    return new ByeGLShader(type);
   }
 
-  shaderSource(shader: BiGLShader, source: string): void {
+  shaderSource(shader: ByeGLShader, source: string): void {
     shader[$internal].source = source;
   }
 
-  compileShader(_shader: BiGLShader): void {
+  compileShader(_shader: ByeGLShader): void {
     // NO-OP: Deferring compilation until the program is linked
   }
 
@@ -553,10 +553,10 @@ export class BiGLContext {
   }
 
   createProgram(): WebGLProgram {
-    return new BiGLProgram();
+    return new ByeGLProgram();
   }
 
-  attachShader(program: BiGLProgram, shader: BiGLShader): void {
+  attachShader(program: ByeGLProgram, shader: ByeGLShader): void {
     const $shader = shader[$internal];
 
     if ($shader.type === gl.VERTEX_SHADER) {
@@ -566,7 +566,7 @@ export class BiGLContext {
     }
   }
 
-  getAttribLocation(program: BiGLProgram, name: string): GLint {
+  getAttribLocation(program: ByeGLProgram, name: string): GLint {
     const $program = program[$internal];
     if ($program.attributeLocationMap === undefined) {
       throw new Error('Program not linked');
@@ -575,7 +575,7 @@ export class BiGLContext {
   }
 
   getUniformLocation(
-    program_: BiGLProgram,
+    program_: ByeGLProgram,
     name: string,
   ): WebGLUniformLocation | null {
     const program = program_[$internal];
@@ -583,20 +583,20 @@ export class BiGLContext {
       throw new Error('Program not linked');
     }
     const idx = program.uniformLocationMap.get(name);
-    return idx !== undefined ? new BiGLUniformLocation(idx) : null;
+    return idx !== undefined ? new ByeGLUniformLocation(idx) : null;
   }
 
   createBuffer(): WebGLBuffer {
-    return new BiGLBuffer(this.#root, this.#remapper);
+    return new ByeGLBuffer(this.#root, this.#remapper);
   }
 
-  deleteBuffer(buffer: BiGLBuffer | null): void {
+  deleteBuffer(buffer: ByeGLBuffer | null): void {
     if (buffer) {
       buffer[$internal].destroy();
     }
   }
 
-  bindBuffer(target: GLenum, buffer: BiGLBuffer | null): void {
+  bindBuffer(target: GLenum, buffer: ByeGLBuffer | null): void {
     if (buffer) {
       if (target === gl.ELEMENT_ARRAY_BUFFER) {
         buffer[$internal].boundAsIndexBuffer = true;
@@ -724,7 +724,7 @@ export class BiGLContext {
     // TODO: Implement clear setup
   }
 
-  linkProgram(program: BiGLProgram): void {
+  linkProgram(program: ByeGLProgram): void {
     const $program = program[$internal];
     const { vert, frag } = $program;
 
@@ -743,13 +743,13 @@ export class BiGLContext {
     $program.uniformLocationMap = result.uniformLocationMap;
 
     const module = this.#root.device.createShaderModule({
-      label: 'BiGL Shader Module',
+      label: 'ByeGL Shader Module',
       code: result.wgsl,
     });
     $program.wgpuShaderModule = module;
   }
 
-  useProgram(program: BiGLProgram): void {
+  useProgram(program: ByeGLProgram): void {
     this.#program = program;
   }
 
@@ -757,7 +757,7 @@ export class BiGLContext {
     // TODO: Change which part of the target texture we're drawing to
   }
 
-  uniform1f(location: BiGLUniformLocation | null, value: GLfloat) {
+  uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
     if (!location) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
@@ -769,7 +769,7 @@ export class BiGLContext {
   }
 
   uniformMatrix4fv(
-    location: BiGLUniformLocation | null,
+    location: ByeGLUniformLocation | null,
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
@@ -830,7 +830,7 @@ export class BiGLContext {
     const cullFaceMode = this.#parameters.get(gl.CULL_FACE_MODE);
 
     const pipeline = this.#root.device.createRenderPipeline({
-      label: 'BiGL Render Pipeline',
+      label: 'ByeGL Render Pipeline',
       layout: 'auto',
       vertex: {
         module: program.wgpuShaderModule!,
@@ -864,7 +864,7 @@ export class BiGLContext {
     const clearDepthValue = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
     const clearStencilValue = this.#parameters.get(gl.STENCIL_CLEAR_VALUE);
     const renderPass = encoder.beginRenderPass({
-      label: 'BiGL Render Pass',
+      label: 'ByeGL Render Pass',
       colorAttachments: [
         {
           view: currentTexture.createView(),
@@ -944,7 +944,7 @@ export class BiGLContext {
     }
 
     const encoder = this.#root.device.createCommandEncoder({
-      label: 'BiGL Command Encoder',
+      label: 'ByeGL Command Encoder',
     });
     const renderPass = this.#createRenderPass(encoder);
     renderPass.draw(count, 1, first, 0);
@@ -965,7 +965,7 @@ export class BiGLContext {
     }
 
     const encoder = this.#root.device.createCommandEncoder({
-      label: 'BiGL Command Encoder',
+      label: 'ByeGL Command Encoder',
     });
 
     const renderPass = this.#createRenderPass(encoder);
@@ -999,4 +999,4 @@ export class BiGLContext {
 }
 
 // Inheriting from WebGLRenderingContext
-Object.setPrototypeOf(BiGLContext.prototype, WebGL2RenderingContext.prototype);
+Object.setPrototypeOf(ByeGLContext.prototype, WebGL2RenderingContext.prototype);

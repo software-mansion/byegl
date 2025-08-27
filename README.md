@@ -16,7 +16,7 @@ This project aims to reimplement the WebGL API on top of WebGPU, which will allo
 
 ## Hooks (draft)
 
-Once your WebGL app is running on WebGPU through biGL, you get direct access to WebGPU through hooks.
+Once your WebGL app is running on WebGPU through byegl, you get direct access to WebGPU through hooks.
 
 ### Using WGSL in place of GLSL
 ```ts

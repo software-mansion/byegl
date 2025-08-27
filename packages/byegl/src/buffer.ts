@@ -5,7 +5,7 @@ import { $internal } from './types.ts';
 type RemappedVertexFormat = 'unorm8x3';
 
 export interface VertexBufferSegment {
-  buffer: BiGLBufferInternal;
+  buffer: ByeGLBufferInternal;
   /**
    * Where from the original buffer does the data for this segment start.
    */
@@ -25,7 +25,7 @@ export interface VertexBufferSegment {
 /**
  * The internal state of byegl buffers
  */
-export class BiGLBufferInternal {
+export class ByeGLBufferInternal {
   readonly #root: TgpuRoot;
   readonly #remapper: Remapper;
 
@@ -112,7 +112,7 @@ export class BiGLBufferInternal {
     }
 
     this.#gpuBuffer = this.#root.device.createBuffer({
-      label: 'BiGL Vertex Buffer',
+      label: 'ByeGL Vertex Buffer',
       size: this.#byteLength!,
       usage:
         GPUBufferUsage.COPY_DST |
@@ -133,7 +133,7 @@ export class BiGLBufferInternal {
       // Cleaning up old buffer, if it exists
       this.#variant8x3to8x4?.destroy();
       this.#variant8x3to8x4 = this.#root.device.createBuffer({
-        label: 'BiGL Vertex Buffer (8x3 -> 8x4)',
+        label: 'ByeGL Vertex Buffer (8x3 -> 8x4)',
         size: elements * 4,
         usage:
           GPUBufferUsage.COPY_DST |
@@ -153,10 +153,10 @@ export class BiGLBufferInternal {
   }
 }
 
-export class BiGLBuffer {
-  readonly [$internal]: BiGLBufferInternal;
+export class ByeGLBuffer {
+  readonly [$internal]: ByeGLBufferInternal;
 
   constructor(root: TgpuRoot, remapper: Remapper) {
-    this[$internal] = new BiGLBufferInternal(root, remapper);
+    this[$internal] = new ByeGLBufferInternal(root, remapper);
   }
 }

@@ -13,7 +13,7 @@ export class UniformBufferCache {
     return this.#buffers.get(location);
   }
 
-  updateUniform(location: BiGLUniformLocation, value: ArrayBuffer) {
+  updateUniform(location: ByeGLUniformLocation, value: ArrayBuffer) {
     const cached = this.#buffers.get(location[$internal]);
     if (cached && cached.size === value.byteLength) {
       this.#root.device.queue.writeBuffer(cached, 0, value);
@@ -24,7 +24,7 @@ export class UniformBufferCache {
     cached?.destroy();
 
     const buffer = this.#root.device.createBuffer({
-      label: 'BiGL Uniform Buffer',
+      label: 'ByeGL Uniform Buffer',
       size: value.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
@@ -42,7 +42,7 @@ export class UniformBufferCache {
 }
 
 // WebGLUniformLocation
-export class BiGLUniformLocation {
+export class ByeGLUniformLocation {
   readonly [$internal]: number;
 
   constructor(idx: number) {
