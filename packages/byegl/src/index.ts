@@ -19,7 +19,12 @@ export async function enable() {
     if (contextId === 'webgl' || contextId === 'webgl2') {
       const wgslGen = new ShaderkitWGSLGenerator();
       // const wgslGen = new MockWGSLGenerator();
-      return new BiGLContext(root, this, wgslGen);
+      return new BiGLContext(
+        contextId === 'webgl2' ? 2 : 1,
+        root,
+        this,
+        wgslGen,
+      );
     }
 
     return originalGetContext!.call(this, contextId, ...args);

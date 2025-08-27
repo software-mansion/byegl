@@ -4,6 +4,7 @@ import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { BiGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
+import type { ExtensionMap } from './extensions/types.ts';
 
 const gl = WebGLRenderingContext;
 
@@ -79,8 +80,10 @@ const unnormalizedVertexFormatCatalog: Record<
   },
 };
 
+// const shaderPrecisionFormatCatalog
+
 export class BiGLContext {
-  readonly [$internal]: { device: GPUDevice };
+  readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
 
   #root: TgpuRoot;
   #remapper: Remapper;
@@ -126,11 +129,12 @@ export class BiGLContext {
   }
 
   constructor(
+    glVersion: 1 | 2,
     root: TgpuRoot,
     canvas: HTMLCanvasElement,
     wgslGen: WgslGenerator,
   ) {
-    this[$internal] = { device: root.device };
+    this[$internal] = { device: root.device, glVersion };
     this.#root = root;
     this.#remapper = new Remapper(root);
     this.#uniformBufferCache = new UniformBufferCache(root);
@@ -202,6 +206,21 @@ export class BiGLContext {
 
   compileShader(_shader: BiGLShader): void {
     // NO-OP: Deferring compilation until the program is linked
+  }
+
+  getShaderPrecisionFormat(
+    shadertype: GLenum,
+    precisiontype: GLint,
+  ): WebGLShaderPrecisionFormat | null {
+    // TODO: Verify on older devices
+    const result = { precision: 23, rangeMax: 127, rangeMin: 127 };
+    Object.setPrototypeOf(result, WebGLShaderPrecisionFormat.prototype);
+    return result;
+  }
+
+  getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
+    // TODO: Implement extensions. Not supporting any extension for now.
+    return null;
   }
 
   createProgram(): WebGLProgram {
