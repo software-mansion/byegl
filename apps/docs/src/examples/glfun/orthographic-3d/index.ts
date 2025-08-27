@@ -4,6 +4,7 @@
  */
 
 import { mat4 } from 'gl-matrix';
+import type { ExampleContext } from '../../types';
 
 const vertexShader = `
   attribute vec3 a_position;
@@ -33,7 +34,7 @@ const fragmentShader = `
   }
 `;
 
-export default function main(canvas: HTMLCanvasElement) {
+export default function main({ canvas }: ExampleContext) {
   // Get A WebGL context
   const gl = canvas.getContext('webgl')!;
 

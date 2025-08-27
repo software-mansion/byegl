@@ -4,8 +4,9 @@ import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { BiGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
+import type { ExtensionMap } from './extensions/types.ts';
 
-const gl = WebGLRenderingContext;
+const gl = WebGL2RenderingContext;
 
 class BiGLShader implements WebGLShader {
   readonly [$internal]: {
@@ -79,8 +80,60 @@ const unnormalizedVertexFormatCatalog: Record<
   },
 };
 
+const shaderPrecisionFormatCatalog: Record<GLenum, WebGLShaderPrecisionFormat> =
+  {
+    [gl.HIGH_FLOAT]: Object.setPrototypeOf(
+      {
+        rangeMin: 127,
+        rangeMax: 127,
+        precision: 23,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.MEDIUM_FLOAT]: Object.setPrototypeOf(
+      {
+        rangeMin: 127,
+        rangeMax: 127,
+        precision: 23,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.LOW_FLOAT]: Object.setPrototypeOf(
+      {
+        rangeMin: 127,
+        rangeMax: 127,
+        precision: 23,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.HIGH_INT]: Object.setPrototypeOf(
+      {
+        rangeMin: 31,
+        rangeMax: 30,
+        precision: 0,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.MEDIUM_INT]: Object.setPrototypeOf(
+      {
+        rangeMin: 31,
+        rangeMax: 30,
+        precision: 0,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.LOW_INT]: Object.setPrototypeOf(
+      {
+        rangeMin: 31,
+        rangeMax: 30,
+        precision: 0,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+  };
+
 export class BiGLContext {
-  readonly [$internal]: { device: GPUDevice };
+  readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
 
   #root: TgpuRoot;
   #remapper: Remapper;
@@ -108,7 +161,6 @@ export class BiGLContext {
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
-  #clearColor: [number, number, number, number] = [0, 0, 0, 0];
 
   /**
    * The initial value for each capability with the exception of GL_DITHER is `false`.
@@ -117,7 +169,17 @@ export class BiGLContext {
    */
   #enabledCapabilities: Set<GLenum> = new Set([gl.DITHER]);
 
-  #cullFaceMode: GLenum = gl.BACK;
+  #parameters = new Map<GLenum, any>([
+    [gl.DEPTH_FUNC, gl.LESS],
+    [gl.CULL_FACE_MODE, gl.BACK],
+    [gl.COLOR_WRITEMASK, [true, true, true, true]],
+    [gl.COLOR_CLEAR_VALUE, new Float32Array([0, 0, 0, 0])],
+    [gl.DEPTH_CLEAR_VALUE, 1],
+    [gl.STENCIL_CLEAR_VALUE, 0],
+    [gl.FRONT_FACE, gl.CCW],
+    [gl.GENERATE_MIPMAP_HINT, gl.DONT_CARE],
+    [gl.POLYGON_OFFSET_FILL, false],
+  ]);
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
@@ -126,11 +188,12 @@ export class BiGLContext {
   }
 
   constructor(
+    glVersion: 1 | 2,
     root: TgpuRoot,
     canvas: HTMLCanvasElement,
     wgslGen: WgslGenerator,
   ) {
-    this[$internal] = { device: root.device };
+    this[$internal] = { device: root.device, glVersion };
     this.#root = root;
     this.#remapper = new Remapper(root);
     this.#uniformBufferCache = new UniformBufferCache(root);
@@ -202,6 +265,291 @@ export class BiGLContext {
 
   compileShader(_shader: BiGLShader): void {
     // NO-OP: Deferring compilation until the program is linked
+  }
+
+  getShaderPrecisionFormat(
+    shadertype: GLenum,
+    precisiontype: GLint,
+  ): WebGLShaderPrecisionFormat | null {
+    return shaderPrecisionFormatCatalog[precisiontype] ?? null;
+  }
+
+  colorMask(
+    red: GLboolean,
+    green: GLboolean,
+    blue: GLboolean,
+    alpha: GLboolean,
+  ): void {
+    this.#parameters.set(gl.COLOR_WRITEMASK, [red, green, blue, alpha]);
+  }
+
+  frontFace(mode: GLenum): void {
+    this.#parameters.set(gl.FRONT_FACE, mode);
+  }
+
+  getParameter(pname: GLenum): any {
+    const limits = this.#root.device.limits;
+
+    if (this.#parameters.has(pname)) {
+      const value = this.#parameters.get(pname);
+
+      if (value instanceof Float32Array) {
+        return new Float32Array(value);
+      }
+      // Freezing just in case the user decides to modify the value
+      return Object.freeze(value);
+    }
+
+    switch (pname) {
+      case gl.ACTIVE_TEXTURE:
+        // TODO: Implement
+        return gl.TEXTURE0;
+      case gl.ALIASED_LINE_WIDTH_RANGE:
+        // TODO: Implement
+        return new Float32Array([1, 1]);
+      case gl.ALIASED_POINT_SIZE_RANGE:
+        // TODO: Implement
+        return new Float32Array([1, 1]);
+      case gl.ALPHA_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.ARRAY_BUFFER_BINDING:
+        return this.#boundBufferMap.get(gl.ARRAY_BUFFER) ?? null;
+      case gl.BLEND:
+        return this.#enabledCapabilities.has(gl.BLEND);
+      case gl.BLEND_COLOR:
+        // TODO: Implement
+        return new Float32Array([0, 0, 0, 0]);
+      case gl.BLEND_DST_ALPHA:
+      case gl.BLEND_DST_RGB:
+        // TODO: Implement
+        return gl.ZERO;
+      case gl.BLEND_EQUATION:
+      case gl.BLEND_EQUATION_ALPHA:
+      case gl.BLEND_EQUATION_RGB:
+        // TODO: Implement
+        return gl.FUNC_ADD;
+      case gl.BLEND_SRC_ALPHA:
+      case gl.BLEND_SRC_RGB:
+        // TODO: Implement
+        return gl.ONE;
+      case gl.BLUE_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.COMPRESSED_TEXTURE_FORMATS:
+        // TODO: Implement
+        return new Uint32Array([]);
+      case gl.CURRENT_PROGRAM:
+        return this.#program ?? null;
+      case gl.DEPTH_BITS:
+        // TODO: If this can be set, allow it to be changed
+        return 24;
+      case gl.DEPTH_CLEAR_VALUE:
+        // TODO: If this can be set, allow it to be changed
+        return 1;
+      case gl.DEPTH_FUNC:
+        // TODO: If this can be set, allow it to be changed
+        return;
+      case gl.DEPTH_RANGE:
+        // TODO: If this can be set, allow it to be changed
+        return new Float32Array([-1, 1]);
+      case gl.CULL_FACE:
+      case gl.DEPTH_TEST:
+      case gl.DITHER:
+        return this.#enabledCapabilities.has(pname);
+      case gl.ELEMENT_ARRAY_BUFFER_BINDING:
+        return this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER) ?? null;
+      case gl.FRAMEBUFFER_BINDING:
+        // TODO: Implement
+        return null;
+      case gl.GREEN_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.IMPLEMENTATION_COLOR_READ_FORMAT:
+        // TODO: Respect this values when implementing gl.readPixels
+        return gl.RGBA;
+      case gl.IMPLEMENTATION_COLOR_READ_TYPE:
+        // TODO: Respect this values when implementing gl.readPixels
+        return gl.UNSIGNED_BYTE;
+      case gl.LINE_WIDTH:
+        // TODO: Maybe simulate thick line widths? Not a priority though
+        return 1.0;
+      case gl.MAX_TEXTURE_IMAGE_UNITS:
+      case gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS:
+        return limits.maxSampledTexturesPerShaderStage;
+      case gl.MAX_TEXTURE_SIZE:
+        return limits.maxTextureDimension2D;
+      case gl.MAX_CUBE_MAP_TEXTURE_SIZE:
+        return limits.maxTextureDimension2D;
+      case gl.MAX_VERTEX_ATTRIBS:
+        return limits.maxVertexAttributes;
+      case gl.MAX_VERTEX_UNIFORM_VECTORS:
+      case gl.MAX_FRAGMENT_UNIFORM_VECTORS:
+        // Assuming the biggest vector was chosen (4-elements)
+        // and using every uniforms buffer binding
+        return (
+          (limits.maxUniformBufferBindingSize / 4) *
+          limits.maxUniformBuffersPerShaderStage
+        );
+      case gl.MAX_VARYING_VECTORS:
+        return limits.maxInterStageShaderVariables;
+      case gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS:
+        return limits.maxSampledTexturesPerShaderStage * 2;
+      case gl.MAX_RENDERBUFFER_SIZE:
+        return limits.maxTextureDimension2D;
+      case gl.MAX_VIEWPORT_DIMS:
+        return [limits.maxTextureDimension2D, limits.maxTextureDimension2D];
+      case gl.PACK_ALIGNMENT:
+        // TODO: Relevant when implementing gl.readPixels
+        return 4;
+      case gl.POLYGON_OFFSET_FACTOR:
+        // TODO: Relevant when implementing gl.polygonOffset
+        return 0;
+      case gl.POLYGON_OFFSET_UNITS:
+        // TODO: Relevant when implementing gl.polygonOffset
+        return 0;
+      case gl.RED_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.RENDERBUFFER_BINDING:
+        // TODO: Implement
+        return null;
+      case gl.RENDERER:
+        return 'byegl';
+      case gl.SAMPLE_BUFFERS:
+        // TODO: 0 for now, but investigate more closely when implementing multisampling
+        return 0;
+      case gl.SAMPLE_COVERAGE_INVERT:
+        // TODO: Relevant when implementing gl.sampleCoverage
+        return 0;
+      case gl.SAMPLE_COVERAGE_VALUE:
+        // TODO: Relevant when implementing gl.sampleCoverage
+        return 0;
+      case gl.SAMPLES:
+        // TODO: Relevant when implementing gl.sampleCoverage
+        return 0;
+      case gl.SCISSOR_BOX:
+        // TODO: Relevant when implementing gl.scissor
+        return new Int32Array([0, 0, 0, 0]);
+      case gl.SCISSOR_TEST:
+        // TODO: Relevant when implementing gl.scissor
+        return false;
+      case gl.SHADING_LANGUAGE_VERSION:
+        return this[$internal].glVersion === 2
+          ? 'WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0)'
+          : 'WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0)';
+      /*
+      TODO:
+      gl.STENCIL_BACK_FAIL	GLenum
+      gl.STENCIL_BACK_FUNC	GLenum
+      gl.STENCIL_BACK_PASS_DEPTH_FAIL	GLenum
+      gl.STENCIL_BACK_PASS_DEPTH_PASS	GLenum
+      gl.STENCIL_BACK_REF	GLint
+      gl.STENCIL_BACK_VALUE_MASK	GLuint
+      gl.STENCIL_BACK_WRITEMASK	GLuint
+      gl.STENCIL_BITS	GLint
+      gl.STENCIL_CLEAR_VALUE	GLint
+      gl.STENCIL_FAIL	GLenum
+      gl.STENCIL_FUNC	GLenum
+      gl.STENCIL_PASS_DEPTH_FAIL	GLenum
+      gl.STENCIL_PASS_DEPTH_PASS	GLenum
+      gl.STENCIL_REF	GLint
+      gl.STENCIL_TEST	GLboolean
+      gl.STENCIL_VALUE_MASK	GLuint
+      gl.STENCIL_WRITEMASK	GLuint
+      gl.SUBPIXEL_BITS	GLint
+      gl.TEXTURE_BINDING_2D	WebGLTexture or null
+      gl.TEXTURE_BINDING_CUBE_MAP	WebGLTexture or null
+      gl.UNPACK_ALIGNMENT	GLint
+      gl.UNPACK_COLORSPACE_CONVERSION_WEBGL	GLenum
+      gl.UNPACK_FLIP_Y_WEBGL	GLboolean
+      gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL	GLboolean
+      gl.VENDOR	string*/
+      case gl.VERSION:
+        return this[$internal].glVersion === 2
+          ? 'WebGL 2.0 (OpenGL ES 3.0)'
+          : 'WebGL 1.0 (OpenGL ES 2.0)';
+      case gl.VIEWPORT:
+        // TODO: Adjust based on the passed in viewport
+        return new Int32Array([0, 0, this.#canvas.width, this.#canvas.height]);
+      /*
+      TODO: WebGL2 parameters
+      gl.COPY_READ_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.COPY_WRITE_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.DRAW_BUFFERi	GLenum	gl.BACK, gl.NONE or gl.COLOR_ATTACHMENT{0-15}. See also drawBuffers.
+      gl.DRAW_FRAMEBUFFER_BINDING	WebGLFramebuffer or null	null corresponds to a binding to the default framebuffer. See also bindFramebuffer.
+      gl.FRAGMENT_SHADER_DERIVATIVE_HINT	GLenum	gl.FASTEST, gl.NICEST or gl.DONT_CARE. See also hint.
+      gl.MAX_3D_TEXTURE_SIZE	GLint
+      gl.MAX_ARRAY_TEXTURE_LAYERS	GLint
+      gl.MAX_CLIENT_WAIT_TIMEOUT_WEBGL	GLint64
+      gl.MAX_COLOR_ATTACHMENTS	GLint
+      gl.MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS	GLint64
+      gl.MAX_COMBINED_UNIFORM_BLOCKS	GLint
+      gl.MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS	GLint64
+      gl.MAX_DRAW_BUFFERS	GLint
+      gl.MAX_ELEMENT_INDEX	GLint64
+      gl.MAX_ELEMENTS_INDICES	GLint
+      gl.MAX_ELEMENTS_VERTICES	GLint
+      gl.MAX_FRAGMENT_INPUT_COMPONENTS	GLint
+      gl.MAX_FRAGMENT_UNIFORM_BLOCKS	GLint
+      gl.MAX_FRAGMENT_UNIFORM_COMPONENTS	GLint
+      gl.MAX_PROGRAM_TEXEL_OFFSET	GLint*/
+      case gl.MAX_SAMPLES:
+        return 4;
+      /*gl.MAX_SERVER_WAIT_TIMEOUT	GLint64
+      gl.MAX_TEXTURE_LOD_BIAS	GLfloat
+      gl.MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS	GLint
+      gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS	GLint
+      gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS	GLint
+      gl.MAX_UNIFORM_BLOCK_SIZE	GLint64
+      gl.MAX_UNIFORM_BUFFER_BINDINGS	GLint
+      gl.MAX_VARYING_COMPONENTS	GLint
+      gl.MAX_VERTEX_OUTPUT_COMPONENTS	GLint
+      gl.MAX_VERTEX_UNIFORM_BLOCKS	GLint
+      gl.MAX_VERTEX_UNIFORM_COMPONENTS	GLint
+      gl.MIN_PROGRAM_TEXEL_OFFSET	GLint
+      gl.PACK_ROW_LENGTH	GLint	See pixelStorei.
+      gl.PACK_SKIP_PIXELS	GLint	See pixelStorei.
+      gl.PACK_SKIP_ROWS	GLint	See pixelStorei.
+      gl.PIXEL_PACK_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.PIXEL_UNPACK_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.RASTERIZER_DISCARD	GLboolean
+      gl.READ_BUFFER	GLenum
+      gl.READ_FRAMEBUFFER_BINDING	WebGLFramebuffer or null	null corresponds to a binding to the default framebuffer. See also bindFramebuffer.
+      gl.SAMPLE_ALPHA_TO_COVERAGE	GLboolean
+      gl.SAMPLE_COVERAGE	GLboolean
+      gl.SAMPLER_BINDING	WebGLSampler or null	See bindSampler.
+      gl.TEXTURE_BINDING_2D_ARRAY	WebGLTexture or null	See bindTexture.
+      gl.TEXTURE_BINDING_3D	WebGLTexture or null	See bindTexture.
+      gl.TRANSFORM_FEEDBACK_ACTIVE	GLboolean
+      gl.TRANSFORM_FEEDBACK_BINDING	WebGLTransformFeedback or null	See bindTransformFeedback.
+      gl.TRANSFORM_FEEDBACK_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.TRANSFORM_FEEDBACK_PAUSED	GLboolean
+      gl.UNIFORM_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.UNIFORM_BUFFER_OFFSET_ALIGNMENT	GLint	See pixelStorei.
+      gl.UNPACK_IMAGE_HEIGHT	GLint	See pixelStorei.
+      gl.UNPACK_ROW_LENGTH	GLint	See pixelStorei.
+      gl.UNPACK_SKIP_IMAGES	GLint	See pixelStorei.
+      gl.UNPACK_SKIP_PIXELS	GLint	See pixelStorei.
+      gl.UNPACK_SKIP_ROWS	GLint	See pixelStorei.
+      gl.VERTEX_ARRAY_BINDING	WebGLVertexArrayObject or null	See bindVertexArray.
+      */
+      default:
+        throw new Error(`Unsupported parameter: ${pname}`);
+    }
+  }
+
+  getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
+    // TODO: Implement extensions. Not supporting any extension for now.
+    return null;
   }
 
   createProgram(): WebGLProgram {
@@ -365,11 +713,11 @@ export class BiGLContext {
   }
 
   clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
-    this.#clearColor = [r, g, b, a];
+    this.#parameters.set(gl.COLOR_CLEAR_VALUE, new Float32Array([r, g, b, a]));
   }
 
   cullFace(mode: GLenum): void {
-    this.#cullFaceMode = mode;
+    this.#parameters.set(gl.CULL_FACE_MODE, mode);
   }
 
   clear(mask: GLbitfield): void {
@@ -478,6 +826,9 @@ export class BiGLContext {
       };
     }
 
+    const colorMask = this.#parameters.get(gl.COLOR_WRITEMASK);
+    const cullFaceMode = this.#parameters.get(gl.CULL_FACE_MODE);
+
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'BiGL Render Pipeline',
       layout: 'auto',
@@ -490,6 +841,11 @@ export class BiGLContext {
         targets: [
           {
             format: this.#format,
+            writeMask:
+              (colorMask[0] ? GPUColorWrite.RED : 0) |
+              (colorMask[1] ? GPUColorWrite.GREEN : 0) |
+              (colorMask[2] ? GPUColorWrite.BLUE : 0) |
+              (colorMask[3] ? GPUColorWrite.ALPHA : 0),
           },
         ],
       },
@@ -497,13 +853,16 @@ export class BiGLContext {
       primitive: {
         topology: 'triangle-list',
         cullMode: this.#enabledCapabilities.has(gl.CULL_FACE)
-          ? this.#cullFaceMode === gl.BACK
+          ? cullFaceMode === gl.BACK
             ? 'back'
             : 'front'
           : 'none',
       },
     });
 
+    const clearColorValue = this.#parameters.get(gl.COLOR_CLEAR_VALUE);
+    const clearDepthValue = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
+    const clearStencilValue = this.#parameters.get(gl.STENCIL_CLEAR_VALUE);
     const renderPass = encoder.beginRenderPass({
       label: 'BiGL Render Pass',
       colorAttachments: [
@@ -511,7 +870,7 @@ export class BiGLContext {
           view: currentTexture.createView(),
           loadOp: 'clear',
           storeOp: 'store',
-          clearValue: this.#clearColor,
+          clearValue: clearColorValue,
         },
       ],
       depthStencilAttachment: depthTextureView
@@ -519,7 +878,8 @@ export class BiGLContext {
             view: depthTextureView!,
             depthLoadOp: 'clear',
             depthStoreOp: 'store',
-            depthClearValue: 1.0,
+            depthClearValue: clearDepthValue,
+            stencilClearValue: clearStencilValue,
           }
         : undefined,
     });
@@ -639,4 +999,4 @@ export class BiGLContext {
 }
 
 // Inheriting from WebGLRenderingContext
-Object.setPrototypeOf(BiGLContext.prototype, WebGLRenderingContext.prototype);
+Object.setPrototypeOf(BiGLContext.prototype, WebGL2RenderingContext.prototype);
