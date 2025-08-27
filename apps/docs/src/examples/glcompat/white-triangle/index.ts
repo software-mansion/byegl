@@ -1,4 +1,6 @@
-export default function whiteTriangle(canvas: HTMLCanvasElement) {
+import type { ExampleContext } from '../../types.ts';
+
+export default function whiteTriangle({ canvas }: ExampleContext) {
   const gl = canvas.getContext('webgl');
 
   if (!gl) {

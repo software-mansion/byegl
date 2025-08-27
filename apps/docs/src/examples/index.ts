@@ -1,4 +1,5 @@
 import { mapKeys, mapValues, pipe } from 'remeda';
+import type { ExampleContext } from './types.ts';
 
 export interface ExampleMeta {
   name: string;
@@ -6,7 +7,7 @@ export interface ExampleMeta {
 }
 
 export type ExampleExecute = (
-  canvas: HTMLCanvasElement,
+  ctx: ExampleContext,
 ) => Promise<() => void | undefined>;
 
 export interface ExampleContent {

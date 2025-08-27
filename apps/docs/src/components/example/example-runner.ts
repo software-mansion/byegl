@@ -30,13 +30,15 @@ export async function runExample(example: ExampleContent) {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 
   if (!example.meta.usesHooks) {
-    // Only run ground-truth if the example does not use ByeGL hooks
-    prevGroundTruthCleanup = await (await example.execute())(groundTruthCanvas);
+    // Only run ground-truth if the example does not use byegl hooks
+    prevGroundTruthCleanup = await (await example.execute())({
+      canvas: groundTruthCanvas,
+    });
   }
 
   const disable = await byegl.enable();
   try {
-    prevCleanup = await (await example.execute())(canvas);
+    prevCleanup = await (await example.execute())({ canvas });
   } finally {
     disable();
   }

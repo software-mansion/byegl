@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import type { ExampleContext } from '../../types.ts';
 
-export default function (canvas: HTMLCanvasElement) {
+export default function ({ canvas }: ExampleContext) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
     75,

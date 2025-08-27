@@ -1,5 +1,6 @@
 import * as byegl from 'byegl';
 import { mat4 } from 'gl-matrix';
+import type { ExampleContext } from '../../types.ts';
 
 function createWaterSurface(
   device: GPUDevice,
@@ -113,7 +114,7 @@ function createWaterSurface(
   };
 }
 
-export default function (canvas: HTMLCanvasElement) {
+export default function ({ canvas }: ExampleContext) {
   const gl = canvas.getContext('webgl')!;
 
   if (!gl) {
