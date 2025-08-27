@@ -6,7 +6,7 @@ import { BiGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 
-const gl = WebGLRenderingContext;
+const gl = WebGL2RenderingContext;
 
 class BiGLShader implements WebGLShader {
   readonly [$internal]: {
@@ -442,8 +442,106 @@ export class BiGLContext {
       case gl.SCISSOR_TEST:
         // TODO: Relevant when implementing gl.scissor
         return false;
-      // case gl.UNPACK_ALIGNMENT:
-      //   return 4;
+      case gl.SHADING_LANGUAGE_VERSION:
+        return this[$internal].glVersion === 2
+          ? 'WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0)'
+          : 'WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0)';
+      /*
+      TODO:
+      gl.STENCIL_BACK_FAIL	GLenum
+      gl.STENCIL_BACK_FUNC	GLenum
+      gl.STENCIL_BACK_PASS_DEPTH_FAIL	GLenum
+      gl.STENCIL_BACK_PASS_DEPTH_PASS	GLenum
+      gl.STENCIL_BACK_REF	GLint
+      gl.STENCIL_BACK_VALUE_MASK	GLuint
+      gl.STENCIL_BACK_WRITEMASK	GLuint
+      gl.STENCIL_BITS	GLint
+      gl.STENCIL_CLEAR_VALUE	GLint
+      gl.STENCIL_FAIL	GLenum
+      gl.STENCIL_FUNC	GLenum
+      gl.STENCIL_PASS_DEPTH_FAIL	GLenum
+      gl.STENCIL_PASS_DEPTH_PASS	GLenum
+      gl.STENCIL_REF	GLint
+      gl.STENCIL_TEST	GLboolean
+      gl.STENCIL_VALUE_MASK	GLuint
+      gl.STENCIL_WRITEMASK	GLuint
+      gl.SUBPIXEL_BITS	GLint
+      gl.TEXTURE_BINDING_2D	WebGLTexture or null
+      gl.TEXTURE_BINDING_CUBE_MAP	WebGLTexture or null
+      gl.UNPACK_ALIGNMENT	GLint
+      gl.UNPACK_COLORSPACE_CONVERSION_WEBGL	GLenum
+      gl.UNPACK_FLIP_Y_WEBGL	GLboolean
+      gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL	GLboolean
+      gl.VENDOR	string*/
+      case gl.VERSION:
+        return this[$internal].glVersion === 2
+          ? 'WebGL 2.0 (OpenGL ES 3.0)'
+          : 'WebGL 1.0 (OpenGL ES 2.0)';
+      case gl.VIEWPORT:
+        // TODO: Adjust based on the passed in viewport
+        return new Int32Array([0, 0, this.#canvas.width, this.#canvas.height]);
+      /*
+      TODO: WebGL2 parameters
+      gl.COPY_READ_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.COPY_WRITE_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.DRAW_BUFFERi	GLenum	gl.BACK, gl.NONE or gl.COLOR_ATTACHMENT{0-15}. See also drawBuffers.
+      gl.DRAW_FRAMEBUFFER_BINDING	WebGLFramebuffer or null	null corresponds to a binding to the default framebuffer. See also bindFramebuffer.
+      gl.FRAGMENT_SHADER_DERIVATIVE_HINT	GLenum	gl.FASTEST, gl.NICEST or gl.DONT_CARE. See also hint.
+      gl.MAX_3D_TEXTURE_SIZE	GLint
+      gl.MAX_ARRAY_TEXTURE_LAYERS	GLint
+      gl.MAX_CLIENT_WAIT_TIMEOUT_WEBGL	GLint64
+      gl.MAX_COLOR_ATTACHMENTS	GLint
+      gl.MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS	GLint64
+      gl.MAX_COMBINED_UNIFORM_BLOCKS	GLint
+      gl.MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS	GLint64
+      gl.MAX_DRAW_BUFFERS	GLint
+      gl.MAX_ELEMENT_INDEX	GLint64
+      gl.MAX_ELEMENTS_INDICES	GLint
+      gl.MAX_ELEMENTS_VERTICES	GLint
+      gl.MAX_FRAGMENT_INPUT_COMPONENTS	GLint
+      gl.MAX_FRAGMENT_UNIFORM_BLOCKS	GLint
+      gl.MAX_FRAGMENT_UNIFORM_COMPONENTS	GLint
+      gl.MAX_PROGRAM_TEXEL_OFFSET	GLint*/
+      case gl.MAX_SAMPLES:
+        return 4;
+      /*gl.MAX_SERVER_WAIT_TIMEOUT	GLint64
+      gl.MAX_TEXTURE_LOD_BIAS	GLfloat
+      gl.MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS	GLint
+      gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS	GLint
+      gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS	GLint
+      gl.MAX_UNIFORM_BLOCK_SIZE	GLint64
+      gl.MAX_UNIFORM_BUFFER_BINDINGS	GLint
+      gl.MAX_VARYING_COMPONENTS	GLint
+      gl.MAX_VERTEX_OUTPUT_COMPONENTS	GLint
+      gl.MAX_VERTEX_UNIFORM_BLOCKS	GLint
+      gl.MAX_VERTEX_UNIFORM_COMPONENTS	GLint
+      gl.MIN_PROGRAM_TEXEL_OFFSET	GLint
+      gl.PACK_ROW_LENGTH	GLint	See pixelStorei.
+      gl.PACK_SKIP_PIXELS	GLint	See pixelStorei.
+      gl.PACK_SKIP_ROWS	GLint	See pixelStorei.
+      gl.PIXEL_PACK_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.PIXEL_UNPACK_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.RASTERIZER_DISCARD	GLboolean
+      gl.READ_BUFFER	GLenum
+      gl.READ_FRAMEBUFFER_BINDING	WebGLFramebuffer or null	null corresponds to a binding to the default framebuffer. See also bindFramebuffer.
+      gl.SAMPLE_ALPHA_TO_COVERAGE	GLboolean
+      gl.SAMPLE_COVERAGE	GLboolean
+      gl.SAMPLER_BINDING	WebGLSampler or null	See bindSampler.
+      gl.TEXTURE_BINDING_2D_ARRAY	WebGLTexture or null	See bindTexture.
+      gl.TEXTURE_BINDING_3D	WebGLTexture or null	See bindTexture.
+      gl.TRANSFORM_FEEDBACK_ACTIVE	GLboolean
+      gl.TRANSFORM_FEEDBACK_BINDING	WebGLTransformFeedback or null	See bindTransformFeedback.
+      gl.TRANSFORM_FEEDBACK_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.TRANSFORM_FEEDBACK_PAUSED	GLboolean
+      gl.UNIFORM_BUFFER_BINDING	WebGLBuffer or null	See bindBuffer.
+      gl.UNIFORM_BUFFER_OFFSET_ALIGNMENT	GLint	See pixelStorei.
+      gl.UNPACK_IMAGE_HEIGHT	GLint	See pixelStorei.
+      gl.UNPACK_ROW_LENGTH	GLint	See pixelStorei.
+      gl.UNPACK_SKIP_IMAGES	GLint	See pixelStorei.
+      gl.UNPACK_SKIP_PIXELS	GLint	See pixelStorei.
+      gl.UNPACK_SKIP_ROWS	GLint	See pixelStorei.
+      gl.VERTEX_ARRAY_BINDING	WebGLVertexArrayObject or null	See bindVertexArray.
+      */
       default:
         throw new Error(`Unsupported parameter: ${pname}`);
     }
@@ -901,4 +999,4 @@ export class BiGLContext {
 }
 
 // Inheriting from WebGLRenderingContext
-Object.setPrototypeOf(BiGLContext.prototype, WebGLRenderingContext.prototype);
+Object.setPrototypeOf(BiGLContext.prototype, WebGL2RenderingContext.prototype);
