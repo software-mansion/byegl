@@ -15,9 +15,11 @@
     "byegl": "workspace:*",
     "gl-matrix": "^3.4.4",
     "remeda": "^2.30.0",
-    "tailwindcss": "^4.1.12"
+    "tailwindcss": "^4.1.12",
+    "three": "^0.179.1"
   },
   "devDependencies": {
+    "@types/three": "^0.179.0",
     "@webgpu/types": "^0.1.64",
     "daisyui": "^5.0.50"
   }
