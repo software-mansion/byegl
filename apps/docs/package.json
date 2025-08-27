@@ -21,6 +21,7 @@
   "devDependencies": {
     "@types/three": "^0.179.0",
     "@webgpu/types": "^0.1.64",
-    "daisyui": "^5.0.50"
+    "daisyui": "^5.0.50",
+    "vite-plugin-mkcert": "^1.17.8"
   }
 }

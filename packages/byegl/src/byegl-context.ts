@@ -80,7 +80,57 @@ const unnormalizedVertexFormatCatalog: Record<
   },
 };
 
-// const shaderPrecisionFormatCatalog
+const shaderPrecisionFormatCatalog: Record<GLenum, WebGLShaderPrecisionFormat> =
+  {
+    [gl.HIGH_FLOAT]: Object.setPrototypeOf(
+      {
+        rangeMin: 127,
+        rangeMax: 127,
+        precision: 23,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.MEDIUM_FLOAT]: Object.setPrototypeOf(
+      {
+        rangeMin: 127,
+        rangeMax: 127,
+        precision: 23,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.LOW_FLOAT]: Object.setPrototypeOf(
+      {
+        rangeMin: 127,
+        rangeMax: 127,
+        precision: 23,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.HIGH_INT]: Object.setPrototypeOf(
+      {
+        rangeMin: 31,
+        rangeMax: 30,
+        precision: 0,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.MEDIUM_INT]: Object.setPrototypeOf(
+      {
+        rangeMin: 31,
+        rangeMax: 30,
+        precision: 0,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+    [gl.LOW_INT]: Object.setPrototypeOf(
+      {
+        rangeMin: 31,
+        rangeMax: 30,
+        precision: 0,
+      },
+      WebGLShaderPrecisionFormat.prototype,
+    ),
+  };
 
 export class BiGLContext {
   readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
@@ -212,10 +262,7 @@ export class BiGLContext {
     shadertype: GLenum,
     precisiontype: GLint,
   ): WebGLShaderPrecisionFormat | null {
-    // TODO: Verify on older devices
-    const result = { precision: 23, rangeMax: 127, rangeMin: 127 };
-    Object.setPrototypeOf(result, WebGLShaderPrecisionFormat.prototype);
-    return result;
+    return shaderPrecisionFormatCatalog[precisiontype] ?? null;
   }
 
   getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {

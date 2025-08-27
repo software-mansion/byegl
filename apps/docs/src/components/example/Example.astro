@@ -1,9 +1,9 @@
 <main
     id="example--main"
-    class="group flex justify-center flex-wrap items-center gap-2 place-content-center"
+    class="group flex flex-col justify-center items-center gap-2 place-content-center"
 >
     <div
-        class="group-[[data-show-example]]:contents not-group-[[data-show-example]]:hidden"
+        class="group-[[data-show-example]]:flex not-group-[[data-show-example]]:hidden justify-center items-center flex-wrap gap-2"
     >
         <div>
             <h2 class="text-center group-[[data-uses-hooks=true]]:hidden">
@@ -26,6 +26,7 @@
             </canvas>
         </div>
     </div>
+    <textarea id="trace-log" class="flex-1 w-full empty:hidden"></textarea>
     <p
         class="group-[[data-show-example]]:hidden not-group-[[data-show-example]]:block"
     >
