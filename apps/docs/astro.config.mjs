@@ -6,6 +6,7 @@ import typegpu from 'unplugin-typegpu/vite';
 
 // https://astro.build/config
 export default defineConfig({
+  base: '/byegl',
   vite: {
     plugins: [tailwindcss(), typegpu({})],
   },
