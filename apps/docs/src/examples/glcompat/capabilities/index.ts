@@ -28,4 +28,34 @@ export default function ({ canvas, trace }: ExampleContext) {
       });
     }
   }
+
+  trace({
+    call: `gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS)`,
+    value: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+  });
+
+  trace({
+    call: `gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS)`,
+    value: gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS),
+  });
+
+  trace({
+    call: `gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)`,
+    value: gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS),
+  });
+
+  trace({
+    call: `gl.getParameter(gl.MAX_VERTEX_ATTRIBS)`,
+    value: gl.getParameter(gl.MAX_VERTEX_ATTRIBS),
+  });
+
+  trace({
+    call: `gl.getParameter(gl.ARRAY_BUFFER_BINDING)`,
+    value: gl.getParameter(gl.ARRAY_BUFFER_BINDING),
+  });
+
+  trace({
+    call: `gl.getParameter(gl.COLOR_CLEAR_VALUE)`,
+    value: gl.getParameter(gl.COLOR_CLEAR_VALUE),
+  });
 }

@@ -161,7 +161,6 @@ export class BiGLContext {
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
-  #clearColor: [number, number, number, number] = [0, 0, 0, 0];
 
   /**
    * The initial value for each capability with the exception of GL_DITHER is `false`.
@@ -170,7 +169,17 @@ export class BiGLContext {
    */
   #enabledCapabilities: Set<GLenum> = new Set([gl.DITHER]);
 
-  #cullFaceMode: GLenum = gl.BACK;
+  #parameters = new Map<GLenum, any>([
+    [gl.DEPTH_FUNC, gl.LESS],
+    [gl.CULL_FACE_MODE, gl.BACK],
+    [gl.COLOR_WRITEMASK, [true, true, true, true]],
+    [gl.COLOR_CLEAR_VALUE, new Float32Array([0, 0, 0, 0])],
+    [gl.DEPTH_CLEAR_VALUE, 1],
+    [gl.STENCIL_CLEAR_VALUE, 0],
+    [gl.FRONT_FACE, gl.CCW],
+    [gl.GENERATE_MIPMAP_HINT, gl.DONT_CARE],
+    [gl.POLYGON_OFFSET_FILL, false],
+  ]);
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     return this.#vertexBufferSegments.filter((segment) =>
@@ -263,6 +272,181 @@ export class BiGLContext {
     precisiontype: GLint,
   ): WebGLShaderPrecisionFormat | null {
     return shaderPrecisionFormatCatalog[precisiontype] ?? null;
+  }
+
+  colorMask(
+    red: GLboolean,
+    green: GLboolean,
+    blue: GLboolean,
+    alpha: GLboolean,
+  ): void {
+    this.#parameters.set(gl.COLOR_WRITEMASK, [red, green, blue, alpha]);
+  }
+
+  frontFace(mode: GLenum): void {
+    this.#parameters.set(gl.FRONT_FACE, mode);
+  }
+
+  getParameter(pname: GLenum): any {
+    const limits = this.#root.device.limits;
+
+    if (this.#parameters.has(pname)) {
+      const value = this.#parameters.get(pname);
+
+      if (value instanceof Float32Array) {
+        return new Float32Array(value);
+      }
+      // Freezing just in case the user decides to modify the value
+      return Object.freeze(value);
+    }
+
+    switch (pname) {
+      case gl.ACTIVE_TEXTURE:
+        // TODO: Implement
+        return gl.TEXTURE0;
+      case gl.ALIASED_LINE_WIDTH_RANGE:
+        // TODO: Implement
+        return new Float32Array([1, 1]);
+      case gl.ALIASED_POINT_SIZE_RANGE:
+        // TODO: Implement
+        return new Float32Array([1, 1]);
+      case gl.ALPHA_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.ARRAY_BUFFER_BINDING:
+        return this.#boundBufferMap.get(gl.ARRAY_BUFFER) ?? null;
+      case gl.BLEND:
+        return this.#enabledCapabilities.has(gl.BLEND);
+      case gl.BLEND_COLOR:
+        // TODO: Implement
+        return new Float32Array([0, 0, 0, 0]);
+      case gl.BLEND_DST_ALPHA:
+      case gl.BLEND_DST_RGB:
+        // TODO: Implement
+        return gl.ZERO;
+      case gl.BLEND_EQUATION:
+      case gl.BLEND_EQUATION_ALPHA:
+      case gl.BLEND_EQUATION_RGB:
+        // TODO: Implement
+        return gl.FUNC_ADD;
+      case gl.BLEND_SRC_ALPHA:
+      case gl.BLEND_SRC_RGB:
+        // TODO: Implement
+        return gl.ONE;
+      case gl.BLUE_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.COMPRESSED_TEXTURE_FORMATS:
+        // TODO: Implement
+        return new Uint32Array([]);
+      case gl.CURRENT_PROGRAM:
+        return this.#program ?? null;
+      case gl.DEPTH_BITS:
+        // TODO: If this can be set, allow it to be changed
+        return 24;
+      case gl.DEPTH_CLEAR_VALUE:
+        // TODO: If this can be set, allow it to be changed
+        return 1;
+      case gl.DEPTH_FUNC:
+        // TODO: If this can be set, allow it to be changed
+        return;
+      case gl.DEPTH_RANGE:
+        // TODO: If this can be set, allow it to be changed
+        return new Float32Array([-1, 1]);
+      case gl.CULL_FACE:
+      case gl.DEPTH_TEST:
+      case gl.DITHER:
+        return this.#enabledCapabilities.has(pname);
+      case gl.ELEMENT_ARRAY_BUFFER_BINDING:
+        return this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER) ?? null;
+      case gl.FRAMEBUFFER_BINDING:
+        // TODO: Implement
+        return null;
+      case gl.GREEN_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.IMPLEMENTATION_COLOR_READ_FORMAT:
+        // TODO: Respect this values when implementing gl.readPixels
+        return gl.RGBA;
+      case gl.IMPLEMENTATION_COLOR_READ_TYPE:
+        // TODO: Respect this values when implementing gl.readPixels
+        return gl.UNSIGNED_BYTE;
+      case gl.LINE_WIDTH:
+        // TODO: Maybe simulate thick line widths? Not a priority though
+        return 1.0;
+      case gl.MAX_TEXTURE_IMAGE_UNITS:
+      case gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS:
+        return limits.maxSampledTexturesPerShaderStage;
+      case gl.MAX_TEXTURE_SIZE:
+        return limits.maxTextureDimension2D;
+      case gl.MAX_CUBE_MAP_TEXTURE_SIZE:
+        return limits.maxTextureDimension2D;
+      case gl.MAX_VERTEX_ATTRIBS:
+        return limits.maxVertexAttributes;
+      case gl.MAX_VERTEX_UNIFORM_VECTORS:
+      case gl.MAX_FRAGMENT_UNIFORM_VECTORS:
+        // Assuming the biggest vector was chosen (4-elements)
+        // and using every uniforms buffer binding
+        return (
+          (limits.maxUniformBufferBindingSize / 4) *
+          limits.maxUniformBuffersPerShaderStage
+        );
+      case gl.MAX_VARYING_VECTORS:
+        return limits.maxInterStageShaderVariables;
+      case gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS:
+        return limits.maxSampledTexturesPerShaderStage * 2;
+      case gl.MAX_RENDERBUFFER_SIZE:
+        return limits.maxTextureDimension2D;
+      case gl.MAX_VIEWPORT_DIMS:
+        return [limits.maxTextureDimension2D, limits.maxTextureDimension2D];
+      case gl.PACK_ALIGNMENT:
+        // TODO: Relevant when implementing gl.readPixels
+        return 4;
+      case gl.POLYGON_OFFSET_FACTOR:
+        // TODO: Relevant when implementing gl.polygonOffset
+        return 0;
+      case gl.POLYGON_OFFSET_UNITS:
+        // TODO: Relevant when implementing gl.polygonOffset
+        return 0;
+      case gl.RED_BITS:
+        // TODO: Return 16 is the canvas was configured with a
+        // texture format that supports higher precision
+        // (e.g. rgba16float)
+        return 8;
+      case gl.RENDERBUFFER_BINDING:
+        // TODO: Implement
+        return null;
+      case gl.RENDERER:
+        return 'byegl';
+      case gl.SAMPLE_BUFFERS:
+        // TODO: 0 for now, but investigate more closely when implementing multisampling
+        return 0;
+      case gl.SAMPLE_COVERAGE_INVERT:
+        // TODO: Relevant when implementing gl.sampleCoverage
+        return 0;
+      case gl.SAMPLE_COVERAGE_VALUE:
+        // TODO: Relevant when implementing gl.sampleCoverage
+        return 0;
+      case gl.SAMPLES:
+        // TODO: Relevant when implementing gl.sampleCoverage
+        return 0;
+      case gl.SCISSOR_BOX:
+        // TODO: Relevant when implementing gl.scissor
+        return new Int32Array([0, 0, 0, 0]);
+      case gl.SCISSOR_TEST:
+        // TODO: Relevant when implementing gl.scissor
+        return false;
+      // case gl.UNPACK_ALIGNMENT:
+      //   return 4;
+      default:
+        throw new Error(`Unsupported parameter: ${pname}`);
+    }
   }
 
   getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
@@ -431,11 +615,11 @@ export class BiGLContext {
   }
 
   clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
-    this.#clearColor = [r, g, b, a];
+    this.#parameters.set(gl.COLOR_CLEAR_VALUE, new Float32Array([r, g, b, a]));
   }
 
   cullFace(mode: GLenum): void {
-    this.#cullFaceMode = mode;
+    this.#parameters.set(gl.CULL_FACE_MODE, mode);
   }
 
   clear(mask: GLbitfield): void {
@@ -544,6 +728,9 @@ export class BiGLContext {
       };
     }
 
+    const colorMask = this.#parameters.get(gl.COLOR_WRITEMASK);
+    const cullFaceMode = this.#parameters.get(gl.CULL_FACE_MODE);
+
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'BiGL Render Pipeline',
       layout: 'auto',
@@ -556,6 +743,11 @@ export class BiGLContext {
         targets: [
           {
             format: this.#format,
+            writeMask:
+              (colorMask[0] ? GPUColorWrite.RED : 0) |
+              (colorMask[1] ? GPUColorWrite.GREEN : 0) |
+              (colorMask[2] ? GPUColorWrite.BLUE : 0) |
+              (colorMask[3] ? GPUColorWrite.ALPHA : 0),
           },
         ],
       },
@@ -563,13 +755,16 @@ export class BiGLContext {
       primitive: {
         topology: 'triangle-list',
         cullMode: this.#enabledCapabilities.has(gl.CULL_FACE)
-          ? this.#cullFaceMode === gl.BACK
+          ? cullFaceMode === gl.BACK
             ? 'back'
             : 'front'
           : 'none',
       },
     });
 
+    const clearColorValue = this.#parameters.get(gl.COLOR_CLEAR_VALUE);
+    const clearDepthValue = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
+    const clearStencilValue = this.#parameters.get(gl.STENCIL_CLEAR_VALUE);
     const renderPass = encoder.beginRenderPass({
       label: 'BiGL Render Pass',
       colorAttachments: [
@@ -577,7 +772,7 @@ export class BiGLContext {
           view: currentTexture.createView(),
           loadOp: 'clear',
           storeOp: 'store',
-          clearValue: this.#clearColor,
+          clearValue: clearColorValue,
         },
       ],
       depthStencilAttachment: depthTextureView
@@ -585,7 +780,8 @@ export class BiGLContext {
             view: depthTextureView!,
             depthLoadOp: 'clear',
             depthStoreOp: 'store',
-            depthClearValue: 1.0,
+            depthClearValue: clearDepthValue,
+            stencilClearValue: clearStencilValue,
           }
         : undefined,
     });
