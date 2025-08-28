@@ -1,10 +1,11 @@
 import { TgpuRoot } from 'typegpu';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
+import type { ExtensionMap } from './extensions/types.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
-import type { ExtensionMap } from './extensions/types.ts';
+import { primitiveMap } from './constants.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -783,7 +784,7 @@ export class ByeGLContext {
     this.#uniformBufferCache.updateUniform(location, data.buffer);
   }
 
-  #createRenderPass(encoder: GPUCommandEncoder) {
+  #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
     const program = this.#program?.[$internal]!;
     const currentTexture = this.#canvasContext.getCurrentTexture();
 
@@ -828,6 +829,11 @@ export class ByeGLContext {
 
     const colorMask = this.#parameters.get(gl.COLOR_WRITEMASK);
     const cullFaceMode = this.#parameters.get(gl.CULL_FACE_MODE);
+    const topology = primitiveMap[mode as keyof typeof primitiveMap];
+
+    if (!topology) {
+      throw new Error(`Unsupported primitive topology: ${mode}`);
+    }
 
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'ByeGL Render Pipeline',
@@ -851,7 +857,7 @@ export class ByeGLContext {
       },
       depthStencil,
       primitive: {
-        topology: 'triangle-list',
+        topology,
         cullMode: this.#enabledCapabilities.has(gl.CULL_FACE)
           ? cullFaceMode === gl.BACK
             ? 'back'
@@ -946,7 +952,7 @@ export class ByeGLContext {
     const encoder = this.#root.device.createCommandEncoder({
       label: 'ByeGL Command Encoder',
     });
-    const renderPass = this.#createRenderPass(encoder);
+    const renderPass = this.#createRenderPass(encoder, mode);
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
 
@@ -968,7 +974,7 @@ export class ByeGLContext {
       label: 'ByeGL Command Encoder',
     });
 
-    const renderPass = this.#createRenderPass(encoder);
+    const renderPass = this.#createRenderPass(encoder, mode);
 
     // Index buffer
     const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
