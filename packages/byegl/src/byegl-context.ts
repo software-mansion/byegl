@@ -1,11 +1,11 @@
 import { TgpuRoot } from 'typegpu';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
+import { primitiveMap } from './constants.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
-import { primitiveMap } from './constants.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -286,6 +286,16 @@ export class ByeGLContext {
 
   frontFace(mode: GLenum): void {
     this.#parameters.set(gl.FRONT_FACE, mode);
+  }
+
+  getShaderInfoLog(shader: WebGLShader): string | null {
+    // TODO: Implement
+    return null;
+  }
+
+  getProgramInfoLog(program: WebGLProgram): string | null {
+    // TODO: Implement
+    return null;
   }
 
   getParameter(pname: GLenum): any {

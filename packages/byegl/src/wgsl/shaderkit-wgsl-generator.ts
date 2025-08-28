@@ -1,4 +1,6 @@
-import * as shaderkit from 'shaderkit';
+import * as shaderkit from '@iwoplaza/shaderkit';
+import tgpu from 'typegpu';
+import * as d from 'typegpu/data';
 import { WgslGenerator, WgslGeneratorResult } from './wgsl-generator.ts';
 
 interface AttributeInfo {
@@ -40,20 +42,67 @@ interface UniformInfo {
 }
 
 const glslToWgslTypeMap = {
-  float: 'f32',
-  vec2: 'vec2f',
-  vec3: 'vec3f',
-  vec4: 'vec4f',
-  ivec2: 'vec2i',
-  ivec3: 'vec3i',
-  ivec4: 'vec4i',
-  uvec2: 'vec2u',
-  uvec3: 'vec3u',
-  uvec4: 'vec4u',
-  mat2: 'mat2x2f',
-  mat3: 'mat3x3f',
-  mat4: 'mat4x4f',
+  float: d.f32,
+  vec2: d.vec2f,
+  vec3: d.vec3f,
+  vec4: d.vec4f,
+  ivec2: d.vec2i,
+  ivec3: d.vec3i,
+  ivec4: d.vec4i,
+  uvec2: d.vec2u,
+  uvec3: d.vec3u,
+  uvec4: d.vec4u,
+  mat2: d.mat2x2f,
+  mat3: d.mat3x3f,
+  mat4: d.mat4x4f,
 };
+
+const primitiveTypes: Set<d.AnyWgslData> = new Set([
+  d.f32,
+  d.f16,
+  d.i32,
+  d.u32,
+  d.bool,
+  d.vec2f,
+  d.vec2h,
+  d.vec2i,
+  d.vec2u,
+  d.vec2b,
+  d.vec3f,
+  d.vec3h,
+  d.vec3i,
+  d.vec3u,
+  d.vec3b,
+  d.vec4f,
+  d.vec4h,
+  d.vec4i,
+  d.vec4u,
+  d.vec4b,
+  d.mat2x2f,
+  d.mat3x3f,
+  d.mat4x4f,
+]);
+
+const opToPrecedence = {
+  '+': 1,
+  '-': 1,
+  '*': 2,
+  '/': 2,
+  '%': 2,
+  '==': 3,
+  '!=': 3,
+  '<': 3,
+  '<=': 3,
+  '>': 3,
+  '>=': 3,
+  '<<': 3,
+  '>>': 3,
+  '|': 3,
+  '^': 3,
+  '&': 3,
+};
+
+type Declaration = StructDecl;
 
 interface GenState {
   shaderType: 'vertex' | 'fragment';
@@ -61,6 +110,14 @@ interface GenState {
   attributes: Map<number, AttributeInfo>;
   varyings: Map<number, VaryingInfo>;
   uniforms: Map<number, UniformInfo>;
+
+  declarations: Map<string, d.WgslStruct>;
+  /**
+   * The names of TypeGPU resources in the template, which will be
+   * replaced with their actual name during resolution.
+   * Have to be unique.
+   */
+  aliases: Map<d.AnyWgslData, string>;
 
   /** Used to track variable declarations with the `attribute` qualifier */
   lastAttributeIdx: number;
@@ -74,6 +131,7 @@ interface GenState {
 
   lineStart: string;
   definingFunction: boolean;
+  parentPrecedence: number;
 }
 
 export class ShaderkitWGSLGenerator implements WgslGenerator {
@@ -89,19 +147,41 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     return `${primer ?? 'item'}_${++this.#lastUniqueIdSuffix}`;
   }
 
-  generateTypeSpecifier(
+  getDataType(
     typeSpecifier: shaderkit.Identifier | shaderkit.ArraySpecifier,
-  ): string {
+  ): d.AnyWgslData {
+    const state = this.#state;
     if (typeSpecifier.type === 'Identifier') {
       if (typeSpecifier.name in glslToWgslTypeMap) {
         return glslToWgslTypeMap[
           typeSpecifier.name as keyof typeof glslToWgslTypeMap
         ];
       }
-      return typeSpecifier.name;
+
+      if (typeSpecifier.name === 'void') {
+        return d.Void;
+      }
+
+      if (state.declarations.has(typeSpecifier.name)) {
+        return state.declarations.get(typeSpecifier.name)!;
+      }
+
+      throw new Error(`Unsupported type idenfifier: ${typeSpecifier.name}`);
     }
 
     throw new Error(`Unsupported type specifier: ${typeSpecifier.type}`);
+  }
+
+  aliasOf(value: d.AnyWgslData): string {
+    if (primitiveTypes.has(value)) {
+      return value.type;
+    }
+
+    const alias = this.#state.aliases.get(value);
+    if (alias) {
+      return alias;
+    }
+    throw new Error(`No alias found for: ${value}`);
   }
 
   generateExpression(expression: shaderkit.Expression): string {
@@ -111,6 +191,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (expression.type === 'Literal') {
       return expression.value;
+    }
+
+    if (expression.type === 'ConditionalExpression') {
+      // TODO: Not 100% accurate, but works for now
+      const test = this.generateExpression(expression.test);
+      const consequent = this.generateExpression(expression.consequent);
+      const alternate = this.generateExpression(expression.alternate);
+      return `select(${consequent}, ${alternate}, ${test})`;
     }
 
     if (expression.type === 'CallExpression') {
@@ -132,18 +220,27 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (expression.type === 'AssignmentExpression') {
-      if (expression.left.type !== 'Identifier') {
-        throw new Error(`Unsupported left type: ${expression.left.type}`);
-      }
-      const left = expression.left.name;
+      const left = this.generateExpression(expression.left);
       const right = this.generateExpression(expression.right);
       return `${left} = ${right}`;
     }
 
     if (expression.type === 'BinaryExpression') {
-      const left = this.generateExpression(expression.left);
-      const right = this.generateExpression(expression.right);
-      return `${left} ${expression.operator} ${right}`;
+      const parentPrecedence = this.#state.parentPrecedence;
+      try {
+        const myPrecedence = opToPrecedence[expression.operator];
+        this.#state.parentPrecedence = myPrecedence;
+        const left = this.generateExpression(expression.left);
+        const right = this.generateExpression(expression.right);
+        this.#state.parentPrecedence = parentPrecedence;
+
+        if (myPrecedence < parentPrecedence) {
+          return `(${left} ${expression.operator} ${right})`;
+        }
+        return `${left} ${expression.operator} ${right}`;
+      } finally {
+        this.#state.parentPrecedence = parentPrecedence;
+      }
     }
 
     if (expression.type === 'UnaryExpression') {
@@ -162,6 +259,28 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
   generateStatement(statement: shaderkit.Statement): string {
     const state = this.#state;
+
+    if (statement.type === 'StructDeclaration') {
+      const alias = this.uniqueId(statement.id.name);
+
+      const structType = d
+        .struct(
+          Object.fromEntries(
+            statement.members.map((member) => {
+              const decl = member.declarations[0];
+              const type = this.getDataType(decl.typeSpecifier);
+              return [decl.id.name, type];
+            }),
+          ),
+        )
+        .$name(alias);
+
+      state.aliases.set(structType, alias);
+      state.declarations.set(statement.id.name, structType);
+
+      return '';
+    }
+
     if (statement.type === 'VariableDeclaration') {
       let code = '';
 
@@ -172,17 +291,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.lastAttributeIdx++;
           } while (state.attributes.has(state.lastAttributeIdx));
 
-          const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+          const wgslType = this.getDataType(decl.typeSpecifier);
 
           state.attributes.set(state.lastAttributeIdx, {
             id: decl.id.name,
             paramId: this.uniqueId(decl.id.name),
             location: state.lastAttributeIdx,
-            type: wgslType,
+            type: wgslType.type,
           });
 
           // Defining proxies
-          code += `/* attribute */ var<private> ${decl.id.name}: ${wgslType};\n`;
+          code += `/* attribute */ var<private> ${decl.id.name}: ${this.aliasOf(wgslType)};\n`;
         } else if (decl.qualifiers.includes('varying')) {
           // Finding the next available varying index
           do {
@@ -191,18 +310,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
           if (state.shaderType === 'vertex') {
             // Only generating in the vertex shader
-            const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+            const wgslType = this.getDataType(decl.typeSpecifier);
 
             state.varyings.set(state.lastVaryingIdx, {
               id: decl.id.name,
               // Arbitrary, choosing the vertex name to be the prop key
               propKey: decl.id.name,
               location: state.lastVaryingIdx,
-              type: wgslType,
+              type: wgslType.type,
             });
 
             // Defining proxies
-            code += `/* varying */ var<private> ${decl.id.name}: ${wgslType};\n`;
+            code += `/* varying */ var<private> ${decl.id.name}: ${this.aliasOf(wgslType)};\n`;
           }
         } else if (decl.qualifiers.includes('uniform')) {
           // Finding the next available uniform index
@@ -210,22 +329,25 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.lastBindingIdx++;
           } while (state.uniforms.has(state.lastBindingIdx));
 
-          const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+          const wgslType = this.getDataType(decl.typeSpecifier);
+          const wgslTypeAlias = this.aliasOf(wgslType);
 
           state.uniforms.set(state.lastBindingIdx, {
             id: decl.id.name,
             bindingIdx: state.lastBindingIdx,
-            type: this.generateTypeSpecifier(decl.typeSpecifier),
+            type: wgslType.type,
           });
 
-          code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslType};\n`;
+          code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslTypeAlias};\n`;
         } else {
           // Regular variable
-          const wgslType = this.generateTypeSpecifier(decl.typeSpecifier);
+          const wgslType = this.getDataType(decl.typeSpecifier);
+          const wgslTypeAlias = this.aliasOf(wgslType);
+
           if (decl.init) {
-            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslType} = ${this.generateExpression(decl.init)};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslTypeAlias} = ${this.generateExpression(decl.init)};\n`;
           } else {
-            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslType};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslTypeAlias};\n`;
           }
         }
 
@@ -239,11 +361,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const params = statement.params
         .map(
           (param) =>
-            `${param.id?.name}: ${this.generateTypeSpecifier(param.typeSpecifier)}`,
+            `${param.id?.name}: ${this.aliasOf(this.getDataType(param.typeSpecifier))}`,
         )
         .join(', ');
 
-      const returnType = this.generateTypeSpecifier(statement.typeSpecifier);
+      const returnType = this.getDataType(statement.typeSpecifier);
 
       if (funcName === 'main') {
         // We're generating the entry function!
@@ -264,10 +386,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           .map((stmt) => this.generateStatement(stmt))
           .join('');
 
-        if (returnType === 'void') {
+        if (returnType === d.Void) {
           return `\nfn ${funcName}(${params}) {\n${body}}\n`;
         } else {
-          return `\nfn ${funcName}(${params}) -> ${returnType} {\n${body}}\n`;
+          return `\nfn ${funcName}(${params}) -> ${this.aliasOf(returnType)} {\n${body}}\n`;
         }
       } finally {
         state.definingFunction = prevDefiningFunction;
@@ -277,6 +399,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (statement.type === 'ExpressionStatement') {
       return `${state.lineStart}${this.generateExpression(statement.expression)};\n`;
+    }
+
+    if (statement.type === 'BlockStatement') {
+      const body = statement.body
+        .map((stmt) => this.generateStatement(stmt))
+        .join('');
+
+      return body;
     }
 
     if (statement.type === 'PrecisionQualifierStatement') {
@@ -292,6 +422,20 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       }
     }
 
+    if (statement.type === 'IfStatement') {
+      const condition = this.generateExpression(statement.test);
+      const consequent = this.generateStatement(statement.consequent);
+      const alternate = statement.alternate
+        ? this.generateStatement(statement.alternate)
+        : undefined;
+
+      if (alternate) {
+        return `${state.lineStart}if (${condition}) {\n${consequent}\n} else {\n${alternate}\n}`;
+      } else {
+        return `${state.lineStart}if (${condition}) {\n${consequent}\n}`;
+      }
+    }
+
     throw new Error(`Cannot generate ${statement.type} statements yet.`);
   }
 
@@ -301,6 +445,8 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     const state: GenState = (this.#state = {
       shaderType: 'vertex',
 
+      declarations: new Map(),
+      aliases: new Map(),
       attributes: new Map(),
       varyings: new Map(),
       uniforms: new Map(),
@@ -314,6 +460,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
       lineStart: '',
       definingFunction: false,
+      parentPrecedence: 0,
     });
 
     const vertexAst = shaderkit.parse(vertexCode);
@@ -398,10 +545,19 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
 }
 `;
 
-    console.log('Generated:\n', wgsl);
+    const resolvedWgsl = tgpu.resolve({
+      template: wgsl,
+      externals: Object.fromEntries(
+        state.declarations
+          .values()
+          .map((decl) => [this.aliasOf(decl), decl] as const),
+      ),
+    });
+
+    console.log('Generated:\n', resolvedWgsl);
 
     return {
-      wgsl,
+      wgsl: resolvedWgsl,
       attributeLocationMap: new Map(
         [...state.attributes.values()].map((info) => {
           return [info.id, info.location] as const;
