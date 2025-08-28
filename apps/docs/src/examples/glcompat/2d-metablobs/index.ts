@@ -62,12 +62,8 @@ export default function ({ canvas }: ExampleContext) {
       float d2 = sd_circle(v_texCoord - vec2(0.7 - sin(u_time * 3.0) * 0.1, 0.5), 0.2);
       float d = smooth_min(d1, d2, 0.1);
 
-      Shape aShape;
-      aShape.dist = d1;
-      aShape.color = aColor;
-      Shape bShape;
-      bShape.dist = d2;
-      bShape.color = bColor;
+      Shape aShape = Shape(d1, aColor);
+      Shape bShape = Shape(d2, bColor);
       Shape shape = smoothShapeUnion(aShape, bShape, 0.1);
 
       if (shape.dist < 0.0) {

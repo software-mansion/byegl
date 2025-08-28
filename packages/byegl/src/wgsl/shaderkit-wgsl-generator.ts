@@ -205,7 +205,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       if (expression.callee.type !== 'Identifier') {
         throw new Error(`Unsupported callee type: ${expression.callee.type}`);
       }
-      const funcName = expression.callee.name;
+      let funcName = expression.callee.name;
       const args = expression.arguments
         .map((arg) => this.generateExpression(arg))
         .join(', ');
@@ -214,6 +214,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         const type =
           glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
         return `${type}(${args})`;
+      }
+
+      if (this.#state.declarations.has(funcName)) {
+        funcName = this.aliasOf(this.#state.declarations.get(funcName)!);
       }
 
       return `${funcName}(${args})`;
