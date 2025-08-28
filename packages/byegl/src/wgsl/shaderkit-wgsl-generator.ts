@@ -121,6 +121,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const args = expression.arguments
         .map((arg) => this.generateExpression(arg))
         .join(', ');
+
+      if (funcName in glslToWgslTypeMap) {
+        const type =
+          glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
+        return `${type}(${args})`;
+      }
+
       return `${funcName}(${args})`;
     }
 

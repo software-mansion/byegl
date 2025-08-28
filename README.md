@@ -80,6 +80,9 @@ WebGL's clip-space coordinates are in the range [-1, 1] for X, Y and Z, whereas 
 
 ## Tasks
 - [ ] The `importWebGPUTexture` hook to import a WebGPU texture into WebGL
-- [ ] Merge WebGL and WebGL2 entry-points into one, as they don't have many deviations
+- [ ] Scaffold a type-inference system for generating WGSL from GLSL
+  - [ ] Track scopes, remember variables defined in the current scopes (with their WGSL types)
+  - [ ] Infer types for built-in GLSL functions, return a fallthrough type for the rest (equivalent of `any`)
+  - [ ] Track user defined functions, and their return types
 
 ## API coverage
