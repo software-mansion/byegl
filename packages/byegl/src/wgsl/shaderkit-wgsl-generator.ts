@@ -1,4 +1,4 @@
-import * as shaderkit from '@iwoplaza/shaderkit';
+import * as shaderkit from 'shaderkit';
 import { WgslGenerator, WgslGeneratorResult } from './wgsl-generator.ts';
 
 interface AttributeInfo {

@@ -63,9 +63,9 @@ importers:
 
   packages/byegl:
     dependencies:
-      '@iwoplaza/shaderkit':
-        specifier: ^0.5.2
-        version: 0.5.2
+      shaderkit:
+        specifier: ^0.6.0
+        version: 0.6.0
       typegpu:
         specifier: ^0.7.1
         version: 0.7.1
@@ -471,9 +471,6 @@ packages:
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
-
-  '@iwoplaza/shaderkit@0.5.2':
-    resolution: {integrity: sha512-m23u+FiPMtggx1De3SXxBgmLdYdujLQRergPe1A73r+FlDQKYp3bSqDIYhmUpqa3AZdc7Hnf5E83lKrzv23lgw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2459,6 +2456,9 @@ packages:
   setimmediate@1.0.5:
     resolution: {integrity: sha512-MATJdZp8sLqDl/68LfQmbP8zKPLQNV6BIZoIgrscFDQ+RsvK/BxeDQOgyxKKoh0y/8h3BqVFnCqQ/gd+reiIXA==}
 
+  shaderkit@0.6.0:
+    resolution: {integrity: sha512-GGtl1jhkW6mD30WBSXb+EWLuqRTS+5V07BAATO1tWp3v7F/yz1aYuTwDRHmkJaR5qTtwMolFNzUmulKL4GJ2+A==}
+
   sharp@0.33.5:
     resolution: {integrity: sha512-haPVm1EkS9pgvHrQ/F3Xy+hgcuMV0Wm9vfIBSiwZ05k+xgb0PkBQpGsAA/oWdDobNaZTH5ppvHtzCFbnSEwHVw==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
@@ -3400,8 +3400,6 @@ snapshots:
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
       minipass: 7.1.2
-
-  '@iwoplaza/shaderkit@0.5.2': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -5744,6 +5742,8 @@ snapshots:
       type-fest: 4.41.0
 
   setimmediate@1.0.5: {}
+
+  shaderkit@0.6.0: {}
 
   sharp@0.33.5:
     dependencies:
