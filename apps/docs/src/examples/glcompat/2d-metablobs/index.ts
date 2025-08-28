@@ -66,10 +66,13 @@ export default function ({ canvas }: ExampleContext) {
       Shape bShape = Shape(d2, bColor);
       Shape shape = smoothShapeUnion(aShape, bShape, 0.1);
 
+      float wave = sign(sin(shape.dist * 200.0)) * 0.25 + 0.75;
+      vec3 posColor = vec3(0.2);
+      vec3 negColor = vec3(0.3, 0.5, 1.0);
       if (shape.dist < 0.0) {
-        gl_FragColor = vec4(shape.color, 1.0);
+        gl_FragColor = vec4(shape.color * wave, 1.0);
       } else {
-        gl_FragColor = vec4(v_texCoord.x, v_texCoord.y, 1.0, 1.0);
+        gl_FragColor = vec4(posColor * wave, 1.0);
       }
     }
   `;
