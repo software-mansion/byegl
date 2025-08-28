@@ -236,7 +236,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (statement.type === 'FunctionDeclaration') {
       let funcName = statement.id.name;
-      let params = statement.params.map((param) => param.id?.name).join(', ');
+      const params = statement.params
+        .map(
+          (param) =>
+            `${param.id?.name}: ${this.generateTypeSpecifier(param.typeSpecifier)}`,
+        )
+        .join(', ');
+
+      const returnType = this.generateTypeSpecifier(statement.typeSpecifier);
 
       if (funcName === 'main') {
         // We're generating the entry function!
@@ -257,7 +264,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           .map((stmt) => this.generateStatement(stmt))
           .join('');
 
-        return `\nfn ${funcName}(${params}) {\n${body}\n}\n`;
+        if (returnType === 'void') {
+          return `\nfn ${funcName}(${params}) {\n${body}}\n`;
+        } else {
+          return `\nfn ${funcName}(${params}) -> ${returnType} {\n${body}}\n`;
+        }
       } finally {
         state.definingFunction = prevDefiningFunction;
         state.lineStart = prevLineStart;
@@ -271,6 +282,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     if (statement.type === 'PrecisionQualifierStatement') {
       // No-op
       return '';
+    }
+
+    if (statement.type === 'ReturnStatement') {
+      if (statement.argument) {
+        return `${state.lineStart}return ${this.generateExpression(statement.argument)};\n`;
+      } else {
+        return `${state.lineStart}return;\n`;
+      }
     }
 
     throw new Error(`Cannot generate ${statement.type} statements yet.`);

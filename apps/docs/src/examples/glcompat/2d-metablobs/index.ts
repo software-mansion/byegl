@@ -23,6 +23,10 @@ export default function ({ canvas }: ExampleContext) {
 
     varying vec2 v_texCoord;
 
+    float sd_circle(vec2 p, float r) {
+      return length(p) - r;
+    }
+
     void main() {
       gl_FragColor = vec4(v_texCoord.x, v_texCoord.y, 1.0, 1.0);
     }
