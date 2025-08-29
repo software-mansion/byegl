@@ -284,7 +284,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     if (expression.type === 'AssignmentExpression') {
       const left = this.generateExpression(expression.left);
       const right = this.generateExpression(expression.right);
-      return snip(`${left.value} = ${right.value}`, left.type);
+      return snip(
+        `${left.value} ${expression.operator} ${right.value}`,
+        left.type,
+      );
     }
 
     if (expression.type === 'BinaryExpression') {
