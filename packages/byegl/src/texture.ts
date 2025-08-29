@@ -1,6 +1,11 @@
 import { TgpuRoot } from 'typegpu';
 import { $internal } from './types.ts';
 
+const gl = WebGL2RenderingContext;
+
+// Part of the 'EXT_texture_filter_anisotropic' extension
+const TEXTURE_MAX_ANISOTROPY_EXT = 0x84fe;
+
 /**
  * The internal state of byegl textures
  */
@@ -13,6 +18,48 @@ export class ByeGLTextureInternal {
 
   #gpuSampler: GPUSampler | undefined;
   gpuSamplerDirty = true;
+
+  #parameters = new Map<GLenum, number | boolean>([
+    [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
+    [gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR],
+    [gl.TEXTURE_WRAP_S, gl.REPEAT],
+    [gl.TEXTURE_WRAP_T, gl.REPEAT],
+    [
+      TEXTURE_MAX_ANISOTROPY_EXT,
+      0 /* TODO: not sure about this default, it's not in the docs, have to investigate */,
+    ],
+
+    // WebGL2 specific parameters
+    // Texture mipmap level
+    [
+      gl.TEXTURE_BASE_LEVEL,
+      0 /* TODO: not sure about this default, it's not in the docs, have to investigate */,
+    ],
+    // Texture Comparison function
+    // gl.LEQUAL (default value), gl.GEQUAL, gl.LESS, gl.GREATER, gl.EQUAL, gl.NOTEQUAL, gl.ALWAYS, gl.NEVER.
+    [gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL],
+    // Texture comparison mode
+    // gl.NONE (default value), gl.COMPARE_REF_TO_TEXTURE.
+    [gl.TEXTURE_COMPARE_MODE, gl.NONE],
+    // Maximum texture mipmap array level
+    [
+      gl.TEXTURE_MAX_LEVEL,
+      0 /* TODO: not sure about this default, it's not in the docs, have to investigate */,
+    ],
+    // Texture maximum level-of-detail value
+    [
+      gl.TEXTURE_MAX_LOD,
+      0 /* TODO: not sure about this default, it's not in the docs, have to investigate */,
+    ],
+    // Texture minimum level-of-detail value	Any float values.
+    [
+      gl.TEXTURE_MIN_LOD,
+      0 /* TODO: not sure about this default, it's not in the docs, have to investigate */,
+    ],
+    // Wrapping function for texture coordinate r
+    // gl.REPEAT (default value), gl.CLAMP_TO_EDGE, gl.MIRRORED_REPEAT.
+    [gl.TEXTURE_WRAP_R, gl.REPEAT],
+  ]);
 
   /**
    * If true, this texture was imported from an existing WebGPU texture.
@@ -32,6 +79,10 @@ export class ByeGLTextureInternal {
       this.#size = [...size];
       this.gpuTextureDirty = true;
     }
+  }
+
+  setParameter(parameter: GLenum, value: GLint | GLboolean | GLenum) {
+    this.#parameters.set(parameter, value);
   }
 
   importExistingWebGPUTexture(texture: GPUTexture) {

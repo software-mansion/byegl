@@ -239,7 +239,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (funcName === 'texture2D') {
       const textureName = args[0].value;
-      const sampler = state.textureToSamplerMap.get(textureName);
+      const sampler = state.textureToSamplerMap.get(textureName)!;
       const uv = args[1].value;
       return snip(
         `textureSample(${textureName}, ${sampler.id}, ${uv})`,

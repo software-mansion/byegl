@@ -1,3 +1,4 @@
+import * as d from 'typegpu/data';
 import { WgslGenerator, WgslGeneratorResult } from './wgsl-generator.ts';
 
 export class MockWGSLGenerator implements WgslGenerator {
@@ -16,8 +17,9 @@ export class MockWGSLGenerator implements WgslGenerator {
           return vec4f(1);
         }
       `,
-      attributeLocationMap: new Map([['a_position', 0]]),
-      uniformLocationMap: new Map(),
+      attributes: [{ id: 'a_position', location: 0, type: d.vec4f }],
+      uniforms: [],
+      samplerToTextureMap: new Map(),
     };
   }
 }

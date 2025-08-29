@@ -1316,13 +1316,21 @@ export class ByeGLContext {
   }
 
   texParameterf(target: GLenum, pname: GLenum, param: GLfloat): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.texParameterf');
+    const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    const texture = textureMap?.get(target)?.[$internal];
+    if (!texture) {
+      throw new Error(`No texture bound to target ${target}`);
+    }
+    texture.setParameter(pname, param);
   }
 
   texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.texParameteri');
+    const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    const texture = textureMap?.get(target)?.[$internal];
+    if (!texture) {
+      throw new Error(`No texture bound to target ${target}`);
+    }
+    texture.setParameter(pname, param);
   }
 
   texSubImage2D(
