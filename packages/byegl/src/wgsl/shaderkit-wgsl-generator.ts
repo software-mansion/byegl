@@ -3,7 +3,14 @@ import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
 import {
   AttributeInfo,
+  ByeglData,
+  samplerType,
+  texture1dType,
+  texture2dType,
+  texture3dType,
+  textureCubeType,
   UniformInfo,
+  UnknownType,
   VaryingInfo,
   WgslGenerator,
   WgslGeneratorResult,
@@ -23,9 +30,13 @@ const glslToWgslTypeMap = {
   mat2: d.mat2x2f,
   mat3: d.mat3x3f,
   mat4: d.mat4x4f,
+  sampler1D: texture1dType,
+  sampler2D: texture2dType,
+  sampler3D: texture3dType,
+  samplerCube: textureCubeType,
 };
 
-const primitiveTypes: Set<d.AnyWgslData | UnknownType> = new Set([
+const primitiveTypes: Set<ByeglData> = new Set([
   d.f32,
   d.f16,
   d.i32,
@@ -49,6 +60,11 @@ const primitiveTypes: Set<d.AnyWgslData | UnknownType> = new Set([
   d.mat2x2f,
   d.mat3x3f,
   d.mat4x4f,
+  texture1dType,
+  texture2dType,
+  texture3dType,
+  textureCubeType,
+  samplerType,
 ]);
 
 const opToPrecedence = {
@@ -78,25 +94,19 @@ const createMat3FromMat4 = tgpu.fn([d.mat4x4f], d.mat3x3f)`(arg4) {
 }`.$name('_byegl_createMat3FromMat4');
 
 /**
- * Used when we can't determine something's type (usually a hole in the implementation)
- */
-const UnknownType = Symbol('UnknownType');
-type UnknownType = typeof UnknownType;
-
-/**
  * A piece of generated WGSL code, inferred to be a specific WGSL data type.
  */
 class Snippet {
   constructor(
     public value: string,
-    public type: d.AnyWgslData | UnknownType,
+    public type: ByeglData | UnknownType,
   ) {}
 }
 
 /**
  * A helper function for creating "snippets"
  */
-const snip = (value: string, type: d.AnyWgslData | UnknownType) =>
+const snip = (value: string, type: ByeglData | UnknownType) =>
   new Snippet(value, type);
 
 interface GenState {
@@ -105,15 +115,23 @@ interface GenState {
   attributes: Map<number, AttributeInfo>;
   varyings: Map<number, VaryingInfo>;
   uniforms: Map<number, UniformInfo>;
+  textureToSamplerMap: Map<string, UniformInfo>;
+  samplerToTextureMap: Map<UniformInfo, UniformInfo>;
 
+  /**
+   * A mapping of attribute locations to their corresponding property keys in the VertexIn struct.
+   */
   attributePropKeys: Map<number, string>;
+
+  /**
+   * A mapping of varying locations to their corresponding property keys in the Varying struct.
+   */
   varyingPropKeys: Map<number, string>;
 
   typeDefs: Map<string, d.WgslStruct>;
   extraFunctions: Map<string, TgpuFn>;
-  aliases: Map<d.AnyWgslData | UnknownType, string>;
-
-  variables: Map<string, d.AnyWgslData | UnknownType>;
+  aliases: Map<ByeglData, string>;
+  variables: Map<string, ByeglData>;
 
   /** Used to track variable declarations with the `attribute` qualifier */
   lastAttributeIdx: number;
@@ -154,7 +172,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
   getDataType(
     typeSpecifier: shaderkit.Identifier | shaderkit.ArraySpecifier,
-  ): d.AnyWgslData {
+  ): ByeglData {
     const state = this.#state;
     if (typeSpecifier.type === 'Identifier') {
       if (typeSpecifier.name in glslToWgslTypeMap) {
@@ -177,7 +195,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     throw new Error(`Unsupported type specifier: ${typeSpecifier.type}`);
   }
 
-  aliasOf(value: d.AnyWgslData | UnknownType): string {
+  aliasOf(value: ByeglData): string {
     if (primitiveTypes.has(value)) {
       return (value as d.AnyWgslData).type;
     }
@@ -219,14 +237,24 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       return snip(`${this.useCreateMat3FromMat4()}(${argsValue})`, d.mat3x3f);
     }
 
+    if (funcName === 'texture2D') {
+      const textureName = args[0].value;
+      const sampler = state.textureToSamplerMap.get(textureName);
+      const uv = args[1].value;
+      return snip(
+        `textureSample(${textureName}, ${sampler.id}, ${uv})`,
+        d.vec4f,
+      );
+    }
+
     if (funcName in glslToWgslTypeMap) {
       const dataType =
         glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
       return snip(`${dataType.type}(${argsValue})`, dataType);
     }
 
-    if (this.#state.typeDefs.has(funcName)) {
-      funcName = this.aliasOf(this.#state.typeDefs.get(funcName)!);
+    if (state.typeDefs.has(funcName)) {
+      funcName = this.aliasOf(state.typeDefs.get(funcName)!);
     }
 
     return snip(`${funcName}(${argsValue})`, UnknownType);
@@ -234,6 +262,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
   generateExpression(expression: shaderkit.Expression): Snippet {
     const state = this.#state;
+
     if (expression.type === 'Identifier') {
       const varType = state.variables.get(expression.name);
       if (!varType && state.seekIdentifier) {
@@ -273,13 +302,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (expression.type === 'BinaryExpression') {
-      const parentPrecedence = this.#state.parentPrecedence;
+      const parentPrecedence = state.parentPrecedence;
       try {
         const myPrecedence = opToPrecedence[expression.operator];
-        this.#state.parentPrecedence = myPrecedence;
+        state.parentPrecedence = myPrecedence;
         const left = this.generateExpression(expression.left);
         const right = this.generateExpression(expression.right);
-        this.#state.parentPrecedence = parentPrecedence;
+        state.parentPrecedence = parentPrecedence;
 
         // TODO: Implement type inference
         if (myPrecedence < parentPrecedence) {
@@ -293,7 +322,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           UnknownType,
         );
       } finally {
-        this.#state.parentPrecedence = parentPrecedence;
+        state.parentPrecedence = parentPrecedence;
       }
     }
 
@@ -330,7 +359,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             statement.members.map((member) => {
               const decl = member.declarations[0];
               const type = this.getDataType(decl.typeSpecifier);
-              return [decl.id.name, type];
+              return [decl.id.name, type as d.AnyWgslData];
             }),
           ),
         )
@@ -363,7 +392,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           state.attributes.set(state.lastAttributeIdx, {
             id: decl.id.name,
             location: state.lastAttributeIdx,
-            type: wgslType,
+            type: wgslType as d.AnyWgslData,
           });
 
           // Defining proxies
@@ -385,7 +414,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.varyings.set(state.lastVaryingIdx, {
               id: decl.id.name,
               location: state.lastVaryingIdx,
-              type: wgslType,
+              type: wgslType as d.AnyWgslData,
             });
 
             // Defining proxies
@@ -397,15 +426,36 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.lastBindingIdx++;
           } while (state.uniforms.has(state.lastBindingIdx));
 
-          const wgslType = this.getDataType(decl.typeSpecifier);
-
-          state.uniforms.set(state.lastBindingIdx, {
+          const uniformInfo: UniformInfo = {
             id: decl.id.name,
             location: state.lastBindingIdx,
             type: wgslType,
-          });
+          };
+          state.uniforms.set(state.lastBindingIdx, uniformInfo);
 
-          code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslTypeAlias};\n`;
+          // Textures need an accompanying sampler
+          if (wgslType.type.startsWith('texture_')) {
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${decl.id.name}: ${wgslTypeAlias};\n`;
+
+            // Finding the next available uniform index
+            do {
+              state.lastBindingIdx++;
+            } while (state.uniforms.has(state.lastBindingIdx));
+
+            const samplerId = this.uniqueId(decl.id.name + '_sampler');
+            const samplerUniformInfo: UniformInfo = {
+              id: samplerId,
+              location: state.lastBindingIdx,
+              type: samplerType,
+            };
+            state.uniforms.set(state.lastBindingIdx, samplerUniformInfo);
+            state.samplerToTextureMap.set(samplerUniformInfo, uniformInfo);
+            state.textureToSamplerMap.set(uniformInfo.id, samplerUniformInfo);
+
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${samplerId}: sampler;\n`;
+          } else {
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslTypeAlias};\n`;
+          }
         } else {
           // Regular variable
           if (decl.init) {
@@ -438,11 +488,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         );
 
         for (const param of params) {
-          state.variables.set(param.value, param.type);
+          state.variables.set(param.value, param.type as ByeglData);
         }
 
         const paramsValue = params
-          .map((param) => `${param.value}: ${this.aliasOf(param.type)}`)
+          .map(
+            (param) =>
+              `${param.value}: ${this.aliasOf(param.type as ByeglData)}`,
+          )
           .join(', ');
 
         const returnType = this.getDataType(statement.typeSpecifier);
@@ -535,6 +588,8 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       attributes: new Map(),
       varyings: new Map(),
       uniforms: new Map(),
+      samplerToTextureMap: new Map(),
+      textureToSamplerMap: new Map(),
 
       attributePropKeys: new Map(),
       varyingPropKeys: new Map(),
@@ -649,6 +704,7 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
       wgsl: resolvedWgsl,
       attributes: [...state.attributes.values()],
       uniforms: [...state.uniforms.values()],
+      samplerToTextureMap: state.samplerToTextureMap,
     };
   }
 }

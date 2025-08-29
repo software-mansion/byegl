@@ -11,6 +11,9 @@ export class ByeGLTextureInternal {
   #gpuTexture: GPUTexture | undefined;
   gpuTextureDirty = true;
 
+  #gpuSampler: GPUSampler | undefined;
+  gpuSamplerDirty = true;
+
   /**
    * If true, this texture was imported from an existing WebGPU texture.
    */
@@ -64,10 +67,31 @@ export class ByeGLTextureInternal {
       size: this.#size!,
       format: 'rgba8unorm',
       dimension: '2d',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.COPY_DST,
     });
 
     return this.#gpuTexture;
+  }
+
+  get gpuSampler(): GPUSampler {
+    if (!this.gpuSamplerDirty) {
+      return this.#gpuSampler!;
+    }
+    this.gpuSamplerDirty = false;
+
+    this.#gpuSampler = this.#root.device.createSampler({
+      // TODO: Adapt based on gl.* API usage
+      label: 'ByeGL Sampler',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge',
+      magFilter: 'linear',
+      minFilter: 'linear',
+    });
+
+    return this.#gpuSampler;
   }
 
   get gpuTextureView(): GPUTextureView {

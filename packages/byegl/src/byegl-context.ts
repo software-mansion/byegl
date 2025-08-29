@@ -11,6 +11,7 @@ import type {
   AttributeInfo,
   UniformInfo,
   WgslGenerator,
+  WgslGeneratorResult,
 } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGL2RenderingContext;
@@ -32,8 +33,7 @@ class ByeGLShader implements WebGLShader {
 class ByeGLProgramInternals {
   vert: ByeGLShader | undefined;
   frag: ByeGLShader | undefined;
-  attributes: AttributeInfo[] | undefined;
-  uniforms: UniformInfo[] | undefined;
+  compiled: WgslGeneratorResult | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
 
   constructor() {}
@@ -744,11 +744,11 @@ export class ByeGLContext {
   }
 
   getAttribLocation(program: ByeGLProgram, name: string): GLint {
-    const $program = program[$internal];
-    if ($program.attributes === undefined) {
+    const compiled = program[$internal].compiled;
+    if (compiled === undefined) {
       throw new Error('Program not linked');
     }
-    return $program.attributes.find((a) => a.id === name)?.location ?? -1;
+    return compiled.attributes.find((a) => a.id === name)?.location ?? -1;
   }
 
   getBufferParameter(target: GLenum, pname: GLenum): GLint {
@@ -1093,14 +1093,14 @@ export class ByeGLContext {
   }
 
   getUniformLocation(
-    program_: ByeGLProgram,
+    program: ByeGLProgram,
     name: string,
   ): WebGLUniformLocation | null {
-    const program = program_[$internal];
-    if (program.uniforms === undefined) {
+    const compiled = program[$internal].compiled;
+    if (compiled === undefined) {
       throw new Error('Program not linked');
     }
-    const idx = program.uniforms.find((u) => u.id === name)?.location;
+    const idx = compiled.uniforms.find((u) => u.id === name)?.location;
     return idx !== undefined ? new ByeGLUniformLocation(idx) : null;
   }
 
@@ -1169,8 +1169,7 @@ export class ByeGLContext {
       frag[$internal].source ?? '',
     );
 
-    $program.attributes = result.attributes;
-    $program.uniforms = result.uniforms;
+    $program.compiled = result;
 
     const module = this.#root.device.createShaderModule({
       label: 'ByeGL Shader Module',
@@ -1342,18 +1341,15 @@ export class ByeGLContext {
   }
 
   uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
+    const compiled = this.#program?.[$internal].compiled;
+    if (!location || !compiled) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
     const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
+    const uniform = compiled.uniforms.find((u) => u.location === idx);
     if (uniform) {
-      this.#uniformBufferCache.updateUniform(
-        uniform,
-        new Float32Array([value]).buffer,
-      );
+      this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
@@ -1372,19 +1368,15 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
+    const compiled = this.#program?.[$internal].compiled;
+    if (!location || !compiled) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
     const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
-
+    const uniform = compiled.uniforms.find((u) => u.location === idx);
     if (uniform) {
-      this.#uniformBufferCache.updateUniform(
-        uniform,
-        new Float32Array([...value]).buffer,
-      );
+      this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
@@ -1397,16 +1389,15 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
+    const compiled = this.#program?.[$internal].compiled;
+    if (!location || !compiled) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
-    const data = new Float32Array([...value]);
     const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
+    const uniform = compiled.uniforms.find((u) => u.location === idx);
     if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
+      this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
@@ -1421,17 +1412,16 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
+    const compiled = this.#program?.[$internal].compiled;
+    if (!location || !compiled) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
-    const data = new Float32Array([...value]);
     const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
+    const uniform = compiled.uniforms.find((u) => u.location === idx);
     // TODO: Handle transposing
     if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
+      this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
@@ -1518,8 +1508,31 @@ export class ByeGLContext {
     // TODO: Change which part of the target texture we're drawing to
   }
 
+  #getTextureForUniform(uniform: UniformInfo): ByeGLTexture {
+    const compiled = this.#program?.[$internal]!.compiled!;
+
+    if (uniform.type.type === 'sampler') {
+      return this.#getTextureForUniform(
+        compiled.samplerToTextureMap.get(uniform)!,
+      );
+    }
+
+    const textureUnit = this.#uniformBufferCache.getValue(uniform) as number;
+
+    const textureMap = this.#boundTexturesMap.get(textureUnit);
+    // TODO: Always getting the TEXTURE_2D binding, but make it depend on the texture type
+    const texture = textureMap?.get(gl.TEXTURE_2D);
+
+    if (!texture) {
+      throw new Error(`Texture not found for unit ${textureUnit}`);
+    }
+
+    return texture;
+  }
+
   #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
     const program = this.#program?.[$internal]!;
+    const compiled = program.compiled!;
     const currentTexture = this.#canvasContext.getCurrentTexture();
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
@@ -1570,10 +1583,30 @@ export class ByeGLContext {
     }
 
     const layout =
-      (program.uniforms?.length ?? 0) > 0
+      compiled.uniforms.length > 0
         ? this.#root.device.createBindGroupLayout({
             label: 'ByeGL Bind Group Layout',
-            entries: program.uniforms!.values().map((uniform) => {
+            entries: compiled.uniforms.map((uniform) => {
+              if (uniform.type.type === 'sampler') {
+                return {
+                  binding: uniform.location,
+                  visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+                  sampler: {
+                    type: 'filtering',
+                  },
+                } satisfies GPUBindGroupLayoutEntry;
+              }
+
+              if (uniform.type.type.startsWith('texture_')) {
+                return {
+                  binding: uniform.location,
+                  visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+                  texture: {
+                    sampleType: 'float',
+                  },
+                } satisfies GPUBindGroupLayoutEntry;
+              }
+
               return {
                 binding: uniform.location,
                 visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
@@ -1674,7 +1707,25 @@ export class ByeGLContext {
     const group = layout
       ? this.#root.device.createBindGroup({
           layout,
-          entries: program.uniforms!.values().map((uniform) => {
+          entries: compiled.uniforms.map((uniform) => {
+            if (uniform.type.type.startsWith('texture_')) {
+              const texture = this.#getTextureForUniform(uniform)[$internal];
+
+              return {
+                binding: uniform.location,
+                resource: texture.gpuTextureView,
+              } satisfies GPUBindGroupEntry;
+            }
+
+            if (uniform.type.type === 'sampler') {
+              const texture = this.#getTextureForUniform(uniform)[$internal];
+
+              return {
+                binding: uniform.location,
+                resource: texture.gpuSampler,
+              } satisfies GPUBindGroupEntry;
+            }
+
             const buffer = this.#uniformBufferCache.getBuffer(uniform);
 
             return {
