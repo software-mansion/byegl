@@ -80,6 +80,6 @@ WebGL's clip-space coordinates are in the range [-1, 1] for X, Y and Z, whereas 
 
 ## Tasks
 - [ ] The `importWebGPUTexture` hook to import a WebGPU texture into WebGL
-- [ ] Create and cache samplers on demand
+- [ ] Handle GLSL preprocessor directives
 
 ## API coverage

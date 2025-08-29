@@ -13,6 +13,7 @@ import type {
   WgslGenerator,
   WgslGeneratorResult,
 } from './wgsl/wgsl-generator.ts';
+import { ByeGLFramebuffer } from './framebuffer.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -153,6 +154,21 @@ export class ByeGLContext {
   //
   // GL state
   //
+  /**
+   * Set when getting the context, e.g. .getContext('webgl', { antialias: false, depth: false })
+   * TODO: Accept attributes from the .getContext call
+   */
+  #attributes: WebGLContextAttributes = {
+    "alpha": true,
+    "antialias": true,
+    "depth": true,
+    "failIfMajorPerformanceCaveat": false,
+    "powerPreference": "default",
+    "premultipliedAlpha": true,
+    "preserveDrawingBuffer": false,
+    "stencil": false,
+    "desynchronized": false
+  };
 
   #program: ByeGLProgram | undefined;
 
@@ -536,8 +552,7 @@ export class ByeGLContext {
   }
 
   createFramebuffer(): WebGLFramebuffer {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.createFramebuffer');
+    return new ByeGLFramebuffer(this.#root);
   }
 
   createProgram(): WebGLProgram {
@@ -567,9 +582,10 @@ export class ByeGLContext {
     }
   }
 
-  deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.deleteFramebuffer');
+  deleteFramebuffer(framebuffer: ByeGLFramebuffer | null): void {
+    if (framebuffer) {
+      framebuffer[$internal].destroy();
+    }
   }
 
   deleteProgram(program: ByeGLProgram | null): void {
@@ -762,8 +778,7 @@ export class ByeGLContext {
   }
 
   getContextAttributes(): WebGLContextAttributes {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getContextAttributes');
+    return this.#attributes;
   }
 
   getError(): GLenum {
@@ -1007,9 +1022,10 @@ export class ByeGLContext {
       gl.MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS	GLint
       gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS	GLint
       gl.MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS	GLint
-      gl.MAX_UNIFORM_BLOCK_SIZE	GLint64
-      gl.MAX_UNIFORM_BUFFER_BINDINGS	GLint
-      gl.MAX_VARYING_COMPONENTS	GLint
+      gl.MAX_UNIFORM_BLOCK_SIZE	GLint64*/
+      case gl.MAX_UNIFORM_BUFFER_BINDINGS:
+        return limits.maxUniformBuffersPerShaderStage;
+      /*gl.MAX_VARYING_COMPONENTS	GLint
       gl.MAX_VERTEX_OUTPUT_COMPONENTS	GLint
       gl.MAX_VERTEX_UNIFORM_BLOCKS	GLint
       gl.MAX_VERTEX_UNIFORM_COMPONENTS	GLint
@@ -1251,13 +1267,21 @@ export class ByeGLContext {
   }
 
   stencilMask(mask: GLuint): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.stencilMask');
+    this.#parameters.set(gl.STENCIL_WRITEMASK, mask);
+    this.#parameters.set(gl.STENCIL_BACK_WRITEMASK, mask);
   }
 
   stencilMaskSeparate(face: GLenum, mask: GLuint): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.stencilMaskSeparate');
+    if (face === gl.FRONT) {
+      this.#parameters.set(gl.STENCIL_WRITEMASK, mask);
+    } else if (face === gl.BACK) {
+      this.#parameters.set(gl.STENCIL_BACK_WRITEMASK, mask);
+    } else if (face === gl.FRONT_AND_BACK) {
+      this.#parameters.set(gl.STENCIL_WRITEMASK, mask);
+      this.#parameters.set(gl.STENCIL_BACK_WRITEMASK, mask);
+    } else {
+      throw new Error('Invalid face');
+    }
   }
 
   stencilOp(opFail: GLenum, opZFail: GLenum, opZPass: GLenum): void {
@@ -1335,6 +1359,31 @@ export class ByeGLContext {
     }
 
     // TODO: Implement mip-mapping
+  }
+
+  // biome-ignore format: Easier to read
+  texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, srcData: ArrayBufferView): void;
+  // biome-ignore format: Easier to read
+  texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, srcData: ArrayBufferView, srcOffset: number): void;
+  // biome-ignore format: Easier to read
+  texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
+  // biome-ignore format: Easier to read
+  texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, offset: GLintptr): void;
+
+  texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, srcData: ArrayBufferView | TexImageSource | GLintptr): void {
+    if (border !== 0) {
+      // According to the docs, border must be 0.
+      throw new Error('Border must be 0');
+    }
+    const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    const texture = textureMap?.get(target)?.[$internal];
+    if (!texture) {
+      // TODO: Generate a WebGL appropriate error message
+      return;
+    }
+
+    // TODO: Fill the texture with data.
+    return;
   }
 
   texParameterf(target: GLenum, pname: GLenum, param: GLfloat): void {

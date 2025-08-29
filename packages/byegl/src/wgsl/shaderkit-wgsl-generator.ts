@@ -607,8 +607,20 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       seekIdentifier: true,
     });
 
-    const vertexAst = shaderkit.parse(vertexCode);
-    const fragmentAst = shaderkit.parse(fragmentCode);
+    let vertexAst: shaderkit.Program;
+    let fragmentAst: shaderkit.Program;
+    try {
+      vertexAst = shaderkit.parse(vertexCode);
+    } catch (error) {
+      console.error('Error parsing vertex shader:', vertexCode);
+      throw error;
+    }
+    try {
+      fragmentAst = shaderkit.parse(fragmentCode);
+    } catch (error) {
+      console.error('Error parsing fragment shader:', fragmentCode);
+      throw error;
+    }
 
     let wgsl = `\
 var<private> gl_Position: vec4<f32>;
