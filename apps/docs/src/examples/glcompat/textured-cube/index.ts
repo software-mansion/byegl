@@ -45,7 +45,7 @@ function loadTexture(
     image.src = src;
 
     image.addEventListener('load', () => {
-      // Now that the image has loaded make copy it to the texture.
+      // Now that the image has loaded copy it to the texture.
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texImage2D(
         gl.TEXTURE_2D,

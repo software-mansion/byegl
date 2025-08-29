@@ -3,6 +3,7 @@ import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import { primitiveMap } from './constants.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { Remapper } from './remap.ts';
+import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type {
@@ -10,6 +11,7 @@ import type {
   UniformInfo,
   WgslGenerator,
 } from './wgsl/wgsl-generator.ts';
+import { NotImplementedYetError } from './errors.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -164,6 +166,16 @@ export class ByeGLContext {
    */
   #boundBufferMap: Map<GLenum, ByeGLBuffer> = new Map();
 
+  /**
+   * The active texture unit. Set using gl.activeTexture.
+   */
+  #activeTextureUnit: GLenum = 0;
+
+  /**
+   * The set of currently bound textures. Set using gl.activeTexture and gl.bindTexture.
+   */
+  #boundTextureUnitMap: Map<GLenum, ByeGLTexture> = new Map();
+
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
 
@@ -173,6 +185,8 @@ export class ByeGLContext {
    * @see {@link https://registry.khronos.org/OpenGL-Refpages/es2.0/xhtml/glEnable.xml}
    */
   #enabledCapabilities: Set<GLenum> = new Set([gl.DITHER]);
+
+  #bitsToClear: GLbitfield = 0;
 
   #parameters = new Map<GLenum, any>([
     [gl.DEPTH_FUNC, gl.LESS],
@@ -248,35 +262,194 @@ export class ByeGLContext {
     return this.#canvas;
   }
 
-  enable(cap: GLenum): void {
-    this.#enabledCapabilities.add(cap);
+  get drawingBufferWidth() {
+    return this.#canvas.width;
   }
 
-  disable(cap: GLenum): void {
-    this.#enabledCapabilities.delete(cap);
+  get drawingBufferHeight() {
+    return this.#canvas.height;
   }
 
-  isEnabled(cap: GLenum): boolean {
-    return this.#enabledCapabilities.has(cap);
+  get unpackColorSpace() {
+    // TODO: Allow changing to the `display-p3` color space
+    return 'srgb';
   }
 
-  createShader(type: GLenum): WebGLShader | null {
-    return new ByeGLShader(type);
+  set unpackColorSpace(value: string) {
+    // TODO: Implement color space change
   }
 
-  shaderSource(shader: ByeGLShader, source: string): void {
-    shader[$internal].source = source;
+  activeTexture(texture: GLenum): void {
+    this.#activeTextureUnit = texture;
   }
 
-  compileShader(_shader: ByeGLShader): void {
-    // NO-OP: Deferring compilation until the program is linked
+  attachShader(program: ByeGLProgram, shader: ByeGLShader): void {
+    const $shader = shader[$internal];
+
+    if ($shader.type === gl.VERTEX_SHADER) {
+      program[$internal].vert = shader;
+    } else if ($shader.type === gl.FRAGMENT_SHADER) {
+      program[$internal].frag = shader;
+    }
   }
 
-  getShaderPrecisionFormat(
-    shadertype: GLenum,
-    precisiontype: GLint,
-  ): WebGLShaderPrecisionFormat | null {
-    return shaderPrecisionFormatCatalog[precisiontype] ?? null;
+  /**
+   * Called before gl.linkProgram, which means we can store these indices and
+   * tell the WGSL generator to use them instead of generating them automatically.
+   */
+  bindAttribLocation(program: ByeGLProgram, index: GLuint, name: string): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.bindAttribLocation');
+  }
+
+  bindBuffer(target: GLenum, buffer: ByeGLBuffer | null): void {
+    if (buffer) {
+      if (target === gl.ELEMENT_ARRAY_BUFFER) {
+        buffer[$internal].boundAsIndexBuffer = true;
+      }
+      this.#boundBufferMap.set(target, buffer);
+    } else {
+      this.#boundBufferMap.delete(target);
+    }
+  }
+
+  bindFramebuffer(target: GLenum, framebuffer: WebGLFramebuffer | null): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.bindFramebuffer');
+  }
+
+  bindRenderbuffer(
+    target: GLenum,
+    renderbuffer: WebGLRenderbuffer | null,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.bindRenderbuffer');
+  }
+
+  bindTexture(texture: ByeGLTexture | null): void {
+    if (!texture) {
+      this.#boundTextureUnitMap.delete(this.#activeTextureUnit);
+    } else {
+      this.#boundTextureUnitMap.set(this.#activeTextureUnit, texture);
+    }
+  }
+
+  blendColor(r: number, g: number, b: number, a: number): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.blendColor');
+  }
+
+  blendEquation(mode: GLenum): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.blendEquation');
+  }
+
+  blendEquationSeparate(modeRGB: GLenum, modeAlpha: GLenum): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.blendEquationSeparate');
+  }
+
+  blendFunc(src: GLenum, dst: GLenum): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.blendFunc');
+  }
+
+  blendFuncSeparate(
+    srcRGB: GLenum,
+    dstRGB: GLenum,
+    srcAlpha: GLenum,
+    dstAlpha: GLenum,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.blendFuncSeparate');
+  }
+
+  bufferData(
+    target: GLenum,
+    dataOrSize: AllowSharedBufferSource | GLsizeiptr | null,
+    usage: GLenum,
+  ): void {
+    const buffer = this.#boundBufferMap.get(target);
+    if (!buffer) {
+      throw new Error(`Buffer not bound to ${target}`);
+    }
+    const $buffer = buffer[$internal];
+
+    if (typeof dataOrSize === 'number') {
+      // Initializing the buffer with a certain size
+      $buffer.byteLength = dataOrSize;
+    } else if (dataOrSize === null) {
+      // Keeping the previous size, so nothing to do here
+    } else {
+      // Updating the buffer to match the size of the new buffer
+      $buffer.byteLength = dataOrSize.byteLength;
+    }
+
+    if (typeof dataOrSize === 'number' || dataOrSize === null) {
+      if (!$buffer.gpuBufferDirty) {
+        // If the buffer won't be recreated, wipe the buffer to
+        // replicate WebGL behavior
+        this.#root.device.queue.writeBuffer(
+          $buffer.gpuBuffer,
+          0,
+          new Uint8Array($buffer.byteLength ?? 0),
+        );
+      }
+    } else {
+      this.#root.device.queue.writeBuffer(
+        $buffer.gpuBuffer,
+        0,
+        dataOrSize as any,
+      );
+    }
+  }
+
+  bufferSubData(target: GLenum, offset: GLintptr): void;
+  bufferSubData(
+    target: GLenum,
+    offset: GLintptr,
+    data: BufferSource,
+    srcOffset: GLuint,
+    length?: number | undefined,
+  ): void;
+  bufferSubData(
+    target: GLenum,
+    offset: GLintptr,
+    data?: BufferSource | undefined,
+    srcOffset?: GLuint | undefined,
+    length: number = 0,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.bufferSubData');
+  }
+
+  checkFramebufferStatus(target: GLenum): GLenum {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.checkFramebufferStatus');
+  }
+
+  /**
+   * In most cases, drawing comes immediately after clearing, so
+   * we just note that we SHOULD clear in the drawArrays or drawElements
+   * methods.
+   *
+   * Other methods that use the render target should perform clearing
+   * manually if the flag has been enabled (like when reading the pixels directly).
+   */
+  clear(mask: GLbitfield): void {
+    this.#bitsToClear = mask;
+  }
+
+  clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
+    this.#parameters.set(gl.COLOR_CLEAR_VALUE, new Float32Array([r, g, b, a]));
+  }
+
+  clearDepth(depth: GLclampf): void {
+    this.#parameters.set(gl.DEPTH_CLEAR_VALUE, depth);
+  }
+
+  clearStencil(stencil: GLint): void {
+    this.#parameters.set(gl.STENCIL_CLEAR_VALUE, stencil);
   }
 
   colorMask(
@@ -288,18 +461,319 @@ export class ByeGLContext {
     this.#parameters.set(gl.COLOR_WRITEMASK, [red, green, blue, alpha]);
   }
 
+  compileShader(_shader: ByeGLShader): void {
+    // NO-OP: Deferring compilation until the program is linked
+  }
+
+  compressedTexImage2D(
+    target: GLenum,
+    level: GLint,
+    internalformat: GLenum,
+    width: GLsizei,
+    height: GLsizei,
+    border: GLint,
+    data: ArrayBufferView | null,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.compressedTexImage2D');
+  }
+
+  compressedTexSubImage2D(
+    target: GLenum,
+    level: GLint,
+    xoffset: GLint,
+    yoffset: GLint,
+    width: GLsizei,
+    height: GLsizei,
+    format: GLenum,
+    data: ArrayBufferView | null,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.compressedTexSubImage2D');
+  }
+
+  copyTexImage2D(
+    target: GLenum,
+    level: GLint,
+    internalformat: GLenum,
+    x: GLint,
+    y: GLint,
+    width: GLsizei,
+    height: GLsizei,
+    border: GLint,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.copyTexImage2D');
+  }
+
+  copyTexSubImage2D(
+    target: GLenum,
+    level: GLint,
+    xoffset: GLint,
+    yoffset: GLint,
+    x: GLint,
+    y: GLint,
+    width: GLsizei,
+    height: GLsizei,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.copyTexSubImage2D');
+  }
+
+  createBuffer(): WebGLBuffer {
+    return new ByeGLBuffer(this.#root, this.#remapper);
+  }
+
+  createFramebuffer(): WebGLFramebuffer {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.createFramebuffer');
+  }
+
+  createProgram(): WebGLProgram {
+    return new ByeGLProgram();
+  }
+
+  createRenderbuffer(): WebGLRenderbuffer {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.createRenderbuffer');
+  }
+
+  createShader(type: GLenum): WebGLShader | null {
+    return new ByeGLShader(type);
+  }
+
+  createTexture(): WebGLTexture {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.createTexture');
+  }
+
+  cullFace(mode: GLenum): void {
+    this.#parameters.set(gl.CULL_FACE_MODE, mode);
+  }
+
+  deleteBuffer(buffer: ByeGLBuffer | null): void {
+    if (buffer) {
+      buffer[$internal].destroy();
+    }
+  }
+
+  deleteFramebuffer(framebuffer: WebGLFramebuffer | null): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.deleteFramebuffer');
+  }
+
+  deleteProgram(program: ByeGLProgram | null): void {
+    // Nothing to delete
+    // TODO: Verify the behavior of deleting a program that is currently in use
+  }
+
+  deleteRenderbuffer(renderbuffer: WebGLRenderbuffer | null): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.deleteRenderbuffer');
+  }
+
+  deleteShader(shader: WebGLShader | null): void {
+    // Nothing to delete
+    // TODO: Verify the behavior of deleting a shader that is bound to a used program
+  }
+
+  deleteTexture(texture: ByeGLTexture | null): void {
+    if (texture) {
+      texture[$internal].destroy();
+    }
+  }
+
+  depthFunc(func: GLenum): void {
+    // TODO: Do something with this value
+    this.#parameters.set(gl.DEPTH_FUNC, func);
+  }
+
+  depthMask(flag: GLboolean): void {
+    // TODO: Do something with this value
+    this.#parameters.set(gl.DEPTH_WRITEMASK, flag);
+  }
+
+  depthRange(zNear: GLfloat, zFar: GLfloat): void {
+    // TODO: Do something with this value
+    this.#parameters.set(gl.DEPTH_RANGE, [zNear, zFar]);
+  }
+
+  detachShader(program: WebGLProgram, shader: WebGLShader): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.detachShader');
+  }
+
+  disable(cap: GLenum): void {
+    this.#enabledCapabilities.delete(cap);
+  }
+
+  disableVertexAttribArray(index: GLuint): void {
+    this.#enabledVertexAttribArrays.delete(index);
+  }
+
+  drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
+    const program = this.#program?.[$internal];
+    if (!program) {
+      throw new Error('No program bound');
+    }
+
+    const encoder = this.#root.device.createCommandEncoder({
+      label: 'ByeGL Command Encoder',
+    });
+    const renderPass = this.#createRenderPass(encoder, mode);
+    renderPass.draw(count, 1, first, 0);
+    renderPass.end();
+
+    this.#root.device.queue.submit([encoder.finish()]);
+  }
+
+  drawElements(
+    mode: GLenum,
+    count: GLsizei,
+    type: GLenum,
+    offset: GLintptr,
+  ): void {
+    const program = this.#program?.[$internal];
+    if (!program) {
+      throw new Error('No program bound');
+    }
+
+    const encoder = this.#root.device.createCommandEncoder({
+      label: 'ByeGL Command Encoder',
+    });
+
+    const renderPass = this.#createRenderPass(encoder, mode);
+
+    // Index buffer
+    const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
+      $internal
+    ];
+
+    if (!indexBuffer) {
+      throw new Error('No index buffer bound');
+    }
+
+    const indexFormat =
+      type === gl.UNSIGNED_SHORT
+        ? 'uint16'
+        : type === gl.UNSIGNED_INT
+          ? 'uint32'
+          : undefined;
+
+    if (!indexFormat) {
+      throw new Error(`Unsupported index type: ${type}`);
+    }
+
+    renderPass.setIndexBuffer(indexBuffer.gpuBuffer, indexFormat);
+    renderPass.drawIndexed(count, 1, offset, 0, 0);
+    renderPass.end();
+
+    this.#root.device.queue.submit([encoder.finish()]);
+  }
+
+  enable(cap: GLenum): void {
+    this.#enabledCapabilities.add(cap);
+  }
+
+  enableVertexAttribArray(index: GLuint): void {
+    this.#enabledVertexAttribArrays.add(index);
+  }
+
+  finish(): void {
+    // TODO: Not sure how to block until everything is finished synchronously
+    throw new NotImplementedYetError('gl.finish');
+  }
+
+  flush(): void {
+    // TODO: Not sure how to block until everything is flushed synchronously
+    throw new NotImplementedYetError('gl.flush');
+  }
+
+  framebufferRenderbuffer(
+    target: GLenum,
+    attachment: GLenum,
+    renderbuffer: WebGLRenderbuffer,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.framebufferRenderbuffer');
+  }
+
+  framebufferTexture2D(
+    target: GLenum,
+    attachment: GLenum,
+    textarget: GLenum,
+    texture: WebGLTexture,
+    level: GLint,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.framebufferTexture2D');
+  }
+
   frontFace(mode: GLenum): void {
     this.#parameters.set(gl.FRONT_FACE, mode);
   }
 
-  getShaderInfoLog(shader: WebGLShader): string | null {
+  generateMipmap(target: GLenum): void {
     // TODO: Implement
+    throw new NotImplementedYetError('gl.generateMipmap');
+  }
+
+  getActiveAttrib(
+    program: WebGLProgram,
+    index: GLuint,
+  ): WebGLActiveInfo | null {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getActiveAttrib');
+  }
+
+  getActiveUniform(
+    program: WebGLProgram,
+    index: GLuint,
+  ): WebGLActiveInfo | null {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getActiveUniform');
+  }
+
+  getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getAttachedShaders');
+  }
+
+  getAttribLocation(program: ByeGLProgram, name: string): GLint {
+    const $program = program[$internal];
+    if ($program.attributes === undefined) {
+      throw new Error('Program not linked');
+    }
+    return $program.attributes.find((a) => a.id === name)?.location ?? -1;
+  }
+
+  getBufferParameter(target: GLenum, pname: GLenum): GLint {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getBufferParameter');
+  }
+
+  getContextAttributes(): WebGLContextAttributes {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getContextAttributes');
+  }
+
+  getError(): GLenum {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getError');
+  }
+
+  getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
+    // TODO: Implement extensions. Not supporting any extension for now.
     return null;
   }
 
-  getProgramInfoLog(program: WebGLProgram): string | null {
+  getFramebufferAttachmentParameter(
+    target: GLenum,
+    attachment: GLenum,
+    pname: GLenum,
+  ): GLint {
     // TODO: Implement
-    return null;
+    throw new NotImplementedYetError('gl.getFramebufferAttachmentParameter');
   }
 
   getParameter(pname: GLenum): any {
@@ -562,31 +1036,56 @@ export class ByeGLContext {
     }
   }
 
-  getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
-    // TODO: Implement extensions. Not supporting any extension for now.
+  getProgramInfoLog(program: WebGLProgram): string | null {
+    // TODO: Implement
     return null;
   }
 
-  createProgram(): WebGLProgram {
-    return new ByeGLProgram();
+  getProgramParameter(program: WebGLProgram, pname: GLenum): any {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getProgramParameter');
   }
 
-  attachShader(program: ByeGLProgram, shader: ByeGLShader): void {
-    const $shader = shader[$internal];
-
-    if ($shader.type === gl.VERTEX_SHADER) {
-      program[$internal].vert = shader;
-    } else if ($shader.type === gl.FRAGMENT_SHADER) {
-      program[$internal].frag = shader;
-    }
+  getRenderbufferParameter(target: GLenum, pname: GLenum): any {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getRenderbufferParameter');
   }
 
-  getAttribLocation(program: ByeGLProgram, name: string): GLint {
-    const $program = program[$internal];
-    if ($program.attributes === undefined) {
-      throw new Error('Program not linked');
-    }
-    return $program.attributes.find((a) => a.id === name)?.location ?? -1;
+  getShaderInfoLog(shader: WebGLShader): string | null {
+    // TODO: Implement
+    return null;
+  }
+
+  getShaderParameter(shader: WebGLShader, pname: GLenum): any {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getShaderParameter');
+  }
+
+  getShaderPrecisionFormat(
+    shadertype: GLenum,
+    precisiontype: GLint,
+  ): WebGLShaderPrecisionFormat | null {
+    return shaderPrecisionFormatCatalog[precisiontype] ?? null;
+  }
+
+  getShaderSource(shader: WebGLShader): string | null {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getShaderSource');
+  }
+
+  getSupportedExtensions(): string[] {
+    // TODO: Implement
+    return [];
+  }
+
+  getTexParameter(target: GLenum, pname: GLenum): any {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getTexParameter');
+  }
+
+  getUniform(program: WebGLProgram, location: WebGLUniformLocation): any {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getUniform');
   }
 
   getUniformLocation(
@@ -601,74 +1100,328 @@ export class ByeGLContext {
     return idx !== undefined ? new ByeGLUniformLocation(idx) : null;
   }
 
-  createBuffer(): WebGLBuffer {
-    return new ByeGLBuffer(this.#root, this.#remapper);
+  getVertexAttrib(index: GLuint, pname: GLenum): any {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getVertexAttrib');
   }
 
-  deleteBuffer(buffer: ByeGLBuffer | null): void {
-    if (buffer) {
-      buffer[$internal].destroy();
+  getVertexAttribOffset(index: GLuint, pname: GLenum): GLintptr {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.getVertexAttribOffset');
+  }
+
+  hint(target: GLenum, mode: GLenum): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.hint');
+  }
+
+  isBuffer(buffer: ByeGLBuffer): boolean {
+    return buffer instanceof ByeGLBuffer;
+  }
+
+  isContextLost(): boolean {
+    // TODO: Implement detection of context loss
+    return false;
+  }
+
+  isEnabled(cap: GLenum): boolean {
+    return this.#enabledCapabilities.has(cap);
+  }
+
+  isFramebuffer(framebuffer: WebGLFramebuffer): boolean {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.isFramebuffer');
+  }
+
+  isProgram(program: ByeGLProgram): boolean {
+    return program instanceof ByeGLProgram;
+  }
+
+  isShader(shader: ByeGLShader): boolean {
+    return shader instanceof ByeGLShader;
+  }
+
+  isTexture(texture: ByeGLTexture): boolean {
+    return texture instanceof ByeGLTexture;
+  }
+
+  lineWidth(width: GLfloat): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.lineWidth');
+  }
+
+  linkProgram(program: ByeGLProgram): void {
+    const $program = program[$internal];
+    const { vert, frag } = $program;
+
+    if (!vert || !frag) {
+      throw new Error(
+        'Vertex and fragment shaders must be attached before linking',
+      );
     }
+
+    const result = this.#wgslGen.generate(
+      vert[$internal].source ?? '',
+      frag[$internal].source ?? '',
+    );
+
+    $program.attributes = result.attributes;
+    $program.uniforms = result.uniforms;
+
+    const module = this.#root.device.createShaderModule({
+      label: 'ByeGL Shader Module',
+      code: result.wgsl,
+    });
+    $program.wgpuShaderModule = module;
   }
 
-  bindBuffer(target: GLenum, buffer: ByeGLBuffer | null): void {
-    if (buffer) {
-      if (target === gl.ELEMENT_ARRAY_BUFFER) {
-        buffer[$internal].boundAsIndexBuffer = true;
-      }
-      this.#boundBufferMap.set(target, buffer);
-    } else {
-      this.#boundBufferMap.delete(target);
-    }
+  makeXRCompatible(): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.makeXRCompatible');
   }
 
-  bufferData(
-    target: GLenum,
-    dataOrSize: AllowSharedBufferSource | GLsizeiptr | null,
-    usage: GLenum,
+  pixelStorei(pname: GLenum, param: GLint): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.pixelStorei');
+  }
+
+  polygonOffset(factor: GLfloat, units: GLfloat): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.polygonOffset');
+  }
+
+  readPixels(
+    x: GLint,
+    y: GLint,
+    width: GLsizei,
+    height: GLsizei,
+    format: GLenum,
+    type: GLenum,
+    pixels: ArrayBufferView,
   ): void {
-    const buffer = this.#boundBufferMap.get(target);
-    if (!buffer) {
-      throw new Error(`Buffer not bound to ${target}`);
-    }
-    const $buffer = buffer[$internal];
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.readPixels');
+  }
 
-    if (typeof dataOrSize === 'number') {
-      // Initializing the buffer with a certain size
-      $buffer.byteLength = dataOrSize;
-    } else if (dataOrSize === null) {
-      // Keeping the previous size, so nothing to do here
-    } else {
-      // Updating the buffer to match the size of the new buffer
-      $buffer.byteLength = dataOrSize.byteLength;
-    }
+  renderbufferStorage(
+    target: GLenum,
+    internalformat: GLenum,
+    width: GLsizei,
+    height: GLsizei,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.renderbufferStorage');
+  }
 
-    if (typeof dataOrSize === 'number' || dataOrSize === null) {
-      if (!$buffer.gpuBufferDirty) {
-        // If the buffer won't be recreated, wipe the buffer to
-        // replicate WebGL behavior
-        this.#root.device.queue.writeBuffer(
-          $buffer.gpuBuffer,
-          0,
-          new Uint8Array($buffer.byteLength ?? 0),
-        );
-      }
-    } else {
-      this.#root.device.queue.writeBuffer(
-        $buffer.gpuBuffer,
-        0,
-        dataOrSize as any,
+  sampleCoverage(value: GLclampf, invert: GLboolean): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.sampleCoverage');
+  }
+
+  scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.scissor');
+  }
+
+  shaderSource(shader: ByeGLShader, source: string): void {
+    shader[$internal].source = source;
+  }
+
+  stencilFunc(func: GLenum, ref: GLint, mask: GLuint): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.stencilFunc');
+  }
+
+  stencilFuncSeparate(
+    face: GLenum,
+    func: GLenum,
+    ref: GLint,
+    mask: GLuint,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.stencilFuncSeparate');
+  }
+
+  stencilMask(mask: GLuint): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.stencilMask');
+  }
+
+  stencilMaskSeparate(face: GLenum, mask: GLuint): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.stencilMaskSeparate');
+  }
+
+  stencilOp(opFail: GLenum, opZFail: GLenum, opZPass: GLenum): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.stencilOp');
+  }
+
+  stencilOpSeparate(
+    face: GLenum,
+    opFail: GLenum,
+    opZFail: GLenum,
+    opZPass: GLenum,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.stencilOpSeparate');
+  }
+
+  texImage2D(
+    target: GLenum,
+    level: GLint,
+    internalFormat: GLenum,
+    width: GLsizei,
+    height: GLsizei,
+    border: GLint,
+    format: GLenum,
+    type: GLenum,
+    pixels: ArrayBufferView | null,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.texImage2D');
+  }
+
+  texParameterf(target: GLenum, pname: GLenum, param: GLfloat): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.texParameterf');
+  }
+
+  texParameteri(target: GLenum, pname: GLenum, param: GLint): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.texParameteri');
+  }
+
+  texSubImage2D(
+    target: GLenum,
+    level: GLint,
+    xoffset: GLint,
+    yoffset: GLint,
+    width: GLsizei,
+    height: GLsizei,
+    format: GLenum,
+    type: GLenum,
+    pixels: ArrayBufferView | null,
+  ): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.texSubImage2D');
+  }
+
+  uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(
+        uniform,
+        new Float32Array([value]).buffer,
       );
     }
   }
 
-  enableVertexAttribArray(index: GLuint): void {
-    this.#enabledVertexAttribArrays.add(index);
+  // uniform1fv(location, value)
+  // uniform1i(location, v0)
+  // uniform1iv(location, value)
+
+  // uniform2f(location, v0, v1)
+  // uniform2fv(location, value)
+  // uniform2i(location, v0, v1)
+  // uniform2iv(location, value)
+
+  // uniform3f(location, v0, v1, v2)
+
+  uniform3fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
+
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(
+        uniform,
+        new Float32Array([...value]).buffer,
+      );
+    }
   }
 
-  disableVertexAttribArray(index: GLuint): void {
-    this.#enabledVertexAttribArrays.delete(index);
+  // uniform3i(location, v0, v1, v2)
+  // uniform3iv(location, value)
+
+  // uniform4f(location, v0, v1, v2, v3)
+
+  uniform4fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const data = new Float32Array([...value]);
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
+    }
   }
+
+  // uniform4i(location, v0, v1, v2, v3)
+  // uniform4iv(location, value)
+
+  // uniformMatrix2fv(location, transpose, value)
+  // uniformMatrix3fv(location, transpose, value)
+
+  uniformMatrix4fv(
+    location: ByeGLUniformLocation | null,
+    transpose: GLboolean,
+    value: Iterable<GLfloat> | Float32List,
+  ): void {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const data = new Float32Array([...value]);
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
+    // TODO: Handle transposing
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
+    }
+  }
+
+  useProgram(program: ByeGLProgram): void {
+    this.#program = program;
+  }
+
+  validateProgram(program: ByeGLProgram): void {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.validateProgram');
+  }
+
+  // TODO: Implement the following
+  /*
+   * vertexAttrib1f(index, v0)
+   * vertexAttrib2f(index, v0, v1)
+   * vertexAttrib3f(index, v0, v1, v2)
+   * vertexAttrib4f(index, v0, v1, v2, v3)
+
+   * vertexAttrib1fv(index, value)
+   * vertexAttrib2fv(index, value)
+   * vertexAttrib3fv(index, value)
+   * vertexAttrib4fv(index, value)
+   */
 
   /**
    * My best guess right now is that this function associates a buffer with a specific
@@ -727,121 +1480,8 @@ export class ByeGLContext {
     this.#setAttribute(segment);
   }
 
-  clearColor(r: GLclampf, g: GLclampf, b: GLclampf, a: GLclampf): void {
-    this.#parameters.set(gl.COLOR_CLEAR_VALUE, new Float32Array([r, g, b, a]));
-  }
-
-  cullFace(mode: GLenum): void {
-    this.#parameters.set(gl.CULL_FACE_MODE, mode);
-  }
-
-  clear(mask: GLbitfield): void {
-    // TODO: Implement clear setup
-  }
-
-  linkProgram(program: ByeGLProgram): void {
-    const $program = program[$internal];
-    const { vert, frag } = $program;
-
-    if (!vert || !frag) {
-      throw new Error(
-        'Vertex and fragment shaders must be attached before linking',
-      );
-    }
-
-    const result = this.#wgslGen.generate(
-      vert[$internal].source ?? '',
-      frag[$internal].source ?? '',
-    );
-
-    $program.attributes = result.attributes;
-    $program.uniforms = result.uniforms;
-
-    const module = this.#root.device.createShaderModule({
-      label: 'ByeGL Shader Module',
-      code: result.wgsl,
-    });
-    $program.wgpuShaderModule = module;
-  }
-
-  useProgram(program: ByeGLProgram): void {
-    this.#program = program;
-  }
-
   viewport(x: number, y: number, width: number, height: number): void {
     // TODO: Change which part of the target texture we're drawing to
-  }
-
-  uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(
-        uniform,
-        new Float32Array([value]).buffer,
-      );
-    }
-  }
-
-  uniform3fv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLfloat> | Float32List,
-  ) {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
-
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(
-        uniform,
-        new Float32Array([...value]).buffer,
-      );
-    }
-  }
-
-  uniform4fv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLfloat> | Float32List,
-  ) {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const data = new Float32Array([...value]);
-    const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
-    }
-  }
-
-  uniformMatrix4fv(
-    location: ByeGLUniformLocation | null,
-    transpose: GLboolean,
-    value: Iterable<GLfloat> | Float32List,
-  ): void {
-    const program = this.#program?.[$internal];
-    if (!location || !program) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const data = new Float32Array([...value]);
-    const idx = location[$internal];
-    const uniform = program.uniforms?.find((u) => u.location === idx);
-    // TODO: Handle transposing
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
-    }
   }
 
   #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
@@ -952,7 +1592,7 @@ export class ByeGLContext {
       colorAttachments: [
         {
           view: currentTexture.createView(),
-          loadOp: 'clear',
+          loadOp: this.#bitsToClear & gl.COLOR_BUFFER_BIT ? 'clear' : 'load',
           storeOp: 'store',
           clearValue: clearColorValue,
         },
@@ -960,13 +1600,21 @@ export class ByeGLContext {
       depthStencilAttachment: depthTextureView
         ? {
             view: depthTextureView!,
-            depthLoadOp: 'clear',
+            depthLoadOp:
+              this.#bitsToClear & gl.DEPTH_BUFFER_BIT ? 'clear' : 'load',
             depthStoreOp: 'store',
             depthClearValue: clearDepthValue,
             stencilClearValue: clearStencilValue,
+            // TODO: Implement stencils
+            // stencilLoadOp:
+            //   this.#bitsToClear & gl.STENCIL_BUFFER_BIT ? 'clear' : 'load',
+            // stencilStoreOp: 'store',
           }
         : undefined,
     });
+
+    // Resetting the mask
+    this.#bitsToClear = 0;
 
     renderPass.setPipeline(pipeline);
 
@@ -1010,66 +1658,6 @@ export class ByeGLContext {
     }
 
     return renderPass;
-  }
-
-  drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
-    const program = this.#program?.[$internal];
-    if (!program) {
-      throw new Error('No program bound');
-    }
-
-    const encoder = this.#root.device.createCommandEncoder({
-      label: 'ByeGL Command Encoder',
-    });
-    const renderPass = this.#createRenderPass(encoder, mode);
-    renderPass.draw(count, 1, first, 0);
-    renderPass.end();
-
-    this.#root.device.queue.submit([encoder.finish()]);
-  }
-
-  drawElements(
-    mode: GLenum,
-    count: GLsizei,
-    type: GLenum,
-    offset: GLintptr,
-  ): void {
-    const program = this.#program?.[$internal];
-    if (!program) {
-      throw new Error('No program bound');
-    }
-
-    const encoder = this.#root.device.createCommandEncoder({
-      label: 'ByeGL Command Encoder',
-    });
-
-    const renderPass = this.#createRenderPass(encoder, mode);
-
-    // Index buffer
-    const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
-      $internal
-    ];
-
-    if (!indexBuffer) {
-      throw new Error('No index buffer bound');
-    }
-
-    const indexFormat =
-      type === gl.UNSIGNED_SHORT
-        ? 'uint16'
-        : type === gl.UNSIGNED_INT
-          ? 'uint32'
-          : undefined;
-
-    if (!indexFormat) {
-      throw new Error(`Unsupported index type: ${type}`);
-    }
-
-    renderPass.setIndexBuffer(indexBuffer.gpuBuffer, indexFormat);
-    renderPass.drawIndexed(count, 1, offset, 0, 0);
-    renderPass.end();
-
-    this.#root.device.queue.submit([encoder.finish()]);
   }
 }
 
