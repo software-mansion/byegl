@@ -1,5 +1,5 @@
 import * as shaderkit from '@iwoplaza/shaderkit';
-import tgpu from 'typegpu';
+import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
 import { WgslGenerator, WgslGeneratorResult } from './wgsl-generator.ts';
 
@@ -103,6 +103,13 @@ const opToPrecedence = {
 };
 
 /**
+ * A helper function that polyfills the mat3(arg: mat4) constructor from GLSL
+ */
+const createMat3FromMat4 = tgpu.fn([d.mat4x4f], d.mat3x3f)`(arg4) {
+  return mat3x3f(arg4[0].xyz, arg4[1].xyz, arg4[2].xyz);
+}`.$name('_byegl_createMat3FromMat4');
+
+/**
  * Used when we can't determine something's type (usually a hole in the implementation)
  */
 const UnknownType = Symbol('UnknownType');
@@ -111,7 +118,7 @@ type UnknownType = typeof UnknownType;
 /**
  * A piece of generated WGSL code, inferred to be a specific WGSL data type.
  */
-class Expression {
+class Snippet {
   constructor(
     public value: string,
     public type: d.AnyWgslData | UnknownType,
@@ -119,10 +126,10 @@ class Expression {
 }
 
 /**
- * A helper function for creating "expressions"
+ * A helper function for creating "snippets"
  */
-const expr = (value: string, type: d.AnyWgslData | UnknownType) =>
-  new Expression(value, type);
+const snip = (value: string, type: d.AnyWgslData | UnknownType) =>
+  new Snippet(value, type);
 
 interface GenState {
   shaderType: 'vertex' | 'fragment';
@@ -132,6 +139,7 @@ interface GenState {
   uniforms: Map<number, UniformInfo>;
 
   typeDefs: Map<string, d.WgslStruct>;
+  extraFunctions: Map<string, TgpuFn>;
   aliases: Map<d.AnyWgslData | UnknownType, string>;
 
   variables: Map<string, d.AnyWgslData | UnknownType>;
@@ -170,7 +178,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
   #lastUniqueIdSuffix = -1;
 
   uniqueId(primer?: string | undefined): string {
-    return `${primer ?? 'item'}_${++this.#lastUniqueIdSuffix}`;
+    return `_byegl_${primer ?? 'item'}_${++this.#lastUniqueIdSuffix}`;
   }
 
   getDataType(
@@ -210,19 +218,51 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     throw new Error(`No alias found for: ${String(value)}`);
   }
 
-  generateExpression(expression: shaderkit.Expression): Expression {
+  generateCallExpression(expression: shaderkit.CallExpression): Snippet {
+    const state = this.#state;
+
+    if (expression.callee.type !== 'Identifier') {
+      throw new Error(`Unsupported callee type: ${expression.callee.type}`);
+    }
+
+    let funcName = expression.callee.name;
+    const args = expression.arguments.map((arg) =>
+      this.generateExpression(arg),
+    );
+    const argsValue = args.map((arg) => arg.value).join(', ');
+
+    if (funcName === 'mat3') {
+      // GLSL supports a mat3 constructor that takes in a mat4, while WGSL does not
+      state.extraFunctions.set('_byegl_createMat3FromMat4', createMat3FromMat4);
+      return snip(`_byegl_createMat3FromMat4(${argsValue})`, d.mat3x3f);
+    }
+
+    if (funcName in glslToWgslTypeMap) {
+      const dataType =
+        glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
+      return snip(`${dataType.type}(${argsValue})`, dataType);
+    }
+
+    if (this.#state.typeDefs.has(funcName)) {
+      funcName = this.aliasOf(this.#state.typeDefs.get(funcName)!);
+    }
+
+    return snip(`${funcName}(${argsValue})`, UnknownType);
+  }
+
+  generateExpression(expression: shaderkit.Expression): Snippet {
     const state = this.#state;
     if (expression.type === 'Identifier') {
       const varType = state.variables.get(expression.name);
       if (!varType && state.seekIdentifier) {
         throw new Error(`Variable not found: ${expression.name}`);
       }
-      return expr(expression.name, varType ?? UnknownType);
+      return snip(expression.name, varType ?? UnknownType);
     }
 
     if (expression.type === 'Literal') {
       // TODO: Infer the type of the literal
-      return expr(expression.value, d.f32);
+      return snip(expression.value, d.f32);
     }
 
     if (expression.type === 'ConditionalExpression') {
@@ -231,40 +271,20 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const consequent = this.generateExpression(expression.consequent);
       const alternate = this.generateExpression(expression.alternate);
       // TODO: Infer the type of the conditional expression based on the operands
-      return expr(
+      return snip(
         `select(${consequent.value}, ${alternate.value}, ${test.value})`,
         d.f32,
       );
     }
 
     if (expression.type === 'CallExpression') {
-      if (expression.callee.type !== 'Identifier') {
-        throw new Error(`Unsupported callee type: ${expression.callee.type}`);
-      }
-
-      let funcName = expression.callee.name;
-      const args = expression.arguments.map((arg) =>
-        this.generateExpression(arg),
-      );
-      const argValues = args.map((arg) => arg.value).join(', ');
-
-      if (funcName in glslToWgslTypeMap) {
-        const type =
-          glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
-        return expr(`${type}(${argValues})`, type);
-      }
-
-      if (this.#state.typeDefs.has(funcName)) {
-        funcName = this.aliasOf(this.#state.typeDefs.get(funcName)!);
-      }
-
-      return expr(`${funcName}(${argValues})`, UnknownType);
+      return this.generateCallExpression(expression);
     }
 
     if (expression.type === 'AssignmentExpression') {
       const left = this.generateExpression(expression.left);
       const right = this.generateExpression(expression.right);
-      return expr(`${left.value} = ${right.value}`, left.type);
+      return snip(`${left.value} = ${right.value}`, left.type);
     }
 
     if (expression.type === 'BinaryExpression') {
@@ -278,12 +298,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
         // TODO: Implement type inference
         if (myPrecedence < parentPrecedence) {
-          return expr(
+          return snip(
             `(${left.value} ${expression.operator} ${right.value})`,
             UnknownType,
           );
         }
-        return expr(
+        return snip(
           `${left.value} ${expression.operator} ${right.value}`,
           UnknownType,
         );
@@ -295,13 +315,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     if (expression.type === 'UnaryExpression') {
       const argument = this.generateExpression(expression.argument);
       // TODO: Implement type inference
-      return expr(`${expression.operator}${argument.value}`, UnknownType);
+      return snip(`${expression.operator}${argument.value}`, UnknownType);
     }
 
     if (expression.type === 'MemberExpression') {
       const object = this.generateExpression(expression.object);
       const prevSeekIdentifier = state.seekIdentifier;
-      let property: Expression;
+      let property: Snippet;
       try {
         state.seekIdentifier = false;
         property = this.generateExpression(expression.property);
@@ -309,7 +329,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         state.seekIdentifier = prevSeekIdentifier;
       }
       // TODO: Implement type inference
-      return expr(`${object.value}.${property.value}`, UnknownType);
+      return snip(`${object.value}.${property.value}`, UnknownType);
     }
 
     throw new Error(`Unsupported expression type: ${expression.type}`);
@@ -421,7 +441,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
       try {
         const params = statement.params.map((param) =>
-          expr(param.id?.name!, this.getDataType(param.typeSpecifier)),
+          snip(param.id?.name!, this.getDataType(param.typeSpecifier)),
         );
 
         for (const param of params) {
@@ -512,6 +532,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       shaderType: 'vertex',
 
       typeDefs: new Map(),
+      extraFunctions: new Map(),
       aliases: new Map(),
       variables: new Map<string, d.AnyWgslData>([
         ['gl_Position', d.vec4f],
@@ -619,7 +640,10 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
 
     const resolvedWgsl = tgpu.resolve({
       template: wgsl,
-      externals: Object.fromEntries(state.typeDefs.entries()),
+      externals: Object.fromEntries([
+        ...state.typeDefs.entries(),
+        ...state.extraFunctions.entries(),
+      ]),
     });
 
     console.log('Generated:\n', resolvedWgsl);

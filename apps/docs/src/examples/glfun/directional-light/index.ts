@@ -47,7 +47,13 @@ void main() {
 
   // Lets multiply just the color portion (not the alpha)
   // by the light
-  gl_FragColor.rgb *= light;
+  gl_FragColor *= vec4(vec3(light), 1);
+
+  // TODO: The above line was previously the following, but the WGSL
+  // generator does not currently polyfill swizzle mutation.
+  // Tracked here: https://github.com/software-mansion-labs/byegl/issues/5
+  //
+  // gl_FragColor.rgb *= light;
 }
 `;
 
@@ -70,6 +76,9 @@ export default function ({ canvas }: ExampleContext) {
   gl.attachShader(program, vert);
   gl.attachShader(program, frag);
   gl.linkProgram(program);
+
+  console.log(gl.getShaderInfoLog(vert));
+  console.log(gl.getShaderInfoLog(frag));
 
   // look up where the vertex data needs to go.
   var positionLocation = gl.getAttribLocation(program, 'a_position');
@@ -333,8 +342,6 @@ function setGeometry(gl: WebGLRenderingContext) {
   }
 
   vec3.scale(center, center, 1 / positions.length);
-  console.log(center);
-  console.log(positions);
 
   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 }

@@ -779,6 +779,32 @@ export class ByeGLContext {
     );
   }
 
+  uniform3fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    if (!location) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const data = new Float32Array([...value]);
+
+    this.#uniformBufferCache.updateUniform(location, data.buffer);
+  }
+
+  uniform4fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    if (!location) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const data = new Float32Array([...value]);
+
+    this.#uniformBufferCache.updateUniform(location, data.buffer);
+  }
+
   uniformMatrix4fv(
     location: ByeGLUniformLocation | null,
     transpose: GLboolean,
