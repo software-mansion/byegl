@@ -270,6 +270,11 @@ export class ByeGLContext {
     return this.#canvas.height;
   }
 
+  get drawingBufferColorSpace() {
+    // TODO: Implement color space retrieval
+    return 'srgb';
+  }
+
   get unpackColorSpace() {
     // TODO: Allow changing to the `display-p3` color space
     return 'srgb';
@@ -1284,7 +1289,8 @@ export class ByeGLContext {
     const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
     const texture = textureMap?.get(target)?.[$internal];
     if (!texture) {
-      throw new Error('No texture bound');
+      // TODO: Generate a WebGL appropriate error
+      return;
     }
 
     if (rest.length === 6) {
@@ -1292,8 +1298,24 @@ export class ByeGLContext {
       width = width_;
       height = height_;
       format = format_;
-      // TODO: Implement this way of populating textures
-      throw new NotImplementedYetError('gl.texImage2D');
+
+      const size = [width, height] as const;
+      texture.size = size;
+
+      if (pixels) {
+        // For now, assume RGBA/UNSIGNED_BYTE format
+        // TODO: Handle different format/type combinations
+        if (format === gl.RGBA && type === gl.UNSIGNED_BYTE) {
+          this.#root.device.queue.writeTexture(
+            { texture: texture.gpuTexture },
+            pixels,
+            { bytesPerRow: width * 4, rowsPerImage: height },
+            { width, height }
+          );
+        } else {
+          throw new NotImplementedYetError(`gl.texImage2D with format=${format}, type=${type}`);
+        }
+      }
     } else {
       const [_format, type, source] = rest;
       format = _format;
