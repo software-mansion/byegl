@@ -218,6 +218,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     throw new Error(`No alias found for: ${String(value)}`);
   }
 
+  /**
+   * Adds the `createMat3FromMat4` function to the shader.
+   * @returns the name of the function, which can be injected into the shader
+   */
+  useCreateMat3FromMat4(): string {
+    const key = '_byegl_createMat3FromMat4';
+    if (!this.#state.extraFunctions.has(key)) {
+      this.#state.extraFunctions.set(key, createMat3FromMat4);
+    }
+    return key;
+  }
+
   generateCallExpression(expression: shaderkit.CallExpression): Snippet {
     const state = this.#state;
 
@@ -233,8 +245,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (funcName === 'mat3') {
       // GLSL supports a mat3 constructor that takes in a mat4, while WGSL does not
-      state.extraFunctions.set('_byegl_createMat3FromMat4', createMat3FromMat4);
-      return snip(`_byegl_createMat3FromMat4(${argsValue})`, d.mat3x3f);
+      return snip(`${this.useCreateMat3FromMat4()}(${argsValue})`, d.mat3x3f);
     }
 
     if (funcName in glslToWgslTypeMap) {
