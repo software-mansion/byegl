@@ -1,6 +1,7 @@
 import { TgpuRoot } from 'typegpu';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import { primitiveMap } from './constants.ts';
+import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
@@ -11,7 +12,6 @@ import type {
   UniformInfo,
   WgslGenerator,
 } from './wgsl/wgsl-generator.ts';
-import { NotImplementedYetError } from './errors.ts';
 
 const gl = WebGL2RenderingContext;
 

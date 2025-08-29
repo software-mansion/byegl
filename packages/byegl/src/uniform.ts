@@ -1,7 +1,7 @@
 import { TgpuRoot } from 'typegpu';
+import { sizeOf } from 'typegpu/data';
 import { $internal } from './types.ts';
 import { UniformInfo } from './wgsl/wgsl-generator.ts';
-import { sizeOf } from 'typegpu/data';
 
 export class UniformBufferCache {
   #buffers: Map<number, GPUBuffer> = new Map();
