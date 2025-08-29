@@ -1,10 +1,11 @@
 import { TgpuRoot } from 'typegpu';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
+import { primitiveMap } from './constants.ts';
+import type { ExtensionMap } from './extensions/types.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
-import type { ExtensionMap } from './extensions/types.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -285,6 +286,16 @@ export class ByeGLContext {
 
   frontFace(mode: GLenum): void {
     this.#parameters.set(gl.FRONT_FACE, mode);
+  }
+
+  getShaderInfoLog(shader: WebGLShader): string | null {
+    // TODO: Implement
+    return null;
+  }
+
+  getProgramInfoLog(program: WebGLProgram): string | null {
+    // TODO: Implement
+    return null;
   }
 
   getParameter(pname: GLenum): any {
@@ -768,6 +779,32 @@ export class ByeGLContext {
     );
   }
 
+  uniform3fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    if (!location) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const data = new Float32Array([...value]);
+
+    this.#uniformBufferCache.updateUniform(location, data.buffer);
+  }
+
+  uniform4fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    if (!location) {
+      // Apparently, a `null` location is a no-op in WebGL
+      return;
+    }
+    const data = new Float32Array([...value]);
+
+    this.#uniformBufferCache.updateUniform(location, data.buffer);
+  }
+
   uniformMatrix4fv(
     location: ByeGLUniformLocation | null,
     transpose: GLboolean,
@@ -783,7 +820,7 @@ export class ByeGLContext {
     this.#uniformBufferCache.updateUniform(location, data.buffer);
   }
 
-  #createRenderPass(encoder: GPUCommandEncoder) {
+  #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
     const program = this.#program?.[$internal]!;
     const currentTexture = this.#canvasContext.getCurrentTexture();
 
@@ -828,6 +865,11 @@ export class ByeGLContext {
 
     const colorMask = this.#parameters.get(gl.COLOR_WRITEMASK);
     const cullFaceMode = this.#parameters.get(gl.CULL_FACE_MODE);
+    const topology = primitiveMap[mode as keyof typeof primitiveMap];
+
+    if (!topology) {
+      throw new Error(`Unsupported primitive topology: ${mode}`);
+    }
 
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'ByeGL Render Pipeline',
@@ -851,7 +893,7 @@ export class ByeGLContext {
       },
       depthStencil,
       primitive: {
-        topology: 'triangle-list',
+        topology,
         cullMode: this.#enabledCapabilities.has(gl.CULL_FACE)
           ? cullFaceMode === gl.BACK
             ? 'back'
@@ -946,7 +988,7 @@ export class ByeGLContext {
     const encoder = this.#root.device.createCommandEncoder({
       label: 'ByeGL Command Encoder',
     });
-    const renderPass = this.#createRenderPass(encoder);
+    const renderPass = this.#createRenderPass(encoder, mode);
     renderPass.draw(count, 1, first, 0);
     renderPass.end();
 
@@ -968,7 +1010,7 @@ export class ByeGLContext {
       label: 'ByeGL Command Encoder',
     });
 
-    const renderPass = this.#createRenderPass(encoder);
+    const renderPass = this.#createRenderPass(encoder, mode);
 
     // Index buffer
     const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
