@@ -39,29 +39,25 @@ export interface UniformInfo {
 }
 
 export interface WgslGeneratorResult {
-  wgsl: string;
-
-  /**
-   * A mapping of name to details about the attribute.
+  wgsl: string /**
+   * A list of attributes.
    * Valid for definitions using the `attribute` qualifier.
    * @example
    * ```ts
    * // attribute vec2f a_position;
-   * result.attributes.get('a_position') // { id: 'a_position', location: 0, type: d.vec2f }
+   * result.attributes[0] // { id: 'a_position', location: 0, type: d.vec2f }
    * ```
-   */
-  attributes: Map<string, AttributeInfo>;
-
-  /**
-   * A mapping of name to details about the uniform.
+   */;
+  attributes: AttributeInfo[] /**
+   * A list of uniforms.
    * Valid for definitions using the `uniform` qualifier.
    * @example
    * ```ts
    * // uniform mat4 u_worldMat;
-   * result.uniforms.get('u_worldMat') // { id: 'u_worldMat', location: 0, type: d.mat4f }
+   * result.uniforms[0] // { id: 'u_worldMat', location: 0, type: d.mat4f }
    * ```
-   */
-  uniforms: Map<string, UniformInfo>;
+   */;
+  uniforms: UniformInfo[];
 }
 
 export interface WgslGenerator {

@@ -1,5 +1,7 @@
 import { TgpuRoot } from 'typegpu';
 import { $internal } from './types.ts';
+import { UniformInfo } from './wgsl/wgsl-generator.ts';
+import { sizeOf } from 'typegpu/data';
 
 export class UniformBufferCache {
   #buffers: Map<number, GPUBuffer> = new Map();
@@ -9,12 +11,22 @@ export class UniformBufferCache {
     this.#root = root;
   }
 
-  getBuffer(location: number): GPUBuffer | undefined {
-    return this.#buffers.get(location);
+  getBuffer(uniform: UniformInfo): GPUBuffer {
+    let cached = this.#buffers.get(uniform.location);
+    if (!cached) {
+      cached = this.#root.device.createBuffer({
+        label: 'ByeGL Uniform Buffer',
+        size: sizeOf(uniform.type),
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      this.#buffers.set(uniform.location, cached);
+    }
+
+    return cached;
   }
 
-  updateUniform(location: ByeGLUniformLocation, value: ArrayBuffer) {
-    const cached = this.#buffers.get(location[$internal]);
+  updateUniform(uniform: UniformInfo, value: ArrayBuffer) {
+    const cached = this.#buffers.get(uniform.location);
     if (cached && cached.size === value.byteLength) {
       this.#root.device.queue.writeBuffer(cached, 0, value);
       return cached;
@@ -29,7 +41,7 @@ export class UniformBufferCache {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    this.#buffers.set(location[$internal], buffer);
+    this.#buffers.set(uniform.location, buffer);
     // Filling out the buffer with data
     const mappedBuffer = new Uint8Array(buffer.getMappedRange());
     const inView = new Uint8Array(value);

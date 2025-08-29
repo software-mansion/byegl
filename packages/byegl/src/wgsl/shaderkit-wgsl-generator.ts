@@ -102,9 +102,9 @@ const snip = (value: string, type: d.AnyWgslData | UnknownType) =>
 interface GenState {
   shaderType: 'vertex' | 'fragment';
 
-  attributes: Map<string, AttributeInfo>;
-  varyings: Map<string, VaryingInfo>;
-  uniforms: Map<string, UniformInfo>;
+  attributes: Map<number, AttributeInfo>;
+  varyings: Map<number, VaryingInfo>;
+  uniforms: Map<number, UniformInfo>;
 
   attributePropKeys: Map<number, string>;
   varyingPropKeys: Map<number, string>;
@@ -353,18 +353,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Finding the next available attribute index
           do {
             state.lastAttributeIdx++;
-          } while (
-            state.attributes
-              .values()
-              .find((attr) => attr.location === state.lastAttributeIdx)
-          );
+          } while (state.attributes.has(state.lastAttributeIdx));
 
           state.attributePropKeys.set(
             state.lastAttributeIdx,
             this.uniqueId(decl.id.name),
           );
 
-          state.attributes.set(decl.id.name, {
+          state.attributes.set(state.lastAttributeIdx, {
             id: decl.id.name,
             location: state.lastAttributeIdx,
             type: wgslType,
@@ -376,11 +372,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Finding the next available varying index
           do {
             state.lastVaryingIdx++;
-          } while (
-            state.varyings
-              .values()
-              .find((varying) => varying.location === state.lastVaryingIdx)
-          );
+          } while (state.varyings.has(state.lastVaryingIdx));
 
           if (state.shaderType === 'vertex') {
             // Only generating in the vertex shader
@@ -390,7 +382,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
               this.uniqueId(decl.id.name),
             );
 
-            state.varyings.set(decl.id.name, {
+            state.varyings.set(state.lastVaryingIdx, {
               id: decl.id.name,
               location: state.lastVaryingIdx,
               type: wgslType,
@@ -403,15 +395,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Finding the next available uniform index
           do {
             state.lastBindingIdx++;
-          } while (
-            state.uniforms
-              .values()
-              .find((value) => value.location === state.lastBindingIdx)
-          );
+          } while (state.uniforms.has(state.lastBindingIdx));
 
           const wgslType = this.getDataType(decl.typeSpecifier);
 
-          state.uniforms.set(decl.id.name, {
+          state.uniforms.set(state.lastBindingIdx, {
             id: decl.id.name,
             location: state.lastBindingIdx,
             type: wgslType,
@@ -659,8 +647,8 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
 
     return {
       wgsl: resolvedWgsl,
-      attributes: state.attributes,
-      uniforms: state.uniforms,
+      attributes: [...state.attributes.values()],
+      uniforms: [...state.uniforms.values()],
     };
   }
 }

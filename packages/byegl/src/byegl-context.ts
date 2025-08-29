@@ -30,8 +30,8 @@ class ByeGLShader implements WebGLShader {
 class ByeGLProgramInternals {
   vert: ByeGLShader | undefined;
   frag: ByeGLShader | undefined;
-  attributes: Map<string, AttributeInfo> | undefined;
-  uniforms: Map<string, UniformInfo> | undefined;
+  attributes: AttributeInfo[] | undefined;
+  uniforms: UniformInfo[] | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
 
   constructor() {}
@@ -586,7 +586,7 @@ export class ByeGLContext {
     if ($program.attributes === undefined) {
       throw new Error('Program not linked');
     }
-    return $program.attributes.get(name)?.location ?? -1;
+    return $program.attributes.find((a) => a.id === name)?.location ?? -1;
   }
 
   getUniformLocation(
@@ -597,7 +597,7 @@ export class ByeGLContext {
     if (program.uniforms === undefined) {
       throw new Error('Program not linked');
     }
-    const idx = program.uniforms.get(name)?.location;
+    const idx = program.uniforms.find((u) => u.id === name)?.location;
     return idx !== undefined ? new ByeGLUniformLocation(idx) : null;
   }
 
@@ -773,40 +773,56 @@ export class ByeGLContext {
   }
 
   uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
-    if (!location) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
-    this.#uniformBufferCache.updateUniform(
-      location,
-      new Float32Array([value]).buffer,
-    );
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(
+        uniform,
+        new Float32Array([value]).buffer,
+      );
+    }
   }
 
   uniform3fv(
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    if (!location) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
-    const data = new Float32Array([...value]);
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
 
-    this.#uniformBufferCache.updateUniform(location, data.buffer);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(
+        uniform,
+        new Float32Array([...value]).buffer,
+      );
+    }
   }
 
   uniform4fv(
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    if (!location) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
     const data = new Float32Array([...value]);
-
-    this.#uniformBufferCache.updateUniform(location, data.buffer);
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
+    }
   }
 
   uniformMatrix4fv(
@@ -814,14 +830,18 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    if (!location) {
+    const program = this.#program?.[$internal];
+    if (!location || !program) {
       // Apparently, a `null` location is a no-op in WebGL
       return;
     }
     const data = new Float32Array([...value]);
-
+    const idx = location[$internal];
+    const uniform = program.uniforms?.find((u) => u.location === idx);
     // TODO: Handle transposing
-    this.#uniformBufferCache.updateUniform(location, data.buffer);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, data.buffer);
+    }
   }
 
   #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
@@ -952,29 +972,20 @@ export class ByeGLContext {
 
     // Uniforms
     const group =
-      (program.uniforms?.size ?? 0) > 0
+      (program.uniforms?.length ?? 0) > 0
         ? this.#root.device.createBindGroup({
             // TODO: Create the bind group layout manually
             layout: pipeline.getBindGroupLayout(0),
-            entries: program
-              .uniforms!.values()
-              .map((uniform) => {
-                const buffer = this.#uniformBufferCache.getBuffer(
-                  uniform.location,
-                );
+            entries: program.uniforms!.values().map((uniform) => {
+              const buffer = this.#uniformBufferCache.getBuffer(uniform);
 
-                if (!buffer) {
-                  return undefined;
-                }
-
-                return {
-                  binding: uniform.location,
-                  resource: {
-                    buffer,
-                  },
-                } satisfies GPUBindGroupEntry;
-              })
-              .filter((entry) => entry !== undefined),
+              return {
+                binding: uniform.location,
+                resource: {
+                  buffer,
+                },
+              } satisfies GPUBindGroupEntry;
+            }),
           })
         : undefined;
 
