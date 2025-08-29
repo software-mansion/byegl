@@ -16,6 +16,17 @@ export function getCurrentExampleFromUrl(): string | undefined {
 let prevCleanup: (() => void) | undefined;
 let prevGroundTruthCleanup: (() => void) | undefined;
 
+function recreateCanvas(id: string): HTMLCanvasElement {
+  const existingCanvas = document.querySelector<HTMLCanvasElement>(`#${id}`);
+  const parentElement = existingCanvas?.parentElement;
+  if (existingCanvas && parentElement) {
+    const newCanvas = existingCanvas.cloneNode(false) as HTMLCanvasElement;
+    parentElement.replaceChild(newCanvas, existingCanvas);
+    return newCanvas;
+  }
+  throw new Error(`Canvas with id ${id} not found`);
+}
+
 export async function runExample(example: ExampleContent) {
   prevCleanup?.();
   prevCleanup = undefined;
@@ -24,14 +35,14 @@ export async function runExample(example: ExampleContent) {
 
   console.log('Running example: ', example.meta.name);
 
-  const groundTruthCanvas = document.querySelector<HTMLCanvasElement>(
-    '#ground-truth-canvas',
-  );
-  const canvas = document.querySelector<HTMLCanvasElement>('#canvas');
   const traceLog = document.querySelector<HTMLTextAreaElement>('#trace-log');
-  if (!groundTruthCanvas || !canvas || !traceLog) {
-    throw new Error('Malformed UI');
+  if (!traceLog) {
+    throw new Error('#trace-log element not found');
   }
+
+  // Recreate canvases to ensure clean WebGL state
+  const groundTruthCanvas = recreateCanvas('ground-truth-canvas');
+  const canvas = recreateCanvas('canvas');
 
   // Cleaning the trace log
   traceLog.textContent = '';
