@@ -174,7 +174,7 @@ export class ByeGLContext {
   /**
    * The set of currently bound textures. Set using gl.activeTexture and gl.bindTexture.
    */
-  #boundTextureUnitMap: Map<GLenum, ByeGLTexture> = new Map();
+  #boundTexturesMap: Map<number, Map<GLenum, ByeGLTexture>> = new Map();
 
   #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
@@ -326,11 +326,17 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.bindRenderbuffer');
   }
 
-  bindTexture(texture: ByeGLTexture | null): void {
+  bindTexture(target: GLenum, texture: ByeGLTexture | null): void {
+    let textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    if (!textureMap) {
+      textureMap = new Map();
+      this.#boundTexturesMap.set(this.#activeTextureUnit, textureMap);
+    }
+
     if (!texture) {
-      this.#boundTextureUnitMap.delete(this.#activeTextureUnit);
+      textureMap.delete(target);
     } else {
-      this.#boundTextureUnitMap.set(this.#activeTextureUnit, texture);
+      textureMap.set(target, texture);
     }
   }
 
@@ -543,8 +549,7 @@ export class ByeGLContext {
   }
 
   createTexture(): WebGLTexture {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.createTexture');
+    return new ByeGLTexture(this.#root);
   }
 
   cullFace(mode: GLenum): void {
@@ -715,7 +720,6 @@ export class ByeGLContext {
 
   generateMipmap(target: GLenum): void {
     // TODO: Implement
-    throw new NotImplementedYetError('gl.generateMipmap');
   }
 
   getActiveAttrib(
@@ -1267,19 +1271,49 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.stencilOpSeparate');
   }
 
-  texImage2D(
-    target: GLenum,
-    level: GLint,
-    internalFormat: GLenum,
-    width: GLsizei,
-    height: GLsizei,
-    border: GLint,
-    format: GLenum,
-    type: GLenum,
-    pixels: ArrayBufferView | null,
-  ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.texImage2D');
+  // biome-ignore format: Easier to read
+  texImage2D(target: GLenum, level: GLint, internalformat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
+  // biome-ignore format: Easier to read
+  texImage2D(target: GLenum, level: GLint, internalformat: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
+  // biome-ignore format: Easier to read
+  texImage2D(target: GLenum, level: GLint, internalformat: GLint, ...rest: [width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null] | [format: GLenum, type: GLenum, source: TexImageSource]): void {
+    let width = 0;
+    let height = 0;
+    let format: number = gl.RGBA;
+    // TODO: Not sure what to do with 'internalformat' just yet.
+
+    const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    const texture = textureMap?.get(target)?.[$internal];
+    if (!texture) {
+      throw new Error('No texture bound');
+    }
+
+    if (rest.length === 6) {
+      const [width_, height_, border, format_, type, pixels] = rest;
+      width = width_;
+      height = height_;
+      format = format_;
+      // TODO: Implement this way of populating textures
+      throw new NotImplementedYetError('gl.texImage2D');
+    } else {
+      const [_format, type, source] = rest;
+      format = _format;
+      if ('width' in source) {
+        width = source.width;
+        height = source.height;
+      } else {
+        width = source.displayWidth;
+        height = source.displayHeight;
+      }
+      // TODO: Do something with 'type'
+      const size = [width, height] as const;
+      texture.size = size;
+      this.#root.device.queue.copyExternalImageToTexture({ source }, {
+        texture: texture.gpuTexture,
+      }, size);
+    }
+
+    // TODO: Implement mip-mapping
   }
 
   texParameterf(target: GLenum, pname: GLenum, param: GLfloat): void {

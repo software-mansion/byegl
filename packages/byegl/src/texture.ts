@@ -24,9 +24,9 @@ export class ByeGLTextureInternal {
     return this.#size;
   }
 
-  set size(size: [number, number]) {
+  set size(size: readonly [number, number]) {
     if (!this.#size || size[0] !== this.#size[0] || size[1] !== this.#size[1]) {
-      this.#size = size;
+      this.#size = [...size];
       this.gpuTextureDirty = true;
     }
   }
@@ -68,6 +68,10 @@ export class ByeGLTextureInternal {
     });
 
     return this.#gpuTexture;
+  }
+
+  get gpuTextureView(): GPUTextureView {
+    return this.gpuTexture.createView();
   }
 
   destroy() {
