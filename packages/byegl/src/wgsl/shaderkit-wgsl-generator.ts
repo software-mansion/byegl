@@ -1,45 +1,13 @@
 import * as shaderkit from '@iwoplaza/shaderkit';
 import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
-import { WgslGenerator, WgslGeneratorResult } from './wgsl-generator.ts';
-
-interface AttributeInfo {
-  /**
-   * The name of the attribute in the global scope (the proxy)
-   */
-  id: string;
-  /**
-   * The name of the attribute in the local scope (the param in the entry function)
-   */
-  paramId: string;
-  location: number;
-  type: string;
-}
-
-interface VaryingInfo {
-  /**
-   * The name of the varying in the global scope of the vertex shader and
-   * the fragment shader (they have to match in order for WebGL to be able to link them)
-   *
-   * Will be used as the name of the proxy for use by the fragment entry function (and transitive dependencies)
-   */
-  id: string;
-  /**
-   * The key in the Varying struct that holds the varying value
-   */
-  propKey: string;
-  location: number;
-  type: string;
-}
-
-interface UniformInfo {
-  /**
-   * The name of the uniform in the global scope
-   */
-  id: string;
-  bindingIdx: number;
-  type: string;
-}
+import {
+  AttributeInfo,
+  UniformInfo,
+  VaryingInfo,
+  WgslGenerator,
+  WgslGeneratorResult,
+} from './wgsl-generator.ts';
 
 const glslToWgslTypeMap = {
   float: d.f32,
@@ -134,9 +102,12 @@ const snip = (value: string, type: d.AnyWgslData | UnknownType) =>
 interface GenState {
   shaderType: 'vertex' | 'fragment';
 
-  attributes: Map<number, AttributeInfo>;
-  varyings: Map<number, VaryingInfo>;
-  uniforms: Map<number, UniformInfo>;
+  attributes: Map<string, AttributeInfo>;
+  varyings: Map<string, VaryingInfo>;
+  uniforms: Map<string, UniformInfo>;
+
+  attributePropKeys: Map<number, string>;
+  varyingPropKeys: Map<number, string>;
 
   typeDefs: Map<string, d.WgslStruct>;
   extraFunctions: Map<string, TgpuFn>;
@@ -382,13 +353,21 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Finding the next available attribute index
           do {
             state.lastAttributeIdx++;
-          } while (state.attributes.has(state.lastAttributeIdx));
+          } while (
+            state.attributes
+              .values()
+              .find((attr) => attr.location === state.lastAttributeIdx)
+          );
 
-          state.attributes.set(state.lastAttributeIdx, {
+          state.attributePropKeys.set(
+            state.lastAttributeIdx,
+            this.uniqueId(decl.id.name),
+          );
+
+          state.attributes.set(decl.id.name, {
             id: decl.id.name,
-            paramId: this.uniqueId(decl.id.name),
             location: state.lastAttributeIdx,
-            type: wgslType.type,
+            type: wgslType,
           });
 
           // Defining proxies
@@ -397,16 +376,24 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Finding the next available varying index
           do {
             state.lastVaryingIdx++;
-          } while (state.varyings.has(state.lastVaryingIdx));
+          } while (
+            state.varyings
+              .values()
+              .find((varying) => varying.location === state.lastVaryingIdx)
+          );
 
           if (state.shaderType === 'vertex') {
             // Only generating in the vertex shader
-            state.varyings.set(state.lastVaryingIdx, {
+
+            state.varyingPropKeys.set(
+              state.lastVaryingIdx,
+              this.uniqueId(decl.id.name),
+            );
+
+            state.varyings.set(decl.id.name, {
               id: decl.id.name,
-              // Arbitrary, choosing the vertex name to be the prop key
-              propKey: decl.id.name,
               location: state.lastVaryingIdx,
-              type: wgslType.type,
+              type: wgslType,
             });
 
             // Defining proxies
@@ -416,14 +403,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           // Finding the next available uniform index
           do {
             state.lastBindingIdx++;
-          } while (state.uniforms.has(state.lastBindingIdx));
+          } while (
+            state.uniforms
+              .values()
+              .find((value) => value.location === state.lastBindingIdx)
+          );
 
           const wgslType = this.getDataType(decl.typeSpecifier);
 
-          state.uniforms.set(state.lastBindingIdx, {
+          state.uniforms.set(decl.id.name, {
             id: decl.id.name,
-            bindingIdx: state.lastBindingIdx,
-            type: wgslType.type,
+            location: state.lastBindingIdx,
+            type: wgslType,
           });
 
           code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslTypeAlias};\n`;
@@ -557,6 +548,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       varyings: new Map(),
       uniforms: new Map(),
 
+      attributePropKeys: new Map(),
+      varyingPropKeys: new Map(),
+
       lastAttributeIdx: -1,
       lastVaryingIdx: -1,
       lastBindingIdx: -1,
@@ -573,8 +567,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     const vertexAst = shaderkit.parse(vertexCode);
     const fragmentAst = shaderkit.parse(fragmentCode);
 
-    let wgsl = `// Generated by byegl
-
+    let wgsl = `\
 var<private> gl_Position: vec4<f32>;
 var<private> gl_FragColor: vec4<f32>;
 
@@ -596,7 +589,7 @@ var<private> gl_FragColor: vec4<f32>;
     const attribParams = [...state.attributes.values()]
       .map(
         (attribute) =>
-          `@location(${attribute.location}) ${attribute.paramId}: ${attribute.type}`,
+          `@location(${attribute.location}) ${state.attributePropKeys.get(attribute.location)}: ${this.aliasOf(attribute.type)}`,
       )
       .join(', ');
 
@@ -606,7 +599,7 @@ var<private> gl_FragColor: vec4<f32>;
     wgsl += `
 struct ${vertOutStructId} {
   @builtin(position) ${posOutParamId}: vec4f,
-${[...state.varyings.values()].map((varying) => `  @location(${varying.location}) ${varying.id}: ${varying.type},`).join('\n')}
+${[...state.varyings.values()].map((varying) => `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`).join('\n')}
 }
 
 `;
@@ -618,7 +611,7 @@ ${[...state.varyings.values()].map((varying) => `  @location(${varying.location}
       const fragInParams = [...state.varyings.values()]
         .map(
           (varying) =>
-            `  @location(${varying.location}) ${varying.id}: ${varying.type},`,
+            `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`,
         )
         .join('\n');
       wgsl += `
@@ -632,7 +625,7 @@ ${fragInParams}
     wgsl += `
 @vertex
 fn ${this.uniqueId('vert_main')}(${attribParams}) -> ${vertOutStructId} {
-${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = ${attribute.paramId};\n`).join('')}
+${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = ${state.attributePropKeys.get(attribute.location)};\n`).join('')}
 
   ${state.fakeVertexMainId}();
   var output: ${vertOutStructId};
@@ -652,28 +645,22 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
 }
 `;
 
-    const resolvedWgsl = tgpu.resolve({
-      template: wgsl,
-      externals: Object.fromEntries([
-        ...state.typeDefs.entries(),
-        ...state.extraFunctions.entries(),
-      ]),
-    });
+    const resolvedWgsl =
+      '// Generated by byegl\n\n' +
+      tgpu.resolve({
+        template: wgsl,
+        externals: Object.fromEntries([
+          ...state.typeDefs.entries(),
+          ...state.extraFunctions.entries(),
+        ]),
+      });
 
     console.log('Generated:\n', resolvedWgsl);
 
     return {
       wgsl: resolvedWgsl,
-      attributeLocationMap: new Map(
-        [...state.attributes.values()].map((info) => {
-          return [info.id, info.location] as const;
-        }),
-      ),
-      uniformLocationMap: new Map(
-        [...state.uniforms.values()].map((info) => {
-          return [info.id, info.bindingIdx] as const;
-        }),
-      ),
+      attributes: state.attributes,
+      uniforms: state.uniforms,
     };
   }
 }

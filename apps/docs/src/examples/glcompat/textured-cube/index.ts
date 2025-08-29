@@ -1,36 +1,87 @@
 import { mat4 } from 'gl-matrix';
 import type { ExampleContext } from '../../types.ts';
+import crateUrl from './RTS_Crate.png';
 
-export default function ({ canvas }: ExampleContext) {
+const vertexShaderSource = `
+  attribute vec3 a_position;
+  attribute vec2 a_uv;
+
+  varying vec2 v_uv;
+
+  uniform mat4 u_mvpMatrix;
+
+  void main() {
+    gl_Position = u_mvpMatrix * vec4(a_position * 0.5, 1.0);
+    v_uv = a_uv;
+  }
+`;
+
+const fragmentShaderSource = `
+  precision mediump float;
+
+  varying vec2 v_uv;
+
+  uniform sampler2D u_texture;
+
+  void main() {
+    vec4 color = texture2D(u_texture, v_uv);
+    gl_FragColor = vec4(color.rgb, 1.0);
+  }
+`;
+
+function isPowerOf2(value: number): boolean {
+  return (value & (value - 1)) === 0;
+}
+
+function loadTexture(
+  gl: WebGLRenderingContext,
+  src: string,
+): Promise<WebGLTexture> {
+  const texture = gl.createTexture();
+
+  // Asynchronously load an image
+  return new Promise<WebGLTexture>((resolve) => {
+    const image = new Image();
+    image.src = src;
+
+    image.addEventListener('load', () => {
+      // Now that the image has loaded make copy it to the texture.
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        image,
+      );
+
+      // Check if the image is a power of 2 in both dimensions.
+      if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+        // Yes, it's a power of 2. Generate mips.
+        gl.generateMipmap(gl.TEXTURE_2D);
+      } else {
+        // No, it's not a power of 2. Turn off mips and set wrapping to clamp to edge
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      }
+
+      resolve(texture);
+    });
+  });
+}
+
+export default async function ({ canvas }: ExampleContext) {
   const gl = canvas.getContext('webgl')!;
 
   if (!gl) {
     throw new Error('WebGL not supported');
   }
 
-  const vertexShaderSource = `
-    attribute vec3 a_position;
-    attribute vec2 a_uv;
-
-    varying vec2 v_uv;
-
-    uniform mat4 u_mvpMatrix;
-
-    void main() {
-      gl_Position = u_mvpMatrix * vec4(a_position * 0.5, 1.0);
-      v_uv = a_uv;
-    }
-  `;
-
-  const fragmentShaderSource = `
-    precision mediump float;
-
-    varying vec2 v_uv;
-
-    void main() {
-      gl_FragColor = vec4(v_uv, 1.0, 1.0);
-    }
-  `;
+  // Load texture
+  const texture = await loadTexture(gl, crateUrl.src);
+  console.log('Texture loaded:', texture);
 
   const vertexShader = gl.createShader(gl.VERTEX_SHADER) as WebGLShader;
   gl.shaderSource(vertexShader, vertexShaderSource);

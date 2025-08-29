@@ -5,7 +5,11 @@ import type { ExtensionMap } from './extensions/types.ts';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
-import type { WgslGenerator } from './wgsl/wgsl-generator.ts';
+import type {
+  AttributeInfo,
+  UniformInfo,
+  WgslGenerator,
+} from './wgsl/wgsl-generator.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -23,21 +27,21 @@ class ByeGLShader implements WebGLShader {
   }
 }
 
-class DeGlProgramInternals {
+class ByeGLProgramInternals {
   vert: ByeGLShader | undefined;
   frag: ByeGLShader | undefined;
-  attributeLocationMap: Map<string, number> | undefined;
-  uniformLocationMap: Map<string, number> | undefined;
+  attributes: Map<string, AttributeInfo> | undefined;
+  uniforms: Map<string, UniformInfo> | undefined;
   wgpuShaderModule: GPUShaderModule | undefined;
 
   constructor() {}
 }
 
 class ByeGLProgram implements WebGLProgram {
-  readonly [$internal]: DeGlProgramInternals;
+  readonly [$internal]: ByeGLProgramInternals;
 
   constructor() {
-    this[$internal] = new DeGlProgramInternals();
+    this[$internal] = new ByeGLProgramInternals();
   }
 }
 
@@ -579,10 +583,10 @@ export class ByeGLContext {
 
   getAttribLocation(program: ByeGLProgram, name: string): GLint {
     const $program = program[$internal];
-    if ($program.attributeLocationMap === undefined) {
+    if ($program.attributes === undefined) {
       throw new Error('Program not linked');
     }
-    return $program.attributeLocationMap.get(name) ?? -1;
+    return $program.attributes.get(name)?.location ?? -1;
   }
 
   getUniformLocation(
@@ -590,10 +594,10 @@ export class ByeGLContext {
     name: string,
   ): WebGLUniformLocation | null {
     const program = program_[$internal];
-    if (program.uniformLocationMap === undefined) {
+    if (program.uniforms === undefined) {
       throw new Error('Program not linked');
     }
-    const idx = program.uniformLocationMap.get(name);
+    const idx = program.uniforms.get(name)?.location;
     return idx !== undefined ? new ByeGLUniformLocation(idx) : null;
   }
 
@@ -750,8 +754,8 @@ export class ByeGLContext {
       frag[$internal].source ?? '',
     );
 
-    $program.attributeLocationMap = result.attributeLocationMap;
-    $program.uniformLocationMap = result.uniformLocationMap;
+    $program.attributes = result.attributes;
+    $program.uniforms = result.uniforms;
 
     const module = this.#root.device.createShaderModule({
       label: 'ByeGL Shader Module',
@@ -948,21 +952,23 @@ export class ByeGLContext {
 
     // Uniforms
     const group =
-      (program.uniformLocationMap?.size ?? 0) > 0
+      (program.uniforms?.size ?? 0) > 0
         ? this.#root.device.createBindGroup({
             // TODO: Create the bind group layout manually
             layout: pipeline.getBindGroupLayout(0),
             entries: program
-              .uniformLocationMap!.values()
-              .map((location) => {
-                const buffer = this.#uniformBufferCache.getBuffer(location);
+              .uniforms!.values()
+              .map((uniform) => {
+                const buffer = this.#uniformBufferCache.getBuffer(
+                  uniform.location,
+                );
 
                 if (!buffer) {
                   return undefined;
                 }
 
                 return {
-                  binding: location,
+                  binding: uniform.location,
                   resource: {
                     buffer,
                   },
