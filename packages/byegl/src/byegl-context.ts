@@ -895,9 +895,27 @@ export class ByeGLContext {
       throw new Error(`Unsupported primitive topology: ${mode}`);
     }
 
+    const layout =
+      (program.uniforms?.length ?? 0) > 0
+        ? this.#root.device.createBindGroupLayout({
+            label: 'ByeGL Bind Group Layout',
+            entries: program.uniforms!.values().map((uniform) => {
+              return {
+                binding: uniform.location,
+                visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+                buffer: {
+                  type: 'uniform',
+                },
+              } satisfies GPUBindGroupLayoutEntry;
+            }),
+          })
+        : undefined;
+
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'ByeGL Render Pipeline',
-      layout: 'auto',
+      layout: this.#root.device.createPipelineLayout({
+        bindGroupLayouts: layout ? [layout] : [],
+      }),
       vertex: {
         module: program.wgpuShaderModule!,
         buffers: vertexLayout,
@@ -971,23 +989,21 @@ export class ByeGLContext {
     }
 
     // Uniforms
-    const group =
-      (program.uniforms?.length ?? 0) > 0
-        ? this.#root.device.createBindGroup({
-            // TODO: Create the bind group layout manually
-            layout: pipeline.getBindGroupLayout(0),
-            entries: program.uniforms!.values().map((uniform) => {
-              const buffer = this.#uniformBufferCache.getBuffer(uniform);
+    const group = layout
+      ? this.#root.device.createBindGroup({
+          layout,
+          entries: program.uniforms!.values().map((uniform) => {
+            const buffer = this.#uniformBufferCache.getBuffer(uniform);
 
-              return {
-                binding: uniform.location,
-                resource: {
-                  buffer,
-                },
-              } satisfies GPUBindGroupEntry;
-            }),
-          })
-        : undefined;
+            return {
+              binding: uniform.location,
+              resource: {
+                buffer,
+              },
+            } satisfies GPUBindGroupEntry;
+          }),
+        })
+      : undefined;
 
     if (group) {
       renderPass.setBindGroup(0, group);
