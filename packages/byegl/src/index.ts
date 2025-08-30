@@ -16,7 +16,11 @@ export async function enable() {
     contextId: string,
     ...args: unknown[]
   ) {
-    if (contextId === 'webgl' || contextId === 'webgl2') {
+    if (
+      contextId === 'webgl' ||
+      contextId === 'webgl2' ||
+      contextId === 'experimental-webgl'
+    ) {
       const wgslGen = new ShaderkitWGSLGenerator();
       // const wgslGen = new MockWGSLGenerator();
       return new ByeGLContext(
