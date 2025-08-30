@@ -133,13 +133,46 @@ export class ByeGLTextureInternal {
     }
     this.gpuSamplerDirty = false;
 
+    let minFilter: GPUFilterMode | undefined;
+    let magFilter: GPUFilterMode | undefined;
+    let mipmapFilter: GPUFilterMode | undefined;
+
+    const glMinFilter = this.#parameters.get(gl.TEXTURE_MIN_FILTER);
+    const glMagFilter = this.#parameters.get(gl.TEXTURE_MAG_FILTER);
+
+    if (glMinFilter === gl.NEAREST) {
+      minFilter = 'nearest';
+      mipmapFilter = 'nearest';
+    } else if (glMinFilter === gl.LINEAR) {
+      minFilter = 'linear';
+      mipmapFilter = 'linear';
+    } else if (glMinFilter === gl.NEAREST_MIPMAP_NEAREST) {
+      minFilter = 'nearest';
+      mipmapFilter = 'nearest';
+    } else if (glMinFilter === gl.LINEAR_MIPMAP_NEAREST) {
+      minFilter = 'linear';
+      mipmapFilter = 'nearest';
+    } else if (glMinFilter === gl.NEAREST_MIPMAP_LINEAR) {
+      minFilter = 'nearest';
+      mipmapFilter = 'linear';
+    } else if (glMinFilter === gl.LINEAR_MIPMAP_LINEAR) {
+      minFilter = 'linear';
+      mipmapFilter = 'linear';
+    }
+
+    if (glMagFilter === gl.NEAREST) {
+      magFilter = 'nearest';
+    } else if (glMagFilter === gl.LINEAR) {
+      magFilter = 'linear';
+    }
+
     this.#gpuSampler = this.#root.device.createSampler({
-      // TODO: Adapt based on gl.* API usage
       label: 'ByeGL Sampler',
       addressModeU: 'clamp-to-edge',
       addressModeV: 'clamp-to-edge',
-      magFilter: 'linear',
-      minFilter: 'linear',
+      magFilter,
+      minFilter,
+      mipmapFilter,
     });
 
     return this.#gpuSampler;
