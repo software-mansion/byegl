@@ -9,3 +9,28 @@ export const primitiveMap = {
   [gl.TRIANGLE_STRIP]: 'triangle-strip',
   [gl.TRIANGLE_FAN]: undefined, // TODO: Support triangle fans
 } as const;
+
+export const blendEquationMap = {
+  [gl.FUNC_ADD]: 'add',
+  [gl.FUNC_SUBTRACT]: 'subtract',
+  [gl.FUNC_REVERSE_SUBTRACT]: 'reverse-subtract',
+  [gl.MIN]: 'min',
+  [gl.MAX]: 'max',
+} as const;
+
+export const blendFactorMap = {
+  [gl.ZERO]: 'zero',
+  [gl.ONE]: 'one',
+  [gl.SRC_COLOR]: 'src',
+  [gl.ONE_MINUS_SRC_COLOR]: 'one-minus-src',
+  [gl.DST_COLOR]: 'dst',
+  [gl.ONE_MINUS_DST_COLOR]: 'one-minus-dst',
+  [gl.SRC_ALPHA]: 'src-alpha',
+  [gl.ONE_MINUS_SRC_ALPHA]: 'one-minus-src-alpha',
+  [gl.DST_ALPHA]: 'dst-alpha',
+  [gl.ONE_MINUS_DST_ALPHA]: 'one-minus-dst-alpha',
+  [gl.CONSTANT_COLOR]: 'constant',
+  [gl.ONE_MINUS_CONSTANT_COLOR]: 'one-minus-constant',
+  [gl.CONSTANT_ALPHA]: 'constant',
+  [gl.ONE_MINUS_CONSTANT_ALPHA]: 'one-minus-constant',
+} as const;

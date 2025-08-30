@@ -1,6 +1,6 @@
 import { TgpuRoot } from 'typegpu';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
-import { primitiveMap } from './constants.ts';
+import { blendEquationMap, blendFactorMap, primitiveMap } from './constants.ts';
 import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { ByeGLFramebuffer } from './framebuffer.ts';
@@ -9,7 +9,6 @@ import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type {
-  AttributeInfo,
   UniformInfo,
   WgslGenerator,
   WgslGeneratorResult,
@@ -214,6 +213,13 @@ export class ByeGLContext {
     [gl.FRONT_FACE, gl.CCW],
     [gl.GENERATE_MIPMAP_HINT, gl.DONT_CARE],
     [gl.POLYGON_OFFSET_FILL, false],
+    [gl.BLEND_EQUATION, gl.FUNC_ADD],
+    [gl.BLEND_EQUATION_RGB, gl.FUNC_ADD],
+    [gl.BLEND_EQUATION_ALPHA, gl.FUNC_ADD],
+    [gl.BLEND_SRC_RGB, gl.ONE],
+    [gl.BLEND_DST_RGB, gl.ZERO],
+    [gl.BLEND_SRC_ALPHA, gl.ONE],
+    [gl.BLEND_DST_ALPHA, gl.ZERO],
   ]);
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
@@ -367,18 +373,22 @@ export class ByeGLContext {
   }
 
   blendEquation(mode: GLenum): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.blendEquation');
+    this.#parameters.set(gl.BLEND_EQUATION, mode);
+    this.#parameters.set(gl.BLEND_EQUATION_RGB, mode);
+    this.#parameters.set(gl.BLEND_EQUATION_ALPHA, mode);
   }
 
   blendEquationSeparate(modeRGB: GLenum, modeAlpha: GLenum): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.blendEquationSeparate');
+    this.#parameters.set(gl.BLEND_EQUATION, modeRGB);
+    this.#parameters.set(gl.BLEND_EQUATION_RGB, modeRGB);
+    this.#parameters.set(gl.BLEND_EQUATION_ALPHA, modeAlpha);
   }
 
   blendFunc(src: GLenum, dst: GLenum): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.blendFunc');
+    this.#parameters.set(gl.BLEND_SRC_RGB, src);
+    this.#parameters.set(gl.BLEND_DST_RGB, dst);
+    this.#parameters.set(gl.BLEND_SRC_ALPHA, src);
+    this.#parameters.set(gl.BLEND_DST_ALPHA, dst);
   }
 
   blendFuncSeparate(
@@ -387,8 +397,10 @@ export class ByeGLContext {
     srcAlpha: GLenum,
     dstAlpha: GLenum,
   ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.blendFuncSeparate');
+    this.#parameters.set(gl.BLEND_SRC_RGB, srcRGB);
+    this.#parameters.set(gl.BLEND_DST_RGB, dstRGB);
+    this.#parameters.set(gl.BLEND_SRC_ALPHA, srcAlpha);
+    this.#parameters.set(gl.BLEND_DST_ALPHA, dstAlpha);
   }
 
   bufferData(
@@ -839,11 +851,6 @@ export class ByeGLContext {
       case gl.BLEND_DST_RGB:
         // TODO: Implement
         return gl.ZERO;
-      case gl.BLEND_EQUATION:
-      case gl.BLEND_EQUATION_ALPHA:
-      case gl.BLEND_EQUATION_RGB:
-        // TODO: Implement
-        return gl.FUNC_ADD;
       case gl.BLEND_SRC_ALPHA:
       case gl.BLEND_SRC_RGB:
         // TODO: Implement
@@ -1708,6 +1715,29 @@ export class ByeGLContext {
           })
         : undefined;
 
+    let blend: GPUBlendState | undefined;
+    if (this.#enabledCapabilities.has(gl.BLEND)) {
+      const srcRgbFac = this.#parameters.get(gl.BLEND_SRC_RGB);
+      const dstRgbFac = this.#parameters.get(gl.BLEND_DST_RGB);
+      const rgbFn = this.#parameters.get(gl.BLEND_EQUATION_RGB);
+      const srcAlphaFac = this.#parameters.get(gl.BLEND_SRC_ALPHA);
+      const dstAlphaFac = this.#parameters.get(gl.BLEND_DST_ALPHA);
+      const alphaFn = this.#parameters.get(gl.BLEND_EQUATION_ALPHA);
+
+      blend = {
+        color: {
+          srcFactor: blendFactorMap[srcRgbFac as keyof typeof blendFactorMap],
+          dstFactor: blendFactorMap[dstRgbFac as keyof typeof blendFactorMap],
+          operation: blendEquationMap[rgbFn as keyof typeof blendEquationMap],
+        },
+        alpha: {
+          srcFactor: blendFactorMap[srcAlphaFac as keyof typeof blendFactorMap],
+          dstFactor: blendFactorMap[dstAlphaFac as keyof typeof blendFactorMap],
+          operation: blendEquationMap[alphaFn as keyof typeof blendEquationMap],
+        },
+      };
+    }
+
     const pipeline = this.#root.device.createRenderPipeline({
       label: 'ByeGL Render Pipeline',
       layout: this.#root.device.createPipelineLayout({
@@ -1727,6 +1757,7 @@ export class ByeGLContext {
               (colorMask[1] ? GPUColorWrite.GREEN : 0) |
               (colorMask[2] ? GPUColorWrite.BLUE : 0) |
               (colorMask[3] ? GPUColorWrite.ALPHA : 0),
+            blend,
           },
         ],
       },

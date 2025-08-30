@@ -25,8 +25,7 @@ const fragmentShaderSource = `
   uniform sampler2D u_texture;
 
   void main() {
-    vec4 color = texture2D(u_texture, v_uv);
-    gl_FragColor = vec4(color.rgb, 1.0);
+    gl_FragColor = texture2D(u_texture, v_uv);
   }
 `;
 
@@ -191,6 +190,7 @@ class TileGrid {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer);
 
     // gl.enable(gl.CULL_FACE);
+    gl.useProgram(this.#program);
     gl.uniformMatrix4fv(this.#mvpMatrixLocation, false, mvpMatrix);
 
     gl.drawElements(
@@ -212,13 +212,25 @@ export default async function ({ canvas }: ExampleContext) {
   // Create and initialize tilemap
   const tileMap = new TileMap(gl, 16, 16, dungeonSheetUrl.src);
   await tileMap.loaded; // Waiting for the texture to load
+  const bgTileGrid = new TileGrid(gl, tileMap);
   const tileGrid = new TileGrid(gl, tileMap);
+
+  bgTileGrid.set([
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+    [54, 54, 54, 54, 54, 54, 54, 54],
+  ]);
 
   tileGrid.set([
     [5, 6, 6, 6, 6, 6, 6, 7],
     [29, 30, 30, 30, 30, 30, 30, 31],
-    [53, 54, 54, 54, 54, 54, 54, 55],
-    [53, 54, 54, 54, 54, 54, 54, 55],
+    [53, 54, 54, 54, 54, 207, 208, 55],
+    [53, 54, 54, 54, 54, 231, 232, 55],
     [53, 54, 54, 54, 54, 54, 54, 55],
     [53, 54, 54, 54, 54, 54, 54, 55],
     [53, 54, 54, 54, 54, 54, 54, 55],
@@ -243,13 +255,15 @@ export default async function ({ canvas }: ExampleContext) {
 
     mat4.identity(modelMatrix);
     mat4.translate(modelMatrix, modelMatrix, [-2, -2, -6]);
-    // mat4.rotateY(modelMatrix, modelMatrix, timestamp * 0.001);
-    // mat4.rotateX(modelMatrix, modelMatrix, timestamp * 0.0007 + 0.1);
     mat4.multiply(mvpMatrix, projectionMatrix, modelMatrix);
 
-    gl.clearColor(0, 0, 0, 1);
+    // #2f283a
+    gl.clearColor(0.18, 0.16, 0.22, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.BLEND);
 
+    bgTileGrid.draw(mvpMatrix);
     tileGrid.draw(mvpMatrix);
   }
 
