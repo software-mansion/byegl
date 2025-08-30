@@ -34,3 +34,97 @@ export const blendFactorMap = {
   [gl.CONSTANT_ALPHA]: 'constant',
   [gl.ONE_MINUS_CONSTANT_ALPHA]: 'one-minus-constant',
 } as const;
+
+export const elementSizeCatalog: Record<GLenum, number> = {
+  [gl.UNSIGNED_BYTE]: 1,
+  [gl.UNSIGNED_SHORT]: 2,
+  [gl.UNSIGNED_INT]: 4,
+  [gl.FLOAT]: 4,
+};
+
+export const normalizedVertexFormatCatalog: Record<
+  number,
+  Record<
+    number,
+    | GPUVertexFormat
+    // The following are actually missing from WebGPU right now :(
+    // We implement remappings into compatible formats ourselves
+    | 'unorm8x3'
+  >
+> = {
+  [gl.UNSIGNED_BYTE]: {
+    2: 'unorm8x2',
+    3: 'unorm8x3',
+    4: 'unorm8x4',
+  },
+};
+
+export const unnormalizedVertexFormatCatalog: Record<
+  number,
+  Record<number, GPUVertexFormat>
+> = {
+  [gl.FLOAT]: {
+    2: 'float32x2',
+    3: 'float32x3',
+    4: 'float32x4',
+  },
+  [gl.UNSIGNED_BYTE]: {
+    2: 'uint8x2',
+    // 3 is actually missing from WebGPU right now :(
+    4: 'uint8x4',
+  },
+};
+
+export const shaderPrecisionFormatCatalog: Record<
+  GLenum,
+  WebGLShaderPrecisionFormat
+> = {
+  [gl.HIGH_FLOAT]: Object.setPrototypeOf(
+    {
+      rangeMin: 127,
+      rangeMax: 127,
+      precision: 23,
+    },
+    WebGLShaderPrecisionFormat.prototype,
+  ),
+  [gl.MEDIUM_FLOAT]: Object.setPrototypeOf(
+    {
+      rangeMin: 127,
+      rangeMax: 127,
+      precision: 23,
+    },
+    WebGLShaderPrecisionFormat.prototype,
+  ),
+  [gl.LOW_FLOAT]: Object.setPrototypeOf(
+    {
+      rangeMin: 127,
+      rangeMax: 127,
+      precision: 23,
+    },
+    WebGLShaderPrecisionFormat.prototype,
+  ),
+  [gl.HIGH_INT]: Object.setPrototypeOf(
+    {
+      rangeMin: 31,
+      rangeMax: 30,
+      precision: 0,
+    },
+    WebGLShaderPrecisionFormat.prototype,
+  ),
+  [gl.MEDIUM_INT]: Object.setPrototypeOf(
+    {
+      rangeMin: 31,
+      rangeMax: 30,
+      precision: 0,
+    },
+    WebGLShaderPrecisionFormat.prototype,
+  ),
+  [gl.LOW_INT]: Object.setPrototypeOf(
+    {
+      rangeMin: 31,
+      rangeMax: 30,
+      precision: 0,
+    },
+    WebGLShaderPrecisionFormat.prototype,
+  ),
+};

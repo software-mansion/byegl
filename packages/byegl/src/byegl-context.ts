@@ -1,9 +1,18 @@
 import { TgpuRoot } from 'typegpu';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
-import { blendEquationMap, blendFactorMap, primitiveMap } from './constants.ts';
+import {
+  blendEquationMap,
+  blendFactorMap,
+  elementSizeCatalog,
+  normalizedVertexFormatCatalog,
+  primitiveMap,
+  shaderPrecisionFormatCatalog,
+  unnormalizedVertexFormatCatalog,
+} from './constants.ts';
 import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { ByeGLFramebuffer } from './framebuffer.ts';
+import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
@@ -15,129 +24,6 @@ import type {
 } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGL2RenderingContext;
-
-class ByeGLShader implements WebGLShader {
-  readonly [$internal]: {
-    type: GLenum;
-    source: string | undefined;
-  };
-
-  constructor(type: GLenum) {
-    this[$internal] = {
-      type,
-      source: undefined,
-    };
-  }
-}
-
-class ByeGLProgramInternals {
-  vert: ByeGLShader | undefined;
-  frag: ByeGLShader | undefined;
-  compiled: WgslGeneratorResult | undefined;
-  wgpuShaderModule: GPUShaderModule | undefined;
-
-  constructor() {}
-}
-
-class ByeGLProgram implements WebGLProgram {
-  readonly [$internal]: ByeGLProgramInternals;
-
-  constructor() {
-    this[$internal] = new ByeGLProgramInternals();
-  }
-}
-
-const elementSizeCatalog: Record<GLenum, number> = {
-  [gl.UNSIGNED_BYTE]: 1,
-  [gl.UNSIGNED_SHORT]: 2,
-  [gl.UNSIGNED_INT]: 4,
-  [gl.FLOAT]: 4,
-};
-
-const normalizedVertexFormatCatalog: Record<
-  number,
-  Record<
-    number,
-    | GPUVertexFormat
-    // The following are actually missing from WebGPU right now :(
-    // We implement remappings into compatible formats ourselves
-    | 'unorm8x3'
-  >
-> = {
-  [gl.UNSIGNED_BYTE]: {
-    2: 'unorm8x2',
-    3: 'unorm8x3',
-    4: 'unorm8x4',
-  },
-};
-
-const unnormalizedVertexFormatCatalog: Record<
-  number,
-  Record<number, GPUVertexFormat>
-> = {
-  [gl.FLOAT]: {
-    2: 'float32x2',
-    3: 'float32x3',
-    4: 'float32x4',
-  },
-  [gl.UNSIGNED_BYTE]: {
-    2: 'uint8x2',
-    // 3 is actually missing from WebGPU right now :(
-    4: 'uint8x4',
-  },
-};
-
-const shaderPrecisionFormatCatalog: Record<GLenum, WebGLShaderPrecisionFormat> =
-  {
-    [gl.HIGH_FLOAT]: Object.setPrototypeOf(
-      {
-        rangeMin: 127,
-        rangeMax: 127,
-        precision: 23,
-      },
-      WebGLShaderPrecisionFormat.prototype,
-    ),
-    [gl.MEDIUM_FLOAT]: Object.setPrototypeOf(
-      {
-        rangeMin: 127,
-        rangeMax: 127,
-        precision: 23,
-      },
-      WebGLShaderPrecisionFormat.prototype,
-    ),
-    [gl.LOW_FLOAT]: Object.setPrototypeOf(
-      {
-        rangeMin: 127,
-        rangeMax: 127,
-        precision: 23,
-      },
-      WebGLShaderPrecisionFormat.prototype,
-    ),
-    [gl.HIGH_INT]: Object.setPrototypeOf(
-      {
-        rangeMin: 31,
-        rangeMax: 30,
-        precision: 0,
-      },
-      WebGLShaderPrecisionFormat.prototype,
-    ),
-    [gl.MEDIUM_INT]: Object.setPrototypeOf(
-      {
-        rangeMin: 31,
-        rangeMax: 30,
-        precision: 0,
-      },
-      WebGLShaderPrecisionFormat.prototype,
-    ),
-    [gl.LOW_INT]: Object.setPrototypeOf(
-      {
-        rangeMin: 31,
-        rangeMax: 30,
-        precision: 0,
-      },
-      WebGLShaderPrecisionFormat.prototype,
-    ),
-  };
 
 export class ByeGLContext {
   readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
@@ -1073,9 +959,30 @@ export class ByeGLContext {
     return null;
   }
 
-  getProgramParameter(program: WebGLProgram, pname: GLenum): any {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getProgramParameter');
+  getProgramParameter(program: ByeGLProgram, pname: GLenum): any {
+    if (pname === gl.DELETE_STATUS) {
+      // TODO: Maybe implement deleting programs?
+      return false;
+    }
+    if (pname === gl.LINK_STATUS) {
+      return !!program[$internal].compiled;
+    }
+    if (pname === gl.VALIDATE_STATUS) {
+      // TODO: Implement validation?
+      return true;
+    }
+    if (pname === gl.ATTACHED_SHADERS) {
+      return (
+        (program[$internal].vert ? 1 : 0) + (program[$internal].frag ? 1 : 0)
+      );
+    }
+    if (pname === gl.ACTIVE_ATTRIBUTES) {
+      return program[$internal].compiled?.attributes.length ?? 0;
+    }
+    if (pname === gl.ACTIVE_UNIFORMS) {
+      return program[$internal].compiled?.uniforms.length ?? 0;
+    }
+    throw new NotImplementedYetError(`gl.getProgramParameter (pname=${pname})`);
   }
 
   getRenderbufferParameter(target: GLenum, pname: GLenum): any {
@@ -1083,14 +990,24 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.getRenderbufferParameter');
   }
 
-  getShaderInfoLog(shader: WebGLShader): string | null {
-    // TODO: Implement
-    return null;
+  getShaderInfoLog(_shader: ByeGLShader): string {
+    // In byegl, shaders themselves don't get compiled (programs do), so we never have any logs.
+    return '';
   }
 
-  getShaderParameter(shader: WebGLShader, pname: GLenum): any {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getShaderParameter');
+  getShaderParameter(shader: ByeGLShader, pname: GLenum): any {
+    if (pname === gl.DELETE_STATUS) {
+      return shader[$internal].destroyed;
+    }
+    if (pname === gl.COMPILE_STATUS) {
+      // Always successfull, since there's nothing to compile
+      return true;
+    }
+    if (pname === gl.SHADER_TYPE) {
+      return shader[$internal].type;
+    }
+    // Didn't recognize the pname
+    throw new NotImplementedYetError(`gl.getShaderParameter (pname=${pname})`);
   }
 
   getShaderPrecisionFormat(
@@ -1100,9 +1017,8 @@ export class ByeGLContext {
     return shaderPrecisionFormatCatalog[precisiontype] ?? null;
   }
 
-  getShaderSource(shader: WebGLShader): string | null {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getShaderSource');
+  getShaderSource(shader: ByeGLShader): string | null {
+    return shader[$internal].source;
   }
 
   getSupportedExtensions(): string[] {
@@ -1339,7 +1255,7 @@ export class ByeGLContext {
         if (format === gl.RGBA && type === gl.UNSIGNED_BYTE) {
           this.#root.device.queue.writeTexture(
             { texture: texture.gpuTexture },
-            pixels,
+            pixels as ArrayBufferView<ArrayBuffer>,
             { bytesPerRow: width * 4, rowsPerImage: height },
             { width, height }
           );
