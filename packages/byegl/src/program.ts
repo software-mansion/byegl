@@ -21,6 +21,7 @@ class ByeGLProgramInternals {
   vert: ByeGLShader | undefined;
   frag: ByeGLShader | undefined;
   compiled: WgslGeneratorResult | undefined;
+  infoLog: string = '';
   wgpuShaderModule: GPUShaderModule | undefined;
 
   constructor() {}

@@ -954,9 +954,8 @@ export class ByeGLContext {
     }
   }
 
-  getProgramInfoLog(program: WebGLProgram): string | null {
-    // TODO: Implement
-    return null;
+  getProgramInfoLog(program: ByeGLProgram): string {
+    return program[$internal].infoLog;
   }
 
   getProgramParameter(program: ByeGLProgram, pname: GLenum): any {
@@ -1108,18 +1107,24 @@ export class ByeGLContext {
       );
     }
 
-    const result = this.#wgslGen.generate(
-      vert[$internal].source ?? '',
-      frag[$internal].source ?? '',
-    );
+    try {
+      const result = this.#wgslGen.generate(
+        vert[$internal].source ?? '',
+        frag[$internal].source ?? '',
+      );
 
-    $program.compiled = result;
-
-    const module = this.#root.device.createShaderModule({
-      label: 'ByeGL Shader Module',
-      code: result.wgsl,
-    });
-    $program.wgpuShaderModule = module;
+      $program.compiled = result;
+      const module = this.#root.device.createShaderModule({
+        label: 'ByeGL Shader Module',
+        code: result.wgsl,
+      });
+      $program.wgpuShaderModule = module;
+    } catch (error) {
+      $program.infoLog =
+        error && typeof error === 'object' && 'message' in error
+          ? String(error.message)
+          : String(error);
+    }
   }
 
   makeXRCompatible(): void {
