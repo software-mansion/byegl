@@ -13,8 +13,7 @@ export class ByeGLFramebufferInternal {
     this.#root = root;
   }
 
-  destroy() {
-  }
+  destroy() {}
 }
 
 export class ByeGLFramebuffer {

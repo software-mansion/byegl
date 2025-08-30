@@ -3,6 +3,7 @@ import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import { primitiveMap } from './constants.ts';
 import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
+import { ByeGLFramebuffer } from './framebuffer.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
@@ -13,7 +14,6 @@ import type {
   WgslGenerator,
   WgslGeneratorResult,
 } from './wgsl/wgsl-generator.ts';
-import { ByeGLFramebuffer } from './framebuffer.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -159,15 +159,15 @@ export class ByeGLContext {
    * TODO: Accept attributes from the .getContext call
    */
   #attributes: WebGLContextAttributes = {
-    "alpha": true,
-    "antialias": true,
-    "depth": true,
-    "failIfMajorPerformanceCaveat": false,
-    "powerPreference": "default",
-    "premultipliedAlpha": true,
-    "preserveDrawingBuffer": false,
-    "stencil": false,
-    "desynchronized": false
+    alpha: true,
+    antialias: true,
+    depth: true,
+    failIfMajorPerformanceCaveat: false,
+    powerPreference: 'default',
+    premultipliedAlpha: true,
+    preserveDrawingBuffer: false,
+    stencil: false,
+    desynchronized: false,
   };
 
   #program: ByeGLProgram | undefined;
@@ -1370,7 +1370,18 @@ export class ByeGLContext {
   // biome-ignore format: Easier to read
   texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, offset: GLintptr): void;
 
-  texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, srcData: ArrayBufferView | TexImageSource | GLintptr): void {
+  texImage3D(
+    target: GLenum,
+    level: GLint,
+    internalformat: GLenum,
+    width: GLsizei,
+    height: GLsizei,
+    depth: GLsizei,
+    border: GLint,
+    format: GLenum,
+    type: GLenum,
+    srcData: ArrayBufferView | TexImageSource | GLintptr,
+  ): void {
     if (border !== 0) {
       // According to the docs, border must be 0.
       throw new Error('Border must be 0');
