@@ -1,6 +1,7 @@
 # Project files
 node_modules
 dist
+.DS_Store
 
 # Zed editor
 .zed

@@ -3,6 +3,7 @@ import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import {
   blendEquationMap,
   blendFactorMap,
+  depthFuncCatalog,
   elementSizeCatalog,
   normalizedVertexFormatCatalog,
   primitiveMap,
@@ -20,7 +21,6 @@ import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type {
   UniformInfo,
   WgslGenerator,
-  WgslGeneratorResult,
 } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGL2RenderingContext;
@@ -55,6 +55,8 @@ export class ByeGLContext {
     desynchronized: false,
   };
 
+  #lastError: GLenum = 0;
+
   #program: ByeGLProgram | undefined;
 
   /**
@@ -70,7 +72,7 @@ export class ByeGLContext {
   /**
    * The active texture unit. Set using gl.activeTexture.
    */
-  #activeTextureUnit: GLenum = 0;
+  #activeTextureUnit: GLenum = gl.TEXTURE0;
 
   /**
    * The set of currently bound textures. Set using gl.activeTexture and gl.bindTexture.
@@ -680,8 +682,10 @@ export class ByeGLContext {
   }
 
   getError(): GLenum {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getError');
+    const error = this.#lastError;
+    // The error is reset after it's read
+    this.#lastError = 0;
+    return error;
   }
 
   getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
@@ -1654,7 +1658,8 @@ export class ByeGLContext {
       );
     }
 
-    const textureUnit = this.#uniformBufferCache.getValue(uniform) as number;
+    const textureUnit =
+      gl.TEXTURE0 + (this.#uniformBufferCache.getValue(uniform) as number);
 
     const textureMap = this.#boundTexturesMap.get(textureUnit);
     // TODO: Always getting the TEXTURE_2D binding, but make it depend on the texture type
@@ -1704,10 +1709,12 @@ export class ByeGLContext {
         });
       }
       depthTextureView = this.#depthTexture.createView();
+      const glDepthFunc = this.#parameters.get(gl.DEPTH_FUNC);
       depthStencil = {
         format: 'depth24plus',
         depthWriteEnabled: true,
-        depthCompare: 'less',
+        depthCompare:
+          depthFuncCatalog[glDepthFunc as keyof typeof depthFuncCatalog],
       };
     }
 

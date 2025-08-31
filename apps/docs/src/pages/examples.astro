@@ -1,13 +1,28 @@
 ---
-import Example from '../components/example/Example.astro';
-import { examples } from '../examples';
-import Layout from '../layouts/Layout.astro';
+import Example from "../components/example/Example.astro";
+import { examples } from "../examples";
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
     <div class="h-screen grid grid-cols-[auto_minmax(0,1fr)] items-stretch">
         <aside class="border-r border-slate-200 px-4">
-            <h1 class="text-2xl text-center my-4">Examples</h1>
+            <div class="flex items-center justify-center my-4">
+                <a href="/byegl">
+                    <img
+                        src="/byegl/byegl-logo-light.svg"
+                        alt="byegl logo"
+                        class="h-10 dark:hidden"
+                    />
+                    <img
+                        src="/byegl/byegl-logo-dark.svg"
+                        alt="byegl logo"
+                        class="h-10 hidden dark:block"
+                    />
+                </a>
+                <h1 class="mt-1">— examples</h1>
+            </div>
+            <h1 class="sr-only">byegl</h1>
             <ul class="">
                 {
                     Object.entries(examples).map(([id, example]) => (

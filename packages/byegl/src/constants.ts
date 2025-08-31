@@ -128,3 +128,14 @@ export const shaderPrecisionFormatCatalog: Record<
     WebGLShaderPrecisionFormat.prototype,
   ),
 };
+
+export const depthFuncCatalog = {
+  [gl.NEVER]: 'never',
+  [gl.LESS]: 'less',
+  [gl.EQUAL]: 'equal',
+  [gl.LEQUAL]: 'less-equal',
+  [gl.GREATER]: 'greater',
+  [gl.NOTEQUAL]: 'not-equal',
+  [gl.GEQUAL]: 'greater-equal',
+  [gl.ALWAYS]: 'always',
+} as const;
