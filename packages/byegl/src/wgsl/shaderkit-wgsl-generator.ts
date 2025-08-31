@@ -15,6 +15,7 @@ import {
   WgslGenerator,
   WgslGeneratorResult,
 } from './wgsl-generator.ts';
+import { ShaderCompilationError } from '../errors.ts';
 
 const glslToWgslTypeMap = {
   float: d.f32,
@@ -205,6 +206,36 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       return alias;
     }
     throw new Error(`No alias found for: ${String(value)}`);
+  }
+
+  forkState<T>(propsToChange: Partial<GenState>, cb: () => T): T {
+    const oldPropValues = Object.fromEntries(
+      Object.keys(propsToChange).map((key) => [
+        key,
+        this.#state[key as keyof GenState],
+      ]),
+    );
+
+    Object.assign(this.#state, propsToChange);
+
+    try {
+      return cb();
+    } finally {
+      // Restoring state
+      Object.assign(this.#state, oldPropValues);
+    }
+  }
+
+  withTrace<T>(ancestor: string, cb: () => T): T {
+    try {
+      return cb();
+    } catch (err) {
+      if (err instanceof ShaderCompilationError) {
+        throw err.appendToTrace(ancestor);
+      }
+
+      throw new ShaderCompilationError(err, [ancestor]);
+    }
   }
 
   /**
@@ -474,59 +505,62 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (statement.type === 'FunctionDeclaration') {
       let funcName = statement.id.name;
-
-      // A new scope
-      const oldVariables = state.variables;
-      const prevDefiningFunction = state.definingFunction;
-      const prevLineStart = state.lineStart;
-
-      state.variables = new Map(state.variables);
-
-      try {
-        const params = statement.params.map((param) =>
-          snip(param.id?.name!, this.getDataType(param.typeSpecifier)),
-        );
-
-        for (const param of params) {
-          state.variables.set(param.value, param.type as ByeglData);
-        }
-
-        const paramsValue = params
-          .map(
-            (param) =>
-              `${param.value}: ${this.aliasOf(param.type as ByeglData)}`,
-          )
-          .join(', ');
-
-        const returnType = this.getDataType(statement.typeSpecifier);
-
-        if (funcName === 'main') {
-          // We're generating the entry function!
-          // We approach it by generating a "fake" entry function
-          // that gets called by the actual entry function.
-          funcName =
-            state.shaderType === 'vertex'
-              ? state.fakeVertexMainId
-              : state.fakeFragmentMainId;
-        }
-
-        state.definingFunction = true;
-        state.lineStart += '  ';
-        const body = statement.body?.body
-          .map((stmt) => this.generateStatement(stmt))
-          .join('');
-
-        if (returnType === d.Void) {
-          return `\nfn ${funcName}(${paramsValue}) {\n${body}}\n`;
-        } else {
-          return `\nfn ${funcName}(${paramsValue}) -> ${this.aliasOf(returnType)} {\n${body}}\n`;
-        }
-      } finally {
-        // Restoring the state
-        state.variables = oldVariables;
-        state.definingFunction = prevDefiningFunction;
-        state.lineStart = prevLineStart;
+      if (funcName === 'main') {
+        // We're generating the entry function!
+        // We approach it by generating a "fake" entry function
+        // that gets called by the actual entry function.
+        funcName =
+          state.shaderType === 'vertex'
+            ? state.fakeVertexMainId
+            : state.fakeFragmentMainId;
       }
+
+      return this.withTrace(`fn:${funcName}`, () =>
+        this.forkState(
+          {
+            // A new scope
+            variables: new Map(state.variables),
+            definingFunction: true,
+            lineStart: state.lineStart + '  ',
+          },
+          () => {
+            const params = statement.params
+              .filter((param) => !!param.id)
+              .map((param) =>
+                snip(
+                  param.id?.name!,
+                  this.withTrace(
+                    `type of ${param.id?.name ?? '<unnamed>'} param`,
+                    () => this.getDataType(param.typeSpecifier),
+                  ),
+                ),
+              );
+
+            for (const param of params) {
+              state.variables.set(param.value, param.type as ByeglData);
+            }
+
+            const paramsValue = params
+              .map(
+                (param) =>
+                  `${param.value}: ${this.aliasOf(param.type as ByeglData)}`,
+              )
+              .join(', ');
+
+            const returnType = this.getDataType(statement.typeSpecifier);
+
+            const body = statement.body?.body
+              .map((stmt) => this.generateStatement(stmt))
+              .join('');
+
+            if (returnType === d.Void) {
+              return `\nfn ${funcName}(${paramsValue}) {\n${body}}\n`;
+            } else {
+              return `\nfn ${funcName}(${paramsValue}) -> ${this.aliasOf(returnType)} {\n${body}}\n`;
+            }
+          },
+        ),
+      );
     }
 
     if (statement.type === 'ExpressionStatement') {
