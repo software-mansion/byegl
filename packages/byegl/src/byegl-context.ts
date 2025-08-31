@@ -1358,85 +1358,205 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.texSubImage2D');
   }
 
-  uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
+  #getUniformInfo(
+    location: ByeGLUniformLocation | null,
+  ): UniformInfo | undefined {
     const compiled = this.#program?.[$internal].compiled;
     if (!location || !compiled) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
+      return undefined;
     }
     const idx = location[$internal];
-    const uniform = compiled.uniforms.find((u) => u.location === idx);
+    return compiled.uniforms.find((u) => u.location === idx);
+  }
+
+  uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
+    const uniform = this.#getUniformInfo(location);
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
-  // uniform1fv(location, value)
-  // uniform1i(location, v0)
-  // uniform1iv(location, value)
+  uniform1fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
 
-  // uniform2f(location, v0, v1)
-  // uniform2fv(location, value)
-  // uniform2i(location, v0, v1)
-  // uniform2iv(location, value)
+  uniform1i(location: ByeGLUniformLocation | null, value: GLint) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
 
-  // uniform3f(location, v0, v1, v2)
+  uniform1iv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLint> | Int32List,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
+
+  uniform2f(location: ByeGLUniformLocation | null, v0: GLfloat, v1: GLfloat) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, [v0, v1]);
+    }
+  }
+
+  uniform2fv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLfloat> | Float32List,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
+
+  uniform2i(location: ByeGLUniformLocation | null, v0: GLint, v1: GLint) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, [v0, v1]);
+    }
+  }
+
+  uniform2iv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLint> | Int32List,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
+
+  uniform3f(
+    location: ByeGLUniformLocation | null,
+    v0: GLfloat,
+    v1: GLfloat,
+    v2: GLfloat,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2]);
+    }
+  }
 
   uniform3fv(
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const compiled = this.#program?.[$internal].compiled;
-    if (!location || !compiled) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const idx = location[$internal];
-    const uniform = compiled.uniforms.find((u) => u.location === idx);
+    const uniform = this.#getUniformInfo(location);
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
-  // uniform3i(location, v0, v1, v2)
-  // uniform3iv(location, value)
+  uniform3i(
+    location: ByeGLUniformLocation | null,
+    v0: GLint,
+    v1: GLint,
+    v2: GLint,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2]);
+    }
+  }
 
-  // uniform4f(location, v0, v1, v2, v3)
+  uniform3iv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLint> | Int32List,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
+
+  uniform4f(
+    location: ByeGLUniformLocation | null,
+    v0: GLfloat,
+    v1: GLfloat,
+    v2: GLfloat,
+    v3: GLfloat,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2, v3]);
+    }
+  }
 
   uniform4fv(
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const compiled = this.#program?.[$internal].compiled;
-    if (!location || !compiled) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const idx = location[$internal];
-    const uniform = compiled.uniforms.find((u) => u.location === idx);
+    const uniform = this.#getUniformInfo(location);
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
-  // uniform4i(location, v0, v1, v2, v3)
-  // uniform4iv(location, value)
+  uniform4i(
+    location: ByeGLUniformLocation | null,
+    v0: GLint,
+    v1: GLint,
+    v2: GLint,
+    v3: GLint,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2, v3]);
+    }
+  }
 
-  // uniformMatrix2fv(location, transpose, value)
-  // uniformMatrix3fv(location, transpose, value)
+  uniform4iv(
+    location: ByeGLUniformLocation | null,
+    value: Iterable<GLint> | Int32List,
+  ) {
+    const uniform = this.#getUniformInfo(location);
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
+
+  uniformMatrix2fv(
+    location: ByeGLUniformLocation | null,
+    transpose: GLboolean,
+    value: Iterable<GLfloat> | Float32List,
+  ): void {
+    const uniform = this.#getUniformInfo(location);
+    // TODO: Handle transposing
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
+
+  uniformMatrix3fv(
+    location: ByeGLUniformLocation | null,
+    transpose: GLboolean,
+    value: Iterable<GLfloat> | Float32List,
+  ): void {
+    const uniform = this.#getUniformInfo(location);
+    // TODO: Handle transposing
+    if (uniform) {
+      this.#uniformBufferCache.updateUniform(uniform, value);
+    }
+  }
 
   uniformMatrix4fv(
     location: ByeGLUniformLocation | null,
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const compiled = this.#program?.[$internal].compiled;
-    if (!location || !compiled) {
-      // Apparently, a `null` location is a no-op in WebGL
-      return;
-    }
-    const idx = location[$internal];
-    const uniform = compiled.uniforms.find((u) => u.location === idx);
+    const uniform = this.#getUniformInfo(location);
     // TODO: Handle transposing
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
@@ -1447,9 +1567,8 @@ export class ByeGLContext {
     this.#program = program;
   }
 
-  validateProgram(program: ByeGLProgram): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.validateProgram');
+  validateProgram(_program: ByeGLProgram): void {
+    // All validation happens during linking anyway, so it's a no-op
   }
 
   // TODO: Implement the following
