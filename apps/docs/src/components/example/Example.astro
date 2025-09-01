@@ -26,12 +26,26 @@
             </canvas>
         </div>
     </div>
+    <p
+        id="webgpu-unsupported"
+        class="bg-red-700 text-white rounded-lg p-2 hidden"
+    >
+        byegl requires your browser to support WebGPU
+    </p>
     <textarea id="trace-log" class="flex-1 w-full empty:hidden"></textarea>
     <p
         class="group-[[data-show-example]]:hidden not-group-[[data-show-example]]:block"
     >
         Choose an example from the list 💜
     </p>
+    <a
+        id="source-code-button"
+        class="btn btn-primary fixed bottom-4 right-4 hidden"
+        target="_blank"
+        rel="noopener noreferrer"
+    >
+        Source code
+    </a>
 </main>
 
 <script>
@@ -39,12 +53,23 @@
     import { getCurrentExampleFromUrl, runExample } from "./example-runner.ts";
 
     function runCurrentExample() {
+        const webgpuUnsupported = document.getElementById(
+            "webgpu-unsupported",
+        ) as HTMLParagraphElement;
+        webgpuUnsupported.classList.add("hidden");
+
         const exampleMainEl = document.getElementById(
             "example--main",
         ) as HTMLDivElement;
+
+        const sourceButton = document.getElementById(
+            "source-code-button",
+        ) as HTMLAnchorElement;
+
         const exampleKey = getCurrentExampleFromUrl();
         if (!exampleKey) {
             delete exampleMainEl.dataset.showExample;
+            sourceButton.classList.add("hidden");
             return;
         }
         const example = examples[exampleKey];
@@ -52,7 +77,14 @@
         exampleMainEl.dataset.usesHooks = example.meta.usesHooks
             ? "true"
             : "false";
-        runExample(example);
+
+        // Set source code button
+        sourceButton.href = `https://github.com/software-mansion-labs/byegl/blob/main/apps/docs/src/examples/${exampleKey}/index.ts`;
+        sourceButton.classList.remove("hidden");
+
+        runExample(example).catch(() => {
+            webgpuUnsupported.classList.remove("hidden");
+        });
     }
 
     // Listening to when the current URL changes
