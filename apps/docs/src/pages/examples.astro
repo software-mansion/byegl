@@ -1,26 +1,53 @@
 ---
-import Example from '../components/example/Example.astro';
-import { examples } from '../examples';
-import Layout from '../layouts/Layout.astro';
+import Example from "../components/example/Example.astro";
+import { examples } from "../examples";
+import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
-    <div class="h-screen grid grid-cols-[auto_minmax(0,1fr)] items-stretch">
-        <aside class="border-r border-slate-200 px-4">
-            <div class="flex items-center justify-center my-4">
-                <a href="/byegl">
-                    <img
-                        src="/byegl/byegl-logo-light.svg"
-                        alt="byegl logo"
-                        class="h-10 dark:hidden"
-                    />
-                    <img
-                        src="/byegl/byegl-logo-dark.svg"
-                        alt="byegl logo"
-                        class="h-10 hidden dark:block"
-                    />
-                </a>
-                <h1 class="mt-1">— examples</h1>
+    <button
+        id="toggle-sidebar"
+        class="fixed top-4 left-4 z-20 p-2 bg-gray-200 dark:bg-gray-800 rounded shadow lg:hidden"
+    >
+        <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+    </button>
+
+    <main
+        id="examples-main"
+        data-sidebar-open="true"
+        class="group flex justify-center items-center min-h-screen"
+    >
+        <aside
+            id="sidebar"
+            class="fixed overflow-y-auto left-0 top-0 h-screen pt-14 lg:pt-0 bg-white dark:bg-black border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
+        >
+            <div class="flex items-center justify-between my-4">
+                <div class="flex items-center">
+                    <a href="/byegl">
+                        <img
+                            src="/byegl/byegl-logo-light.svg"
+                            alt="byegl logo"
+                            class="h-10 dark:hidden"
+                        />
+                        <img
+                            src="/byegl/byegl-logo-dark.svg"
+                            alt="byegl logo"
+                            class="h-10 hidden dark:block"
+                        />
+                    </a>
+                    <h1 class="mt-1 ml-2">— examples</h1>
+                </div>
             </div>
             <h1 class="sr-only">byegl</h1>
             <ul class="grid gap-2">
@@ -36,6 +63,25 @@ import Layout from '../layouts/Layout.astro';
             </ul>
         </aside>
 
-        <Example />
-    </div>
+        <div
+            id="main-content"
+            class="flex items-center justify-center transition-margin duration-300"
+        >
+            <Example />
+        </div>
+    </main>
+
+    <script>
+        const toggleBtn = document.getElementById("toggle-sidebar")!;
+        const closeBtn = document.getElementById("close-sidebar")!;
+        const main = document.getElementById("examples-main")!;
+
+        function toggleSidebar() {
+            main.dataset.sidebarOpen =
+                main.dataset.sidebarOpen === "true" ? "false" : "true";
+        }
+
+        toggleBtn.addEventListener("click", toggleSidebar);
+        closeBtn.addEventListener("click", toggleSidebar);
+    </script>
 </Layout>
