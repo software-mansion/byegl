@@ -7,7 +7,7 @@ import Layout from "../layouts/Layout.astro";
 <Layout>
     <button
         id="toggle-sidebar"
-        class="fixed top-4 left-4 z-20 p-2 bg-gray-200 dark:bg-gray-800 rounded shadow lg:hidden"
+        class="fixed top-4 left-4 z-20 p-2 bg-gray-200 rounded shadow lg:hidden"
     >
         <svg
             class="w-6 h-6"
@@ -30,7 +30,7 @@ import Layout from "../layouts/Layout.astro";
     >
         <aside
             id="sidebar"
-            class="fixed overflow-y-auto left-0 top-0 h-screen bg-white dark:bg-black border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
+            class="fixed overflow-y-auto left-0 top-0 h-screen bg-white border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
         >
             <div class="flex items-center justify-end lg:justify-center my-4">
                 <div class="flex justify-center items-center">
@@ -38,12 +38,7 @@ import Layout from "../layouts/Layout.astro";
                         <img
                             src="/byegl/byegl-logo-light.svg"
                             alt="byegl logo"
-                            class="h-10 dark:hidden"
-                        />
-                        <img
-                            src="/byegl/byegl-logo-dark.svg"
-                            alt="byegl logo"
-                            class="h-10 hidden dark:block"
+                            class="h-10"
                         />
                     </a>
                     <h1 class="mt-1 ml-2">— examples</h1>
@@ -79,7 +74,6 @@ import Layout from "../layouts/Layout.astro";
 
     <script>
         const toggleBtn = document.getElementById("toggle-sidebar")!;
-        const closeBtn = document.getElementById("close-sidebar")!;
         const main = document.getElementById("examples-main")!;
 
         function toggleSidebar() {
@@ -88,6 +82,13 @@ import Layout from "../layouts/Layout.astro";
         }
 
         toggleBtn.addEventListener("click", toggleSidebar);
-        closeBtn.addEventListener("click", toggleSidebar);
+
+        // Hide sidebar when clicking on an example
+        const exampleLinks = document.querySelectorAll('#sidebar a[href^="#"]');
+        exampleLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                main.dataset.sidebarOpen = 'false';
+            });
+        });
     </script>
 </Layout>
