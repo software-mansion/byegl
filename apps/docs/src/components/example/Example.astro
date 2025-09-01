@@ -70,6 +70,9 @@
         if (!exampleKey) {
             delete exampleMainEl.dataset.showExample;
             sourceButton.classList.add("hidden");
+
+            // Redirecting to the first example
+            window.location.href = `#${Object.keys(examples)[0]}`;
             return;
         }
         const example = examples[exampleKey];
