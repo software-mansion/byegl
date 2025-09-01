@@ -12,9 +12,7 @@ Migrate from WebGL to WebGPU, incrementally
 
 This project aims to reimplement the WebGL API on top of WebGPU, which will allow established WebGL-based projects to gradually migrate to the WebGPU over time (or in other words, to "de-WebGL their codebase")
 
-[The API coverage can be seen here](#api-coverage).
-
-## Hooks (draft)
+## Hooks
 
 Once your WebGL app is running on WebGPU through byegl, you get direct access to WebGPU through hooks.
 
@@ -57,29 +55,6 @@ const buffer = byegl.importWebGPUBuffer(gl, wgpuBuffer);
 //    ^? WebGLBuffer
 ```
 
-### Using a WebGPU texture in WebGL
-
-```ts
-const device = byegl.getDevice(gl);
-//    ^? GPUDevice
-
-// Using WebGPU to allocate a texture
-const wgpuTexture = device.createTexture({
-  size: [32, 32],
-  format: 'rgba8unorm',
-  usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-});
-
-const texture = byegl.importWebGPUTexture(gl, wgpuTexture);
-//    ^? WebGLTexture
-```
-
 ## Things to consider when mixing GLSL and WGSL
 
 WebGL's clip-space coordinates are in the range [-1, 1] for X, Y and Z, whereas WebGPU's clip-space Z coordinates are in the range [0, 1]. This is mitigated in the generated WGSL, but when writing your own WGSL shaders, you need to be aware of this difference.
-
-## Tasks
-- [ ] The `importWebGPUTexture` hook to import a WebGPU texture into WebGL
-- [ ] Handle GLSL preprocessor directives
-
-## API coverage
