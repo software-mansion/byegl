@@ -1816,9 +1816,14 @@ export class ByeGLContext {
       },
     });
 
-    const clearColorValue = this.#parameters.get(gl.COLOR_CLEAR_VALUE);
-    const clearDepthValue = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
-    const clearStencilValue = this.#parameters.get(gl.STENCIL_CLEAR_VALUE);
+    const clearColorValue: Float32Array = this.#parameters.get(
+      gl.COLOR_CLEAR_VALUE,
+    );
+    const clearDepthValue: number = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
+    const clearStencilValue: number = this.#parameters.get(
+      gl.STENCIL_CLEAR_VALUE,
+    );
+
     const renderPass = encoder.beginRenderPass({
       label: 'ByeGL Render Pass',
       colorAttachments: [
