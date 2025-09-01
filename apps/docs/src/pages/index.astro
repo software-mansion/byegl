@@ -1,6 +1,14 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import * as gettingStarted from "../content/getting-started.mdx";
+import Layout from "../layouts/Layout.astro";
 ---
+
+<style is:global>
+    html {
+        background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGxpbmUgeDE9IjUiIHkxPSI1IiB4Mj0iMTUiIHkyPSIxNSIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIxIiBzdHJva2Utb3BhY2l0eT0iMC4wNyIvPjxsaW5lIHgxPSIxNSIgeTE9IjUiIHgyPSI1IiB5Mj0iMTUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMDciLz48bGluZSB4MT0iMjUiIHkxPSIyNSIgeDI9IjM1IiB5Mj0iMzUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMDciLz48bGluZSB4MT0iMzUiIHkxPSIyNSIgeDI9IjI1IiB5Mj0iMzUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMDciLz48L3N2Zz4=");
+        background-size: 40px 40px;
+    }
+</style>
 
 <Layout>
     <script>
@@ -23,34 +31,45 @@ import Layout from '../layouts/Layout.astro';
             which will allow established WebGL-based projects to gradually
             migrate to the WebGPU over time.
         </p>
-        <div class="flex justify-center">
+        <div class="flex justify-center gap-2 mb-32">
             <a class="btn" href="/byegl/examples">Explore examples</a>
+            <a
+                class="btn btn-primary"
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://github.com/software-mansion-labs/byegl"
+            >
+                Contribute
+            </a>
         </div>
-        <section class="my-10 mx-auto max-w-3xl">
+        <section class="my-10 mx-auto max-w-3xl mb-16 markdown">
+            <gettingStarted.Content />
+        </section>
+        <section class="my-10 mx-auto max-w-3xl mb-16">
             <h2 class="text-center text-2xl font-bold mb-4">News & Updates</h2>
             <p class="text-center mb-6">
                 Stay updated with the latest news about byegl on <a
                     target="_blank"
                     rel="noopener noreferrer"
                     href="https://twitter.com/iwoplaza"
-                    class="text-blue-400 underline">X</a
+                    class="link">X</a
                 > or <a
                     target="_blank"
                     rel="noopener noreferrer"
                     href="https://bsky.app/hashtag/byegl?author=iwoplaza.dev"
-                    class="text-blue-400 underline">Bluesky</a
+                    class="link">Bluesky</a
                 >. Follow posts tagged with
                 <a
                     target="_blank"
                     rel="noopener noreferrer"
                     href="https://bsky.app/hashtag/byegl?author=iwoplaza.dev"
-                    class="text-blue-400 underline">#byegl</a
+                    class="link">#byegl</a
                 >.
             </p>
             <div class="flex justify-center">
                 <bsky-embed
                     search="#byegl from:iwoplaza.dev"
-                    limit="1"
+                    limit="3"
                     link-target="_blank"
                     link-image="true"></bsky-embed>
             </div>

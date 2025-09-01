@@ -1,0 +1,53 @@
+import { Code } from 'astro:components';
+import byeglPackageJson from 'byegl/package.json';
+
+# Getting started
+
+All you need to migrate your WebGL code to WebGPU is the following:
+
+<Code lang="typescript" code={`\
+import * as byegl from 'https://esm.sh/byegl@${byeglPackageJson.version}';
+// npm: import * as byegl from 'byegl';
+
+// Enable and await...
+await byegl.enable();
+
+// Intercepted by byegl 🥯🐶
+const gl = canvas.getContext('webgl');
+`} />
+
+Enabling byegl will intercept calls to `.getContext('webgl' | 'webgl2' | 'experimental-webgl')` on all canvases and return
+a virtualized WebGL context.
+
+## Basic usage
+
+Once your WebGL app is running on byegl, you can can hook into the underlying WebGPU API directly.
+
+```ts
+const wgpuVertexBuffer = device.createBuffer({
+//    ^? GPUBuffer
+  size: 1024,
+  usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+});
+
+// Create a two-way binding between both resources, allowing
+// you to populate the buffer using a WGSL compute shader, and
+// use it in a WebGL pipeline 🪄
+const vertexBuffer = byegl.importWebGPUBuffer(wgpuVertexBuffer);
+//    ^? WebGLBuffer
+```
+
+The [Hooks: Water Surface](/byegl/examples#hooks/water-surface) example demonstrates this functionality in practice.
+
+## Disabling byegl
+
+If you want more granular control over when `byegl` intercepts contexts, `byegl.enable()` returns a disabling function.
+
+```ts
+const disable = await byegl.enable();
+
+//
+// Run your program
+//
+
+disable(); // Bye byegl 👋
