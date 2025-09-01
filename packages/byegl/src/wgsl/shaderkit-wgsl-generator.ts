@@ -1,6 +1,7 @@
 import * as shaderkit from '@iwoplaza/shaderkit';
 import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
+import { ShaderCompilationError } from '../errors.ts';
 import {
   AttributeInfo,
   ByeglData,
@@ -15,7 +16,6 @@ import {
   WgslGenerator,
   WgslGeneratorResult,
 } from './wgsl-generator.ts';
-import { ShaderCompilationError } from '../errors.ts';
 
 const glslToWgslTypeMap = {
   float: d.f32,

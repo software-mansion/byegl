@@ -18,10 +18,7 @@ import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
-import type {
-  UniformInfo,
-  WgslGenerator,
-} from './wgsl/wgsl-generator.ts';
+import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGL2RenderingContext;
 

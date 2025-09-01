@@ -12,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",
     "astro": "^5.13.2",
+    "bsky-embed": "^0.2.5",
     "byegl": "workspace:*",
     "gl-matrix": "^3.4.4",
     "remeda": "^2.30.0",

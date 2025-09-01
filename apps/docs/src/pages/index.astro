@@ -1,20 +1,23 @@
 ---
-import Layout from "../layouts/Layout.astro";
+import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout>
+    <script>
+        import "bsky-embed/dist/bsky-embed.es.js";
+    </script>
     <main class="p-4">
         <img
             src="/byegl/byegl-logo-light.svg"
             alt="byegl logo"
-            class="mx-auto h-16 dark:hidden"
+            class="mx-auto my-8 h-16 dark:hidden"
         />
         <img
             src="/byegl/byegl-logo-dark.svg"
             alt="byegl logo"
-            class="mx-auto h-16 hidden dark:block"
+            class="mx-auto my-8 h-16 hidden dark:block"
         />
-        <h1 class="text-4xl sr-only">byegl</h1>
+        <h1 class="sr-only">byegl</h1>
         <p class="my-10 mx-auto max-w-3xl text-center">
             This project aims to reimplement the WebGL API on top of WebGPU,
             which will allow established WebGL-based projects to gradually
@@ -23,5 +26,34 @@ import Layout from "../layouts/Layout.astro";
         <div class="flex justify-center">
             <a class="btn" href="/byegl/examples">Explore examples</a>
         </div>
+        <section class="my-10 mx-auto max-w-3xl">
+            <h2 class="text-center text-2xl font-bold mb-4">News & Updates</h2>
+            <p class="text-center mb-6">
+                Stay updated with the latest news about byegl on <a
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href="https://twitter.com/iwoplaza"
+                    class="text-blue-400 underline">X</a
+                > or <a
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href="https://bsky.app/hashtag/byegl?author=iwoplaza.dev"
+                    class="text-blue-400 underline">Bluesky</a
+                >. Follow posts tagged with
+                <a
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    href="https://bsky.app/hashtag/byegl?author=iwoplaza.dev"
+                    class="text-blue-400 underline">#byegl</a
+                >.
+            </p>
+            <div class="flex justify-center">
+                <bsky-embed
+                    search="#byegl from:iwoplaza.dev"
+                    limit="1"
+                    link-target="_blank"
+                    link-image="true"></bsky-embed>
+            </div>
+        </section>
     </main>
 </Layout>

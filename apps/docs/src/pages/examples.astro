@@ -1,7 +1,7 @@
 ---
-import Example from "../components/example/Example.astro";
-import { examples } from "../examples";
-import Layout from "../layouts/Layout.astro";
+import Example from '../components/example/Example.astro';
+import { examples } from '../examples';
+import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout>
@@ -23,7 +23,7 @@ import Layout from "../layouts/Layout.astro";
                 <h1 class="mt-1">— examples</h1>
             </div>
             <h1 class="sr-only">byegl</h1>
-            <ul class="">
+            <ul class="grid gap-2">
                 {
                     Object.entries(examples).map(([id, example]) => (
                         <li>
