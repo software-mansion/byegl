@@ -4,10 +4,17 @@ import { examples } from "../examples";
 import Layout from "../layouts/Layout.astro";
 ---
 
+<style is:global>
+    html {
+        background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGxpbmUgeDE9IjUiIHkxPSI1IiB4Mj0iMTUiIHkyPSIxNSIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIxIiBzdHJva2Utb3BhY2l0eT0iMC4wNyIvPjxsaW5lIHgxPSIxNSIgeTE9IjUiIHgyPSI1IiB5Mj0iMTUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMDciLz48bGluZSB4MT0iMjUiIHkxPSIyNSIgeDI9IjM1IiB5Mj0iMzUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMDciLz48bGluZSB4MT0iMzUiIHkxPSIyNSIgeDI9IjI1IiB5Mj0iMzUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMDciLz48L3N2Zz4=");
+        background-size: 40px 40px;
+    }
+</style>
+
 <Layout>
     <button
         id="toggle-sidebar"
-        class="fixed top-4 left-4 z-20 p-2 bg-gray-200 rounded shadow lg:hidden"
+        class="fixed top-4 left-4 z-20 p-2 bg-[#FFFFFF] rounded shadow lg:hidden"
     >
         <svg
             class="w-6 h-6"
@@ -30,7 +37,7 @@ import Layout from "../layouts/Layout.astro";
     >
         <aside
             id="sidebar"
-            class="fixed overflow-y-auto left-0 top-0 h-screen bg-white border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
+            class="fixed overflow-y-auto left-0 top-0 h-screen bg-[#FFF7EF] border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
         >
             <div class="flex items-center justify-end lg:justify-center my-4">
                 <div class="flex justify-center items-center">
@@ -66,7 +73,7 @@ import Layout from "../layouts/Layout.astro";
 
         <div
             id="main-content"
-            class="flex items-center justify-center transition-margin duration-300"
+            class="flex items-center justify-center transition-margin duration-300 lg:ml-32 xl:ml-64"
         >
             <Example />
         </div>
@@ -85,9 +92,9 @@ import Layout from "../layouts/Layout.astro";
 
         // Hide sidebar when clicking on an example
         const exampleLinks = document.querySelectorAll('#sidebar a[href^="#"]');
-        exampleLinks.forEach(link => {
-            link.addEventListener('click', () => {
-                main.dataset.sidebarOpen = 'false';
+        exampleLinks.forEach((link) => {
+            link.addEventListener("click", () => {
+                main.dataset.sidebarOpen = "false";
             });
         });
     </script>
