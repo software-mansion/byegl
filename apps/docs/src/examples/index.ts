@@ -3,6 +3,7 @@ import type { ExampleContext } from './types.ts';
 
 export interface ExampleMeta {
   name: string;
+  draft?: boolean | undefined;
   usesHooks?: boolean | undefined;
 }
 

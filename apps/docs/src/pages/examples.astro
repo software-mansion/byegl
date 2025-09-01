@@ -30,10 +30,10 @@ import Layout from "../layouts/Layout.astro";
     >
         <aside
             id="sidebar"
-            class="fixed overflow-y-auto left-0 top-0 h-screen pt-14 lg:pt-0 bg-white dark:bg-black border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
+            class="fixed overflow-y-auto left-0 top-0 h-screen bg-white dark:bg-black border-r border-slate-200 px-4 transform -translate-x-full transition-transform duration-200 ease-out z-10 shadow-lg group-data-[sidebar-open=true]:translate-x-0 lg:translate-x-0"
         >
-            <div class="flex items-center justify-between my-4">
-                <div class="flex items-center">
+            <div class="flex items-center justify-end lg:justify-center my-4">
+                <div class="flex justify-center items-center">
                     <a href="/byegl">
                         <img
                             src="/byegl/byegl-logo-light.svg"
@@ -52,13 +52,19 @@ import Layout from "../layouts/Layout.astro";
             <h1 class="sr-only">byegl</h1>
             <ul class="grid gap-2">
                 {
-                    Object.entries(examples).map(([id, example]) => (
-                        <li>
-                            <a class="btn min-w-48 w-full" href={`#${id}`}>
-                                {example.meta.name}
-                            </a>
-                        </li>
-                    ))
+                    Object.entries(examples)
+                        .filter(
+                            ([_, example]) =>
+                                import.meta.env.DEV || !example.meta.draft,
+                        )
+                        .map(([id, example]) => (
+                            <li>
+                                <a class="btn min-w-48 w-full" href={`#${id}`}>
+                                    {example.meta.name}
+                                    {example.meta.draft ? " (draft)" : ""}
+                                </a>
+                            </li>
+                        ))
                 }
             </ul>
         </aside>
