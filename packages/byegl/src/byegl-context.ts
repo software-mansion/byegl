@@ -649,11 +649,17 @@ export class ByeGLContext {
   }
 
   getActiveUniform(
-    program: WebGLProgram,
+    program_: ByeGLProgram,
     index: GLuint,
   ): WebGLActiveInfo | null {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getActiveUniform');
+    const program = program_[$internal];
+    const uniform = program.compiled?.uniforms[index];
+    if (!uniform) {
+      this.#lastError = gl.INVALID_VALUE;
+      return null;
+    }
+
+    return null;
   }
 
   getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
