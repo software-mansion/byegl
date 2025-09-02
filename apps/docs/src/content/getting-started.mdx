@@ -51,6 +51,20 @@ const wgpuVertexBuffer = byegl.getWebGPUBuffer(gl, vertexBuffer);
 Note that byegl may need to reallocate the buffer (in case the size of the data changes), so make sure to
 call `.getWebGPUBuffer()` each time you need to access the buffer, don't store it off into a variable.
 
+## Retriving generated WGSL code
+
+If you need to access the generated WGSL code, you can use the `byegl.getWGSLSource()` function, passing
+the WebGL program. Note that since in WebGPU, both the vertex and fragment shaders are colocated.
+
+```ts
+const program = gl.createProgram();
+
+// ...
+
+const wgsl = byegl.getWGSLSource(gl, program);
+//    ^? string | undefined
+```
+
 ## Disabling byegl
 
 If you want more granular control over when `byegl` intercepts contexts, `byegl.enable()` returns a function to disable it.
