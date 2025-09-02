@@ -26,14 +26,29 @@ export default function whiteTriangle({ canvas }: ExampleContext) {
   gl.shaderSource(vertexShader, vertexShaderSource);
   gl.compileShader(vertexShader);
 
+  if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+    console.error('Failed to compile vertex shader');
+    console.error(gl.getShaderInfoLog(vertexShader));
+  }
+
   const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER) as WebGLShader;
   gl.shaderSource(fragmentShader, fragmentShaderSource);
   gl.compileShader(fragmentShader);
+
+  if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+    console.error('Failed to compile fragment shader');
+    console.error(gl.getShaderInfoLog(fragmentShader));
+  }
 
   const program = gl.createProgram();
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error('Failed to link program');
+    console.error(gl.getProgramInfoLog(program));
+  }
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   const positionBuffer = gl.createBuffer();

@@ -19,7 +19,7 @@ const gl = canvas.getContext('webgl');
 Enabling byegl will intercept calls to `.getContext('webgl' | 'webgl2' | 'experimental-webgl')` on all canvases and return
 a virtualized WebGL context.
 
-## Basic usage
+## Importing WebGPU resources
 
 Once your WebGL app is running on byegl, you can can hook into the underlying WebGPU API directly.
 
@@ -33,15 +33,27 @@ const wgpuVertexBuffer = device.createBuffer({
 // Create a two-way binding between both resources, allowing
 // you to populate the buffer using a WGSL compute shader, and
 // use it in a WebGL pipeline 🪄
-const vertexBuffer = byegl.importWebGPUBuffer(wgpuVertexBuffer);
+const vertexBuffer = byegl.importWebGPUBuffer(gl, wgpuVertexBuffer);
 //    ^? WebGLBuffer
 ```
 
 The [Hooks: Water Surface](/byegl/examples#hooks/water-surface) example demonstrates this functionality in practice.
 
+## Retrieving WebGPU resources
+
+If you need to access the underlying WebGPU resources, you can use the `byegl.getWebGPUBuffer()` function.
+
+```ts
+const wgpuVertexBuffer = byegl.getWebGPUBuffer(gl, vertexBuffer);
+//    ^? GPUBuffer
+```
+
+Note that byegl may need to reallocate the buffer (in case the size of the data changes), so make sure to
+call `.getWebGPUBuffer()` each time you need to access the buffer, don't store it off into a variable.
+
 ## Disabling byegl
 
-If you want more granular control over when `byegl` intercepts contexts, `byegl.enable()` returns a disabling function.
+If you want more granular control over when `byegl` intercepts contexts, `byegl.enable()` returns a function to disable it.
 
 ```ts
 const disable = await byegl.enable();
@@ -51,3 +63,4 @@ const disable = await byegl.enable();
 //
 
 disable(); // Bye byegl 👋
+```
