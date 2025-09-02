@@ -7,7 +7,9 @@ import {
   ByeglData,
   samplerType,
   texture1dType,
+  texture2dArrayType,
   texture2dType,
+  texture2dU32Type,
   texture3dType,
   textureCubeType,
   UniformInfo,
@@ -17,8 +19,15 @@ import {
   WgslGeneratorResult,
 } from './wgsl-generator.ts';
 
+interface PreprocessorMacro {
+  args: string[];
+  expr: shaderkit.Expression;
+}
+
 const glslToWgslTypeMap = {
+  int: d.i32,
   float: d.f32,
+  bool: d.bool,
   vec2: d.vec2f,
   vec3: d.vec3f,
   vec4: d.vec4f,
@@ -33,6 +42,8 @@ const glslToWgslTypeMap = {
   mat4: d.mat4x4f,
   sampler1D: texture1dType,
   sampler2D: texture2dType,
+  sampler2DArray: texture2dArrayType,
+  usampler2D: texture2dU32Type,
   sampler3D: texture3dType,
   samplerCube: textureCubeType,
 };
@@ -63,8 +74,10 @@ const primitiveTypes: Set<ByeglData> = new Set([
   d.mat4x4f,
   texture1dType,
   texture2dType,
+  texture2dArrayType,
   texture3dType,
   textureCubeType,
+  texture2dU32Type,
   samplerType,
 ]);
 
@@ -118,6 +131,8 @@ interface GenState {
   uniforms: Map<number, UniformInfo>;
   textureToSamplerMap: Map<string, UniformInfo>;
   samplerToTextureMap: Map<UniformInfo, UniformInfo>;
+  preprocessorDefines: Map<string, shaderkit.Expression>;
+  preprocessorMacros: Map<string, PreprocessorMacro>;
 
   /**
    * A mapping of attribute locations to their corresponding property keys in the VertexIn struct.
@@ -156,6 +171,9 @@ interface GenState {
    * a type of it's own.
    */
   seekIdentifier: boolean;
+
+  preprocessorScope: number;
+  disabledAtScope: number | undefined;
 }
 
 export class ShaderkitWGSLGenerator implements WgslGenerator {
@@ -295,6 +313,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     const state = this.#state;
 
     if (expression.type === 'Identifier') {
+      // Is it a preprocessor define?
+      if (state.preprocessorDefines.has(expression.name)) {
+        const define = state.preprocessorDefines.get(expression.name)!;
+        return this.generateExpression(define);
+      }
+
       const varType = state.variables.get(expression.name);
       if (!varType && state.seekIdentifier) {
         throw new Error(`Variable not found: ${expression.name}`);
@@ -380,8 +404,136 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     throw new Error(`Unsupported expression type: ${expression.type}`);
   }
 
+  generatePreprocessorStatement(
+    statement: shaderkit.PreprocessorStatement,
+  ): string {
+    const state = this.#state;
+
+    if (statement.name === 'endif') {
+      if (state.disabledAtScope === state.preprocessorScope) {
+        state.disabledAtScope = undefined;
+      }
+      state.preprocessorScope--;
+      return '';
+    }
+
+    if (statement.name === 'ifdef' || statement.name === 'ifndef') {
+      if (
+        !statement.value ||
+        statement.value.length !== 1 ||
+        statement.value[0].type !== 'Identifier'
+      ) {
+        throw new Error(
+          `Invalid #ifdef statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      const isDefined = state.preprocessorDefines.has(statement.value[0].name);
+      state.preprocessorScope++;
+      if (
+        (!isDefined && statement.name === 'ifdef') ||
+        (isDefined && statement.name === 'ifndef')
+      ) {
+        state.disabledAtScope = state.preprocessorScope;
+      }
+      return '';
+    }
+
+    if (statement.name === 'if') {
+      if (!statement.value || statement.value.length !== 1) {
+        throw new Error(
+          `Invalid #if statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      // TODO: Implement proper condition computation
+      state.preprocessorScope++;
+      return '';
+    }
+
+    if (state.disabledAtScope !== undefined) {
+      // Skip the statement if it's disabled
+      return '';
+    }
+
+    if (statement.name === 'version') {
+      // Ignoring the version directive
+      return '';
+    }
+
+    if (statement.name === 'define') {
+      if (
+        !statement.value ||
+        statement.value.length < 1 ||
+        statement.value.length > 2
+      ) {
+        throw new Error(
+          `Invalid #define statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      if (statement.value[0].type === 'CallExpression') {
+        if (!statement.value[1]) {
+          throw new Error(
+            `Malformed macro #define statement: ${JSON.stringify(statement.value)}`,
+          );
+        }
+
+        const callee = statement.value[0].callee;
+        if (callee.type !== 'Identifier') {
+          throw new Error(
+            `Expected identifier at the beginning of macro #define statement: ${JSON.stringify(statement.value)}`,
+          );
+        }
+        const args = statement.value[0].arguments.map((arg) => {
+          if (arg.type !== 'Identifier') {
+            throw new Error(
+              `Expected identifier as argument in macro #define statement: ${JSON.stringify(statement.value)}`,
+            );
+          }
+          return arg.name;
+        });
+
+        state.preprocessorMacros.set(callee.name, {
+          args,
+          expr: statement.value[1],
+        });
+
+        return '';
+      }
+
+      if (statement.value[0].type !== 'Identifier') {
+        throw new Error(
+          `Expected identifier at the beginning of #define statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      const key = statement.value[0].name;
+
+      if (!statement.value[1]) {
+        state.preprocessorDefines.set(key, statement.value[0]);
+        return '';
+      }
+
+      const value = statement.value[1];
+      state.preprocessorDefines.set(key, value);
+      return '';
+    }
+
+    return '';
+  }
+
   generateStatement(statement: shaderkit.Statement): string {
     const state = this.#state;
+
+    if (statement.type == 'PreprocessorStatement') {
+      return this.generatePreprocessorStatement(statement);
+    }
+
+    if (state.disabledAtScope !== undefined) {
+      // Skip generating statements
+      return '';
+    }
 
     if (statement.type === 'StructDeclaration') {
       const structType = d
@@ -610,6 +762,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     this.#lastUniqueIdSuffix = -1;
     const state: GenState = (this.#state = {
       shaderType: 'vertex',
+
+      preprocessorDefines: new Map(),
+      preprocessorMacros: new Map(),
+      preprocessorScope: 0,
+      disabledAtScope: undefined,
 
       typeDefs: new Map(),
       extraFunctions: new Map(),
