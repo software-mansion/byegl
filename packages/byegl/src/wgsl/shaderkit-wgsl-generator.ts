@@ -1082,8 +1082,6 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
         ]),
       });
 
-    console.log('Generated:\n', resolvedWgsl);
-
     return {
       wgsl: resolvedWgsl,
       attributes: [...state.attributes.values()],

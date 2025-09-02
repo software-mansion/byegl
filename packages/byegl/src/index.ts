@@ -2,8 +2,8 @@ import tgpu from 'typegpu';
 import { ByeGLBuffer } from './buffer.ts';
 import { ByeGLContext } from './byegl-context.ts';
 import { $internal } from './types.ts';
-import { MockWGSLGenerator } from './wgsl/mock-wgsl-generator.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';
+import { ByeGLProgram } from './program.ts';
 
 export async function enable() {
   const originalGetContext = HTMLCanvasElement.prototype.getContext as any;
@@ -22,7 +22,6 @@ export async function enable() {
       contextId === 'experimental-webgl'
     ) {
       const wgslGen = new ShaderkitWGSLGenerator();
-      // const wgslGen = new MockWGSLGenerator();
       return new ByeGLContext(
         contextId === 'webgl2' ? 2 : 1,
         root,
@@ -43,7 +42,7 @@ export function getDevice(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
 ): GPUDevice {
   if (!(gl instanceof ByeGLContext)) {
-    throw new Error('Cannot use ByeGL hooks on a vanilla WebGPU context');
+    throw new Error('Cannot use byegl hooks on a vanilla WebGPU context');
   }
 
   return gl[$internal].device;
@@ -62,6 +61,15 @@ export function importWebGPUBuffer(
   return glBuffer;
 }
 
+/**
+ * Returns the WebGPU buffer associated with the given WebGL buffer.
+ * Since byegl might reallocate the buffer if the size of the data changes,
+ * call this function each time you need access. Don't store it off in a variable.
+ *
+ * @param gl The WebGL (actually byegl) context.
+ * @param glBuffer
+ * @returns The WebGPU buffer associated with `glBuffer`.
+ */
 export function getWebGPUBuffer(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   glBuffer: WebGLBuffer,
@@ -71,4 +79,15 @@ export function getWebGPUBuffer(
   }
 
   return (glBuffer as ByeGLBuffer)[$internal].gpuBuffer;
+}
+
+export function getWGSLSource(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  glProgram: WebGLProgram,
+): string | undefined {
+  if (!(gl instanceof ByeGLContext)) {
+    throw new Error('Cannot use byegl hooks on a vanilla WebGL context');
+  }
+
+  return (glProgram as ByeGLProgram)[$internal].compiled?.wgsl;
 }
