@@ -70,8 +70,8 @@ importers:
   packages/byegl:
     dependencies:
       '@iwoplaza/shaderkit':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.6.3
+        version: 0.6.3
       typegpu:
         specifier: ^0.7.1
         version: 0.7.1
@@ -505,8 +505,8 @@ packages:
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
 
-  '@iwoplaza/shaderkit@0.6.1':
-    resolution: {integrity: sha512-lGoTZpJdbBU3iKUz0QVY4DVWwvBYNNrSW9lbOw6aRJ0iRvHBhi5m1MDY0pS+Zrg6chmamf00vI0mSdMIaSzISw==}
+  '@iwoplaza/shaderkit@0.6.3':
+    resolution: {integrity: sha512-hkxD9BmIh6gmQxJz/s2tDNiDNJAo6ymfzvzUcJAY1TctORfUb4AHJ2/QxnwWzc2OMj7w5ugkEHUHaqIFCjRo4Q==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3691,7 +3691,7 @@ snapshots:
     dependencies:
       minipass: 7.1.2
 
-  '@iwoplaza/shaderkit@0.6.1': {}
+  '@iwoplaza/shaderkit@0.6.3': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

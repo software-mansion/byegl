@@ -7,7 +7,9 @@ import {
   ByeglData,
   samplerType,
   texture1dType,
+  texture2dArrayType,
   texture2dType,
+  texture2dU32Type,
   texture3dType,
   textureCubeType,
   UniformInfo,
@@ -17,8 +19,15 @@ import {
   WgslGeneratorResult,
 } from './wgsl-generator.ts';
 
+interface PreprocessorMacro {
+  args: string[];
+  expr: shaderkit.Expression;
+}
+
 const glslToWgslTypeMap = {
+  int: d.i32,
   float: d.f32,
+  bool: d.bool,
   vec2: d.vec2f,
   vec3: d.vec3f,
   vec4: d.vec4f,
@@ -33,6 +42,8 @@ const glslToWgslTypeMap = {
   mat4: d.mat4x4f,
   sampler1D: texture1dType,
   sampler2D: texture2dType,
+  sampler2DArray: texture2dArrayType,
+  usampler2D: texture2dU32Type,
   sampler3D: texture3dType,
   samplerCube: textureCubeType,
 };
@@ -63,8 +74,10 @@ const primitiveTypes: Set<ByeglData> = new Set([
   d.mat4x4f,
   texture1dType,
   texture2dType,
+  texture2dArrayType,
   texture3dType,
   textureCubeType,
+  texture2dU32Type,
   samplerType,
 ]);
 
@@ -85,6 +98,7 @@ const opToPrecedence = {
   '|': 3,
   '^': 3,
   '&': 3,
+  '.': 4,
 };
 
 /**
@@ -118,6 +132,8 @@ interface GenState {
   uniforms: Map<number, UniformInfo>;
   textureToSamplerMap: Map<string, UniformInfo>;
   samplerToTextureMap: Map<UniformInfo, UniformInfo>;
+  preprocessorDefines: Map<string, shaderkit.Expression>;
+  preprocessorMacros: Map<string, PreprocessorMacro>;
 
   /**
    * A mapping of attribute locations to their corresponding property keys in the VertexIn struct.
@@ -131,6 +147,12 @@ interface GenState {
 
   typeDefs: Map<string, d.WgslStruct>;
   extraFunctions: Map<string, TgpuFn>;
+  /**
+   * Used to deduplicate definitions between the vertex shader and the fragment shader.
+   * This system is not perfect, because there could be two definitions of the same name in
+   * the two shaders, but with a different values.
+   */
+  alreadyDefined: Set<string>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
 
@@ -156,6 +178,9 @@ interface GenState {
    * a type of it's own.
    */
   seekIdentifier: boolean;
+
+  preprocessorScope: number;
+  disabledAtScope: number | undefined;
 }
 
 export class ShaderkitWGSLGenerator implements WgslGenerator {
@@ -263,7 +288,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     );
     const argsValue = args.map((arg) => arg.value).join(', ');
 
-    if (funcName === 'mat3') {
+    if (funcName === 'mat3' && args.length === 1) {
       // GLSL supports a mat3 constructor that takes in a mat4, while WGSL does not
       return snip(`${this.useCreateMat3FromMat4()}(${argsValue})`, d.mat3x3f);
     }
@@ -276,6 +301,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         `textureSample(${textureName}, ${sampler.id}, ${uv})`,
         d.vec4f,
       );
+    }
+
+    if (funcName === 'mod') {
+      return snip(`(${args[0].value} % ${args[1].value})`, args[0].type);
+    }
+
+    if (funcName === 'atan' && args.length === 2) {
+      return snip(`atan2(${args[0].value}, ${args[1].value})`, d.f32);
+    }
+
+    if (funcName === 'lessThanEqual') {
+      return snip(`(${args[0].value} <= ${args[1].value})`, args[0].type);
     }
 
     if (funcName in glslToWgslTypeMap) {
@@ -295,6 +332,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     const state = this.#state;
 
     if (expression.type === 'Identifier') {
+      // Is it a preprocessor define?
+      if (state.preprocessorDefines.has(expression.name)) {
+        const define = state.preprocessorDefines.get(expression.name)!;
+        return this.generateExpression(define);
+      }
+
       const varType = state.variables.get(expression.name);
       if (!varType && state.seekIdentifier) {
         throw new Error(`Variable not found: ${expression.name}`);
@@ -341,10 +384,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         const right = this.generateExpression(expression.right);
         state.parentPrecedence = parentPrecedence;
 
-        // TODO: Implement type inference
         if (myPrecedence < parentPrecedence) {
           return snip(
             `(${left.value} ${expression.operator} ${right.value})`,
+            // TODO: Implement type inference
             UnknownType,
           );
         }
@@ -364,7 +407,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (expression.type === 'MemberExpression') {
+      const parentPrecedence = state.parentPrecedence;
+      state.parentPrecedence = opToPrecedence['.'];
       const object = this.generateExpression(expression.object);
+      state.parentPrecedence = parentPrecedence;
+
       const prevSeekIdentifier = state.seekIdentifier;
       let property: Snippet;
       try {
@@ -373,15 +420,281 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       } finally {
         state.seekIdentifier = prevSeekIdentifier;
       }
+
       // TODO: Implement type inference
+      if (expression.computed) {
+        return snip(`${object.value}[${property.value}]`, UnknownType);
+      }
       return snip(`${object.value}.${property.value}`, UnknownType);
     }
 
     throw new Error(`Unsupported expression type: ${expression.type}`);
   }
 
+  precomputeExpression(expression: shaderkit.Expression): boolean | number {
+    const state = this.#state;
+
+    if (expression.type === 'Literal') {
+      if (expression.value === 'false') {
+        return false;
+      }
+      if (expression.value === 'true') {
+        return true;
+      }
+      const numeric = Number.parseFloat(expression.value);
+      if (!Number.isNaN(numeric)) {
+        return numeric;
+      }
+      throw new Error(`Unsupported literal value: ${expression.value}`);
+    }
+
+    if (expression.type === 'Identifier') {
+      const def = state.preprocessorDefines.get(expression.name);
+      if (def !== undefined) {
+        return this.precomputeExpression(def);
+      }
+      throw new Error(`Undefined identifier: ${expression.name}`);
+    }
+
+    if (expression.type === 'UnaryExpression') {
+      const argument = this.precomputeExpression(expression.argument);
+
+      if (expression.operator === '!') {
+        return !argument;
+      }
+
+      throw new Error(`Unsupported unary operator: ${expression.operator}`);
+    }
+
+    if (expression.type === 'LogicalExpression') {
+      const left = this.precomputeExpression(expression.left);
+      const right = this.precomputeExpression(expression.right);
+
+      if (expression.operator === '&&') {
+        return left && right;
+      }
+
+      if (expression.operator === '||') {
+        return left || right;
+      }
+
+      throw new Error(`Unsupported logical operator: ${expression.operator}`);
+    }
+
+    if (expression.type === 'BinaryExpression') {
+      const left = this.precomputeExpression(expression.left);
+      const right = this.precomputeExpression(expression.right);
+
+      if (expression.operator === '+') {
+        return (left as number) + (right as number);
+      }
+
+      if (expression.operator === '-') {
+        return (left as number) - (right as number);
+      }
+
+      if (expression.operator === '*') {
+        return (left as number) * (right as number);
+      }
+
+      if (expression.operator === '/') {
+        return (left as number) / (right as number);
+      }
+
+      if (expression.operator === '%') {
+        return (left as number) % (right as number);
+      }
+
+      if (expression.operator === '>') {
+        return (left as number) > (right as number);
+      }
+
+      if (expression.operator === '<') {
+        return (left as number) > (right as number);
+      }
+
+      throw new Error(`Unsupported binary operator: ${expression.operator}`);
+    }
+
+    if (expression.type === 'CallExpression') {
+      if (
+        expression.callee.type === 'Identifier' &&
+        expression.callee.name === 'defined'
+      ) {
+        if (
+          expression.arguments.length !== 1 ||
+          expression.arguments[0].type !== 'Identifier'
+        ) {
+          throw new Error(
+            `Invalid argument for defined() macro: ${JSON.stringify(expression.arguments)}`,
+          );
+        }
+
+        const name = expression.arguments[0].name;
+        return state.preprocessorDefines.has(name);
+      }
+    }
+
+    throw new Error(
+      `Cannot precompute expression: ${JSON.stringify(expression)}`,
+    );
+  }
+
+  generatePreprocessorStatement(
+    statement: shaderkit.PreprocessorStatement,
+  ): string {
+    const state = this.#state;
+
+    if (statement.name === 'endif') {
+      if (state.disabledAtScope === state.preprocessorScope) {
+        state.disabledAtScope = undefined;
+      }
+      state.preprocessorScope--;
+      return '';
+    }
+
+    if (statement.name === 'ifdef' || statement.name === 'ifndef') {
+      if (
+        !statement.value ||
+        statement.value.length !== 1 ||
+        statement.value[0].type !== 'Identifier'
+      ) {
+        throw new Error(
+          `Invalid #ifdef statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      const isDefined = state.preprocessorDefines.has(statement.value[0].name);
+      state.preprocessorScope++;
+      if (
+        !state.disabledAtScope &&
+        ((!isDefined && statement.name === 'ifdef') ||
+          (isDefined && statement.name === 'ifndef'))
+      ) {
+        state.disabledAtScope = state.preprocessorScope;
+      }
+      return '';
+    }
+
+    if (statement.name === 'if') {
+      if (!statement.value || statement.value.length !== 1) {
+        throw new Error(
+          `Invalid #if statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      const condition = this.precomputeExpression(statement.value[0]);
+      state.preprocessorScope++;
+      if (!state.disabledAtScope && !condition) {
+        state.disabledAtScope = state.preprocessorScope;
+      }
+      return '';
+    }
+
+    if (state.disabledAtScope !== undefined) {
+      // Skip the statement if it's disabled
+      return '';
+    }
+
+    if (statement.name === 'elif') {
+      // If the adjacent if statement was disabling execution, the elif is supposed to run (given the condition is true)
+      // If execution wasn't disabled, then the else should be skipped
+      if (state.disabledAtScope === state.preprocessorScope) {
+        const condition = this.precomputeExpression(statement.value![0]);
+        state.disabledAtScope = condition ? undefined : state.preprocessorScope;
+      } else {
+        state.disabledAtScope = state.preprocessorScope;
+      }
+    }
+
+    if (statement.name === 'else') {
+      // If the adjacent if statement was disabling execution, the else is supposed to run
+      // If execution wasn't disabled, then the else should be skipped
+      if (state.disabledAtScope === state.preprocessorScope) {
+        state.disabledAtScope = undefined;
+      } else {
+        state.disabledAtScope = state.preprocessorScope;
+      }
+    }
+
+    if (statement.name === 'version') {
+      // Ignoring the version directive
+      return '';
+    }
+
+    if (statement.name === 'define') {
+      if (
+        !statement.value ||
+        statement.value.length < 1 ||
+        statement.value.length > 2
+      ) {
+        throw new Error(
+          `Invalid #define statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      if (statement.value[0].type === 'CallExpression') {
+        if (!statement.value[1]) {
+          throw new Error(
+            `Malformed macro #define statement: ${JSON.stringify(statement.value)}`,
+          );
+        }
+
+        const callee = statement.value[0].callee;
+        if (callee.type !== 'Identifier') {
+          throw new Error(
+            `Expected identifier at the beginning of macro #define statement: ${JSON.stringify(statement.value)}`,
+          );
+        }
+        const args = statement.value[0].arguments.map((arg) => {
+          if (arg.type !== 'Identifier') {
+            throw new Error(
+              `Expected identifier as argument in macro #define statement: ${JSON.stringify(statement.value)}`,
+            );
+          }
+          return arg.name;
+        });
+
+        state.preprocessorMacros.set(callee.name, {
+          args,
+          expr: statement.value[1],
+        });
+
+        return '';
+      }
+
+      if (statement.value[0].type !== 'Identifier') {
+        throw new Error(
+          `Expected identifier at the beginning of #define statement: ${JSON.stringify(statement.value)}`,
+        );
+      }
+
+      const key = statement.value[0].name;
+
+      if (!statement.value[1]) {
+        state.preprocessorDefines.set(key, statement.value[0]);
+        return '';
+      }
+
+      const value = statement.value[1];
+      state.preprocessorDefines.set(key, value);
+      return '';
+    }
+
+    return '';
+  }
+
   generateStatement(statement: shaderkit.Statement): string {
     const state = this.#state;
+
+    if (statement.type == 'PreprocessorStatement') {
+      return this.generatePreprocessorStatement(statement);
+    }
+
+    if (state.disabledAtScope !== undefined) {
+      // Skip generating statements
+      return '';
+    }
 
     if (statement.type === 'StructDeclaration') {
       const structType = d
@@ -408,6 +721,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       for (const decl of statement.declarations) {
         const wgslType = this.getDataType(decl.typeSpecifier);
         const wgslTypeAlias = this.aliasOf(wgslType);
+
+        if (state.alreadyDefined.has(decl.id.name) && !state.definingFunction) {
+          continue;
+        }
+        state.alreadyDefined.add(decl.id.name);
 
         if (decl.qualifiers.includes('attribute')) {
           // Finding the next available attribute index
@@ -464,9 +782,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           };
           state.uniforms.set(state.lastBindingIdx, uniformInfo);
 
+          // Booleans are not host-shareable
+          const uniformTypeAlias =
+            wgslTypeAlias === 'bool' ? 'u32' : wgslTypeAlias;
+
           // Textures need an accompanying sampler
           if (wgslType.type.startsWith('texture_')) {
-            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${decl.id.name}: ${wgslTypeAlias};\n`;
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${decl.id.name}: ${uniformTypeAlias};\n`;
 
             // Finding the next available uniform index
             do {
@@ -485,7 +807,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${samplerId}: sampler;\n`;
           } else {
-            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${wgslTypeAlias};\n`;
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${uniformTypeAlias};\n`;
           }
         } else {
           // Regular variable
@@ -514,6 +836,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             ? state.fakeVertexMainId
             : state.fakeFragmentMainId;
       }
+
+      if (state.alreadyDefined.has(funcName)) {
+        return '';
+      }
+      state.alreadyDefined.add(funcName);
 
       return this.withTrace(`fn:${funcName}`, () =>
         this.forkState(
@@ -611,6 +938,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     const state: GenState = (this.#state = {
       shaderType: 'vertex',
 
+      preprocessorDefines: new Map(),
+      preprocessorMacros: new Map(),
+      preprocessorScope: 0,
+      disabledAtScope: undefined,
+
+      alreadyDefined: new Set(),
       typeDefs: new Map(),
       extraFunctions: new Map(),
       aliases: new Map(),
@@ -664,8 +997,13 @@ var<private> gl_FragColor: vec4<f32>;
 
     state.lastVaryingIdx = -1;
     state.shaderType = 'vertex';
-    for (const statement of vertexAst.body) {
-      wgsl += this.generateStatement(statement);
+    try {
+      for (const statement of vertexAst.body) {
+        wgsl += this.generateStatement(statement);
+      }
+    } catch (error) {
+      console.error('Code generated thus far:', wgsl);
+      throw error;
     }
 
     state.lastVaryingIdx = -1;
