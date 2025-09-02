@@ -40,7 +40,7 @@
     "unplugin-typegpu": "^0.2.2"
   },
   "dependencies": {
-    "@iwoplaza/shaderkit": "^0.6.1",
+    "@iwoplaza/shaderkit": "^0.6.3",
     "typegpu": "^0.7.1"
   }
 }
