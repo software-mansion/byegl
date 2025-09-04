@@ -5,7 +5,7 @@
   "keywords": [],
   "scripts": {
     "dev": "pnpm -r dev",
-    "test:ci": "pnpm test:style && pnpm test:types",
+    "test:ci": "pnpm test:style && pnpm test:node && pnpm test:types",
     "test:node": "vitest run --project node",
     "test:browser": "vitest --project browser",
     "test:style": "biome check",
