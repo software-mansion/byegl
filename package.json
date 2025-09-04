@@ -16,6 +16,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.2.0",
     "@vitest/browser": "^3.2.4",
+    "jsdom": "^26.1.0",
     "unplugin-typegpu": "^0.2.2",
     "vitest": "^3.2.4",
     "webdriverio": "^9.19.1"

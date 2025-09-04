@@ -1,34 +1,16 @@
-import tgpu, { TgpuRoot } from 'typegpu';
-import { describe, expect, test, vi } from 'vitest';
-import { ByeGLContext } from '../src/byegl-context';
+import { describe, expect } from 'vitest';
 import * as byegl from '../src/index.ts';
-import { ShaderkitWGSLGenerator } from '../src/wgsl/shaderkit-wgsl-generator.ts';
-
-const rootMock = {
-  device: {},
-} as TgpuRoot;
-
-const canvasMock = {
-  width: 100,
-  height: 100,
-  getContext: () => ({ configure: () => {} }),
-} as unknown as HTMLCanvasElement;
+import { test } from './extendedTest.ts';
 
 describe('float uniform', () => {
-  test('shader generation', () => {
+  test('shader generation', ({ gl }) => {
     const glslVert = `
       uniform float uFoo;
     `;
 
     const glslFrag = `
+      uniform float uBar;
     `;
-
-    const gl = new ByeGLContext(
-      2,
-      rootMock,
-      canvasMock,
-      new ShaderkitWGSLGenerator(),
-    ) as unknown as WebGL2RenderingContext;
 
     const vert = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vert, glslVert);
@@ -46,6 +28,7 @@ describe('float uniform', () => {
       var<private> gl_FragColor: vec4<f32>;
 
       @group(0) @binding(0) var<uniform> uFoo: f32;
+      @group(0) @binding(1) var<uniform> uBar: f32;
 
       struct _byegl_VertexOut_2 {
         @builtin(position) _byegl_posOut_3: vec4f,
