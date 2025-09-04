@@ -1,9 +1,9 @@
 import tgpu from 'typegpu';
 import { ByeGLBuffer } from './buffer.ts';
 import { ByeGLContext } from './byegl-context.ts';
+import { ByeGLProgram } from './program.ts';
 import { $internal } from './types.ts';
 import { ShaderkitWGSLGenerator } from './wgsl/shaderkit-wgsl-generator.ts';
-import { ByeGLProgram } from './program.ts';
 
 export async function enable() {
   const originalGetContext = HTMLCanvasElement.prototype.getContext as any;
