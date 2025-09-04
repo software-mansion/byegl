@@ -48,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build package
-        run: pnpm build
+        run: cd packages/byegl && pnpm build
       - name: Test
         run: pnpm test:ci
       - name: Build docs
