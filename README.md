@@ -1,8 +1,11 @@
 <div align="center">
 
-# 🥯🐶 byegl
+![byegl (light mode)](./media/byegl-logo-light.svg#gh-light-mode-only)
+![byegl (dark mode)](./media/byegl-logo-dark.svg#gh-dark-mode-only)
 
-Migrate from WebGL to WebGPU, incrementally
+**Migrate from WebGL to WebGPU, incrementally**
+
+[Documentation](https://docs.swmansion.com/byegl)
 
 </div>
 
@@ -12,49 +15,29 @@ Migrate from WebGL to WebGPU, incrementally
 
 This project aims to reimplement the WebGL API on top of WebGPU, which will allow established WebGL-based projects to gradually migrate to the WebGPU over time (or in other words, to "de-WebGL their codebase")
 
-## Hooks
+## Getting Started
 
-Once your WebGL app is running on WebGPU through byegl, you get direct access to WebGPU through hooks.
-
-### Using WGSL in place of GLSL
-```ts
-const vertexShader = gl.createShader(gl.VERTEX_SHADER) as WebGLShader;
-gl.shaderSource(vertexShader, vertexShaderSource);
-gl.compileShader(vertexShader);
-
-const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER) as WebGLShader;
-gl.shaderSource(fragmentShader, fragmentShaderSource);
-gl.compileShader(fragmentShader);
-
-const program = gl.createProgram();
-gl.attachShader(program, vertexShader);
-gl.attachShader(program, fragmentShader);
-gl.linkProgram(program);
-```
-
-The code above can be replaced with:
+All you need to migrate your WebGL code to WebGPU is the following:
 
 ```ts
-const program = byegl.createWGSLProgram(gl, wgslCode);
-//    ^? ByeGLProgram
+import * as byegl from 'byegl';
+
+// Enable and await...
+await byegl.enable();
+
+// Intercepted by byegl 🥯🐶
+const gl = canvas.getContext('webgl');
 ```
 
-### Using a WebGPU buffer in WebGL
+Enabling byegl will intercept calls to `.getContext('webgl' | 'webgl2' | 'experimental-webgl')` on all canvases and return
+a virtualized WebGL context.
 
-```ts
-const device = byegl.getDevice(gl);
-//    ^? GPUDevice
+For more information, see the [documentation](https://docs.swmansion.com/byegl).
 
-// Using WebGPU to allocate a buffer
-const wgpuBuffer = device.createBuffer({
-  size: 4 * 4,
-  usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-});
+## Contributing
 
-const buffer = byegl.importWebGPUBuffer(gl, wgpuBuffer);
-//    ^? WebGLBuffer
-```
+Contributions are welcome! Please read our [contributing guidelines](CONTRIBUTING.md) before submitting a pull request.
 
-## Things to consider when mixing GLSL and WGSL
+## Licence
 
-WebGL's clip-space coordinates are in the range [-1, 1] for X, Y and Z, whereas WebGPU's clip-space Z coordinates are in the range [0, 1]. This is mitigated in the generated WGSL, but when writing your own WGSL shaders, you need to be aware of this difference.
+This project is licensed under the MIT License.
