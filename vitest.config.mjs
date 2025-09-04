@@ -9,9 +9,10 @@ export default defineConfig({
         plugins: [typegpu({ include: /.*/ })],
         test: {
           name: 'node',
-          environment: 'node',
+          environment: 'jsdom',
+          setupFiles: ['packages/byegl/tests/setup.ts'],
           include: ['**/*.test.ts'],
-          exclude: ['**/*.test.browser.ts', 'node_modules'],
+          exclude: ['**/*.test.browser.ts', '**/node_modules'],
         },
       },
       {
@@ -24,7 +25,8 @@ export default defineConfig({
             headless: false,
             instances: [{ browser: 'chrome' }],
           },
-          include: ['**/*.test.browser.ts', 'node_modules'],
+          include: ['**/*.test.browser.ts'],
+          exclude: ['**/*.test.ts', '**/node_modules'],
         },
       },
     ],

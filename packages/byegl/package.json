@@ -37,7 +37,8 @@
     "@webgpu/types": "^0.1.64",
     "tsdown": "^0.14.1",
     "typescript": "^5.9.2",
-    "unplugin-typegpu": "^0.2.2"
+    "unplugin-typegpu": "^0.2.2",
+    "webgl-constants": "^1.1.1"
   },
   "dependencies": {
     "@iwoplaza/shaderkit": "^0.6.3",
