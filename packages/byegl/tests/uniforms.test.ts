@@ -30,30 +30,27 @@ describe('float uniform', () => {
       @group(0) @binding(0) var<uniform> uFoo: f32;
       @group(0) @binding(1) var<uniform> uBar: f32;
 
-      struct _byegl_VertexIn_2 {
-
-      }
-      struct _byegl_VertexOut_3 {
-        @builtin(position) _byegl_posOut_4: vec4f,
+      struct _byegl_VertexOut_2 {
+        @builtin(position) _byegl_posOut_3: vec4f,
 
       }
 
 
       @vertex
-      fn _byegl_vert_main_5(input: _byegl_VertexIn_2) -> _byegl_VertexOut_3 {
+      fn _byegl_vert_main_4() -> _byegl_VertexOut_2 {
 
 
         _byegl_fake_vertex_0();
-        var output: _byegl_VertexOut_3;
-        output._byegl_posOut_4 = gl_Position;
+        var output: _byegl_VertexOut_2;
+        output._byegl_posOut_3 = gl_Position;
         // NOTE: OpenGL uses z in the range [-1, 1], while WebGPU uses z in the range [0, 1].
-        output._byegl_posOut_4.z = output._byegl_posOut_4.z * 0.5 + 0.5;
+        output._byegl_posOut_3.z = output._byegl_posOut_3.z * 0.5 + 0.5;
 
         return output;
       }
 
       @fragment
-      fn _byegl_frag_main_6() -> @location(0) vec4f {
+      fn _byegl_frag_main_5() -> @location(0) vec4f {
         // Filling proxies with varying data
 
         _byegl_fake_fragment_1();
