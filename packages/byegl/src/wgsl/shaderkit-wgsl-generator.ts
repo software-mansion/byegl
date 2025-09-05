@@ -1013,13 +1013,14 @@ var<private> gl_FragColor: vec4<f32>;
     }
 
     // Generating the real entry functions
-    const attribParams = [...state.attributes.values()]
-      .map(
-        (attribute) =>
-          `@location(${attribute.location}) ${state.attributePropKeys.get(attribute.location)}: ${this.aliasOf(attribute.type)}`,
-      )
-      .join(', ');
-
+    let vertexInStructId: string | undefined;
+    if (state.attributes.size > 0) {
+      vertexInStructId = this.uniqueId('VertexIn');
+      wgsl += `
+struct ${vertexInStructId} {
+${[...state.attributes.values()].map((attribute) => `@location(${attribute.location}) ${state.attributePropKeys.get(attribute.location)}: ${this.aliasOf(attribute.type)},`).join('\n')}
+}`;
+    }
     // Vertex output struct
     const vertOutStructId = this.uniqueId('VertexOut');
     const posOutParamId = this.uniqueId('posOut');
@@ -1051,8 +1052,8 @@ ${fragInParams}
 
     wgsl += `
 @vertex
-fn ${this.uniqueId('vert_main')}(${attribParams}) -> ${vertOutStructId} {
-${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = ${state.attributePropKeys.get(attribute.location)};\n`).join('')}
+fn ${this.uniqueId('vert_main')}(${vertexInStructId ? `input: ${vertexInStructId}` : ''}) -> ${vertOutStructId} {
+${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = input.${attribute.id};\n`).join('')}
 
   ${state.fakeVertexMainId}();
   var output: ${vertOutStructId};
