@@ -60,3 +60,31 @@ describe('float uniform', () => {
     `);
   });
 });
+
+describe('WGSL Generator - separate function names in vertex and fragment', () => {
+  test('Produce vertex and fragment functions independently', ({ gl }) => {
+    const glslVert = `
+      float foo() { return 1.0; }
+      void main() { gl_Position = vec4(foo()); }
+    `;
+    const glslFrag = `
+      float foo() { return 2.0; }
+      void main() { gl_FragColor = vec4(foo()); }
+    `;
+
+    const vert = gl.createShader(gl.VERTEX_SHADER)!;
+    gl.shaderSource(vert, glslVert);
+    const frag = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(frag, glslFrag);
+    const program = gl.createProgram();
+    gl.attachShader(program, vert);
+    gl.attachShader(program, frag);
+    gl.linkProgram(program);
+
+    const wgsl = byegl.getWGSLSource(gl, program);
+
+    // Check that both foo functions are present and distinct
+    expect(wgsl).toMatch(/fn foo.*return 1\.0;/s);
+    expect(wgsl).toMatch(/return 2\.0;/s);
+  });
+});
