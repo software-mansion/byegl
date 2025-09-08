@@ -153,8 +153,6 @@ interface GenState {
    * the two shaders, but with a different values.
    */
   alreadyDefined: Set<string>;
-  alreadyDefinedVertexFns: Set<string>;
-  alreadyDefinedFragmentFns: Set<string>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
 
@@ -325,6 +323,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (state.typeDefs.has(funcName)) {
       funcName = this.aliasOf(state.typeDefs.get(funcName)!);
+    } else if (
+      !state.extraFunctions.has(funcName) &&
+      !state.preprocessorMacros.has(funcName)
+    ) {
+      funcName += state.shaderType === 'vertex' ? '_vert' : '_frag';
     }
 
     return snip(`${funcName}(${argsValue})`, UnknownType);
@@ -837,16 +840,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           state.shaderType === 'vertex'
             ? state.fakeVertexMainId
             : state.fakeFragmentMainId;
+      } else {
+        funcName += state.shaderType === 'vertex' ? '_vert' : '_frag';
       }
-
-      let fnSet =
-        state.shaderType === 'vertex'
-          ? state.alreadyDefinedVertexFns
-          : state.alreadyDefinedFragmentFns;
-      if (fnSet.has(funcName)) {
+      if (state.alreadyDefined.has(funcName)) {
         return '';
       }
-      fnSet.add(funcName);
+      state.alreadyDefined.add(funcName);
 
       return this.withTrace(`fn:${funcName}`, () =>
         this.forkState(
@@ -950,8 +950,6 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       disabledAtScope: undefined,
 
       alreadyDefined: new Set(),
-      alreadyDefinedFragmentFns: new Set(),
-      alreadyDefinedVertexFns: new Set(),
       typeDefs: new Map(),
       extraFunctions: new Map(),
       aliases: new Map(),
