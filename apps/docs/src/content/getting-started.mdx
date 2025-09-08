@@ -1,7 +1,7 @@
 import { Code } from 'astro:components';
 import byeglPackageJson from 'byegl/package.json';
 
-# Getting started
+# Getting Started
 
 All you need to migrate your WebGL code to WebGPU is the following:
 
@@ -65,6 +65,15 @@ const wgsl = byegl.getWGSLSource(gl, program);
 //    ^? string | undefined
 ```
 
+## Checking if byegl is enabled
+
+You can check if byegl has intercepted a specific context by calling `byegl.isIntercepted(gl)`.
+
+```ts
+const intercepted = byegl.isIntercepted(gl);
+//    ^? boolean
+```
+
 ## Disabling byegl
 
 If you want more granular control over when `byegl` intercepts contexts, `byegl.enable()` returns a function to disable it.
@@ -78,3 +87,8 @@ const disable = await byegl.enable();
 
 disable(); // Bye byegl 👋
 ```
+
+
+## Things to consider when mixing GLSL and WGSL
+
+WebGL's clip-space coordinates are in the range [-1, 1] for X, Y and Z, whereas WebGPU's clip-space Z coordinates are in the range [0, 1]. This is mitigated in the generated WGSL, but when writing your own WGSL shaders, you need to be aware of this difference.
