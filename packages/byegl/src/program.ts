@@ -1,4 +1,5 @@
 import { $internal } from './types.ts';
+import { ByeGLUniformLocation } from './uniform.ts';
 import { WgslGeneratorResult } from './wgsl/wgsl-generator.ts';
 
 export class ByeGLShader implements WebGLShader {
@@ -21,6 +22,7 @@ class ByeGLProgramInternals {
   vert: ByeGLShader | undefined;
   frag: ByeGLShader | undefined;
   compiled: WgslGeneratorResult | undefined;
+  activeUniforms: ByeGLUniformLocation[] | undefined;
   infoLog: string = '';
   wgpuShaderModule: GPUShaderModule | undefined;
 

@@ -1057,6 +1057,7 @@ export class ByeGLContext {
       this.#lastError = gl.INVALID_OPERATION;
       return null;
     }
+
     const path = extractAccessPath(name);
     // Silently fail, gotta love WebGL error handling
     if (path === undefined || path.length === 0) return null;
@@ -1087,6 +1088,11 @@ export class ByeGLContext {
           byteOffset += sizeOf(propType);
         }
       }
+    }
+
+    if (dataType.type === 'array') {
+      // u_foo should be the same as u_foo[0]
+      dataType = dataType.elementType as AnyWgslData;
     }
 
     return new ByeGLUniformLocation(info.location, byteOffset, dataType);
@@ -1403,19 +1409,8 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.texSubImage2D');
   }
 
-  #getUniformInfo(
-    location: ByeGLUniformLocation | null,
-  ): UniformInfo | undefined {
-    const compiled = this.#program?.[$internal].compiled;
-    if (!location || !compiled) {
-      return undefined;
-    }
-    const idx = location[$internal].bindingIdx;
-    return compiled.uniforms.find((u) => u.location === idx);
-  }
-
   uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1425,14 +1420,14 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
   uniform1i(location: ByeGLUniformLocation | null, value: GLint) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1442,14 +1437,14 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
   uniform2f(location: ByeGLUniformLocation | null, v0: GLfloat, v1: GLfloat) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, [v0, v1]);
     }
@@ -1459,14 +1454,14 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
   }
 
   uniform2i(location: ByeGLUniformLocation | null, v0: GLint, v1: GLint) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, [v0, v1]);
     }
@@ -1476,7 +1471,7 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1488,7 +1483,7 @@ export class ByeGLContext {
     v1: GLfloat,
     v2: GLfloat,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2]);
     }
@@ -1498,7 +1493,7 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1510,7 +1505,7 @@ export class ByeGLContext {
     v1: GLint,
     v2: GLint,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2]);
     }
@@ -1520,7 +1515,7 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1533,7 +1528,7 @@ export class ByeGLContext {
     v2: GLfloat,
     v3: GLfloat,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2, v3]);
     }
@@ -1543,7 +1538,7 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1556,7 +1551,7 @@ export class ByeGLContext {
     v2: GLint,
     v3: GLint,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2, v3]);
     }
@@ -1566,7 +1561,7 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
     }
@@ -1577,7 +1572,7 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     // TODO: Handle transposing
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
@@ -1589,7 +1584,7 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     // TODO: Handle transposing
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);
@@ -1601,7 +1596,7 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const uniform = this.#getUniformInfo(location);
+    const uniform = location?.[$internal];
     // TODO: Handle transposing
     if (uniform) {
       this.#uniformBufferCache.updateUniform(uniform, value);

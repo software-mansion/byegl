@@ -1,7 +1,7 @@
 import type { ExampleContext } from '../../types.ts';
 
 export default function ({ canvas, trace }: ExampleContext) {
-  const gl = canvas.getContext('webgl');
+  const gl = canvas.getContext('webgl')!;
 
   if (!gl) {
     throw new Error('WebGL not supported');
@@ -12,10 +12,12 @@ export default function ({ canvas, trace }: ExampleContext) {
     attribute vec3 a_color;
 
     varying vec3 v_color;
+    varying vec2 v_uv;
 
     void main() {
-      gl_Position = vec4(a_position * 0.5, 0.0, 1.0);
+      gl_Position = vec4(a_position, 0.0, 1.0);
       v_color = a_color;
+      v_uv = a_position.xy;
     }
   `;
 
@@ -23,22 +25,23 @@ export default function ({ canvas, trace }: ExampleContext) {
     precision mediump float;
 
     varying vec3 v_color;
+    varying vec2 v_uv;
 
     struct Light {
-      vec3 position;
+      vec2 position;
       vec3 color;
     };
 
     uniform Light u_light[4];
-    uniform vec3 u_colors[4];
 
     void main() {
       vec3 lightColor = vec3(0.0);
       for (int i = 0; i < 4; i++) {
-        vec3 lightDir = normalize(u_light[i].position - gl_FragCoord.xyz);
-        lightColor += max(dot(v_color, lightDir), 0.0) * u_light[i].color * u_colors[i];
+        float dist = length(u_light[i].position - v_uv);
+        float acc = pow(max(0.0, 1.0 - dist), 2.0);
+        lightColor += acc * u_light[i].color;
       }
-      gl_FragColor = vec4(lightColor, 1.0);
+      gl_FragColor = vec4(lightColor * 0.8 + vec3(0.2), 1.0);
     }
   `;
 
@@ -72,28 +75,6 @@ export default function ({ canvas, trace }: ExampleContext) {
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     console.error('Error linking program:', gl.getProgramInfoLog(program));
   }
-
-  const lightBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, lightBuffer);
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array([
-      // light 1
-      0, 0, 1, 1, 0, 0,
-      // light 2
-      0, 1, 1, 0, 1, 0,
-      // light 3
-      1, 0, 1, 0, 0, 1,
-      // light 4
-      1, 1, 1, 1, 1, 0,
-    ]),
-    gl.STATIC_DRAW,
-  );
-
-  trace(
-    "gl.getUniformLocation(program, 'u_light[0].position') !== null",
-    gl.getUniformLocation(program, 'u_light[0].position') !== null,
-  );
 
   for (
     let i = 0;
@@ -159,8 +140,37 @@ export default function ({ canvas, trace }: ExampleContext) {
     gl.STATIC_DRAW,
   );
 
-  gl.useProgram(program);
-  gl.clearColor(0, 0, 0, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  function animate(timestamp: number) {
+    handle = requestAnimationFrame(animate);
+
+    gl.useProgram(program);
+
+    const colors = [
+      [1, 0.2, 0.2],
+      [0.2, 1, 0.2],
+      [0.2, 0.2, 1],
+      [1, 1, 1],
+    ];
+    for (let i = 0; i < 4; ++i) {
+      gl.uniform2f(
+        gl.getUniformLocation(program, `u_light[${i}].position`),
+        Math.sin(timestamp * (0.002 + Math.sin(i) * 0.001) + i),
+        Math.cos(timestamp * (0.001 + Math.sin(i) * 0.002) + i),
+      );
+      gl.uniform3fv(
+        gl.getUniformLocation(program, `u_light[${i}].color`),
+        colors[i],
+      );
+    }
+
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  }
+
+  let handle = requestAnimationFrame(animate);
+
+  return () => {
+    cancelAnimationFrame(handle);
+  };
 }

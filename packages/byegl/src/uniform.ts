@@ -43,10 +43,13 @@ export class UniformBufferCache {
     return cached;
   }
 
-  updateUniform(uniform: UniformInfo, value: UniformValue | Iterable<number>) {
-    this.#values.set(uniform.location, value as UniformValue);
+  updateUniform(
+    uniform: UniformLocation,
+    value: UniformValue | Iterable<number>,
+  ) {
+    this.#values.set(uniform.bindingIdx, value as UniformValue);
 
-    if (uniform.type.type.startsWith('texture_')) {
+    if (uniform.dataType.type.startsWith('texture_')) {
       // No need to create a buffer for texture uniforms
       // We just need the value to get updated, so that
       // we can match up which texture to bind to
@@ -55,47 +58,47 @@ export class UniformBufferCache {
     }
 
     let serialized: ArrayBuffer;
-    if (uniform.type.type === 'bool') {
+    if (uniform.dataType.type === 'bool') {
       // Booleans are actually not host-shareable, so we use
       // u32 to pass `0` or `1`.
       serialized = new Uint32Array([value ? 1 : 0]).buffer;
-    } else if (uniform.type.type === 'u32') {
+    } else if (uniform.dataType.type === 'u32') {
       serialized = new Uint32Array([value as number]).buffer;
-    } else if (uniform.type.type === 'i32') {
+    } else if (uniform.dataType.type === 'i32') {
       serialized = new Int32Array([value as number]).buffer;
-    } else if (uniform.type.type === 'f32') {
+    } else if (uniform.dataType.type === 'f32') {
       serialized = new Float32Array([value as number]).buffer;
     } else if (
-      uniform.type.type === 'vec2f' ||
-      uniform.type.type === 'vec3f' ||
-      uniform.type.type === 'vec4f'
+      uniform.dataType.type === 'vec2f' ||
+      uniform.dataType.type === 'vec3f' ||
+      uniform.dataType.type === 'vec4f'
     ) {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
-      this.#values.set(uniform.location, f32Array);
+      this.#values.set(uniform.bindingIdx, f32Array);
     } else if (
-      uniform.type.type === 'vec2i' ||
-      uniform.type.type === 'vec3i' ||
-      uniform.type.type === 'vec4i'
+      uniform.dataType.type === 'vec2i' ||
+      uniform.dataType.type === 'vec3i' ||
+      uniform.dataType.type === 'vec4i'
     ) {
       // Making sure it's definitely a Int32Array, as a basic array could have been passed in
       const i32Array = new Int32Array([...(value as Int32Array)]);
       serialized = i32Array.buffer;
-      this.#values.set(uniform.location, i32Array);
+      this.#values.set(uniform.bindingIdx, i32Array);
     } else if (
-      uniform.type.type === 'vec2u' ||
-      uniform.type.type === 'vec3u' ||
-      uniform.type.type === 'vec4u'
+      uniform.dataType.type === 'vec2u' ||
+      uniform.dataType.type === 'vec3u' ||
+      uniform.dataType.type === 'vec4u'
     ) {
       // Making sure it's definitely a Uint32Array, as a basic array could have been passed in
       const u32Array = new Uint32Array([...(value as Uint32Array)]);
       serialized = u32Array.buffer;
-      this.#values.set(uniform.location, u32Array);
+      this.#values.set(uniform.bindingIdx, u32Array);
     } else if (
-      uniform.type.type === 'vec2<bool>' ||
-      uniform.type.type === 'vec3<bool>' ||
-      uniform.type.type === 'vec4<bool>'
+      uniform.dataType.type === 'vec2<bool>' ||
+      uniform.dataType.type === 'vec3<bool>' ||
+      uniform.dataType.type === 'vec4<bool>'
     ) {
       // Booleans are actually not host-shareable, so we use
       // u32 to pass `0` or `1`.
@@ -103,19 +106,19 @@ export class UniformBufferCache {
         [...(value as boolean[])].map((v) => (v ? 1 : 0)),
       ).buffer;
     } else if (
-      uniform.type.type === 'mat2x2f' ||
-      uniform.type.type === 'mat3x3f' ||
-      uniform.type.type === 'mat4x4f'
+      uniform.dataType.type === 'mat2x2f' ||
+      uniform.dataType.type === 'mat3x3f' ||
+      uniform.dataType.type === 'mat4x4f'
     ) {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
-      this.#values.set(uniform.location, f32Array);
+      this.#values.set(uniform.bindingIdx, f32Array);
     } else {
-      throw new Error(`Cannot serialize ${uniform.type.type} yet.`);
+      throw new Error(`Cannot serialize ${uniform.dataType.type} yet.`);
     }
 
-    const cached = this.#buffers.get(uniform.location);
+    const cached = this.#buffers.get(uniform.bindingIdx);
     if (cached && cached.size === serialized.byteLength) {
       this.#root.device.queue.writeBuffer(cached, 0, serialized);
       return cached;
@@ -130,7 +133,7 @@ export class UniformBufferCache {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    this.#buffers.set(uniform.location, buffer);
+    this.#buffers.set(uniform.bindingIdx, buffer);
     // Filling out the buffer with data
     const mappedBuffer = new Uint8Array(buffer.getMappedRange());
     const inView = new Uint8Array(serialized);
@@ -142,23 +145,18 @@ export class UniformBufferCache {
   }
 }
 
+export interface UniformLocation {
+  bindingIdx: number;
+  byteOffset: number;
+  dataType: ByeglData;
+}
+
 // WebGLUniformLocation
 export class ByeGLUniformLocation {
-  readonly [$internal]: {
-    bindingIdx: number;
-    byteOffset: number;
-    dataType: ByeglData;
-    // TODO: Might not be necessary
-    accessPath: (string | number)[] | undefined;
-  };
+  readonly [$internal]: UniformLocation;
 
-  constructor(
-    bindingIdx: number,
-    byteOffset: number,
-    dataType: ByeglData,
-    accessPath?: (string | number)[] | undefined,
-  ) {
-    this[$internal] = { bindingIdx, byteOffset, dataType, accessPath };
+  constructor(bindingIdx: number, byteOffset: number, dataType: ByeglData) {
+    this[$internal] = { bindingIdx, byteOffset, dataType };
   }
 }
 
