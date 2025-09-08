@@ -1,31 +1,31 @@
 @import "tailwindcss";
 
 @plugin "daisyui" {
-    themes: caramellatte --default;
+  themes: caramellatte --default;
 }
 
 .markdown {
-    h1 {
-        @apply text-2xl font-bold text-center my-4;
-    }
+  h1 {
+    @apply text-2xl font-bold text-center my-4;
+  }
 
-    h2 {
-        @apply text-xl font-semibold mt-4 mb-2;
-    }
+  h2 {
+    @apply text-xl font-semibold mt-4 mb-2;
+  }
 
-    .astro-code {
-        @apply py-3 px-4 mb-3 mt-1;
-    }
+  .astro-code {
+    @apply py-3 px-4 mb-3 mt-1;
+  }
 
-    *:not(:is(pre)) code {
-        @apply bg-orange-100 text-sm border border-orange-300;
-    }
+  *:not(:is(pre)) code {
+    @apply bg-orange-100 text-sm border border-orange-300;
+  }
 
-    a {
-        @apply text-blue-500 hover:text-blue-700 underline;
-    }
+  a {
+    @apply text-blue-500 hover:text-blue-700 underline;
+  }
 }
 
 a.link {
-    @apply text-blue-500 hover:text-blue-700 underline;
+  @apply text-blue-500 hover:text-blue-700 underline;
 }
