@@ -1,6 +1,6 @@
 {
   "name": "byegl",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A reimplementation of the WebGL API on top of WebGPU, allowing for gradual migration into the future of 3d on the web",
   "author": "Iwo Plaza (https://iwoplaza.dev)",
   "license": "MIT",
