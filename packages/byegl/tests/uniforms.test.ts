@@ -1,7 +1,21 @@
 import { describe, expect } from 'vitest';
 import * as byegl from '../src/index.ts';
-import { extractAccessPath } from '../src/uniform.ts';
+import { $internal } from '../src/types.ts';
+import { ByeGLUniformLocation, extractAccessPath } from '../src/uniform.ts';
 import { test } from './extendedTest.ts';
+
+function extractUniformInfo(location: WebGLUniformLocation | null) {
+  if (!location) {
+    return null;
+  }
+  const internal = (location as ByeGLUniformLocation)[$internal];
+
+  return {
+    bindingIdx: internal.bindingIdx,
+    byteOffset: internal.byteOffset,
+    dataType: String(internal.dataType),
+  };
+}
 
 describe('float uniform', () => {
   test('shader generation', ({ gl }) => {
@@ -130,5 +144,168 @@ describe('extractAccessPath', () => {
 
   test('zero index', () => {
     expect(extractAccessPath('uniformName[0]')).toEqual(['uniformName', 0]);
+  });
+});
+
+describe('getUniformLocation', () => {
+  test('basic uniform location', ({ gl }) => {
+    const glslVert = `
+      uniform float u_foo;
+    `;
+
+    const glslFrag = `
+      uniform float u_bar;
+      uniform vec3 u_vec3;
+      uniform mat4 u_mat4;
+
+      void main() {
+        gl_FragColor = vec4(u_bar + u_foo + u_vec3.x + u_mat4[0][0]);
+      }
+    `;
+
+    const vert = gl.createShader(gl.VERTEX_SHADER)!;
+    gl.shaderSource(vert, glslVert);
+    gl.compileShader(vert);
+    expect(gl.getShaderParameter(vert, gl.COMPILE_STATUS)).toBe(true);
+
+    const frag = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(frag, glslFrag);
+    gl.compileShader(frag);
+    expect(gl.getShaderParameter(frag, gl.COMPILE_STATUS)).toBe(true);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vert);
+    gl.attachShader(program, frag);
+    gl.linkProgram(program);
+    expect(gl.getProgramParameter(program, gl.LINK_STATUS)).toBe(true);
+
+    // Test basic uniform access
+    const fooLocation = gl.getUniformLocation(program, 'u_foo');
+    expect(extractUniformInfo(fooLocation)).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 0,
+        "byteOffset": 0,
+        "dataType": "f32Cast",
+      }
+    `);
+
+    // Test vec3 uniform access
+    const vec3Location = gl.getUniformLocation(program, 'u_vec3');
+    expect(extractUniformInfo(vec3Location)).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 2,
+        "byteOffset": 0,
+        "dataType": "vec3f",
+      }
+    `);
+
+    // Test mat4 uniform access
+    const mat4Location = gl.getUniformLocation(program, 'u_mat4');
+    expect(mat4Location).not.toBeNull();
+    expect(extractUniformInfo(mat4Location)).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 3,
+        "byteOffset": 0,
+        "dataType": "mat4x4f",
+      }
+    `);
+  });
+
+  test('array and struct access', ({ gl }) => {
+    // NOTE: Arrays and structs in uniforms are not yet supported in ByeGL
+    // This test documents the expected behavior when they are implemented
+
+    const glslVert = `
+      attribute vec2 a_position;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+      }
+    `;
+
+    const glslFrag = `
+      precision mediump float;
+
+      struct Light {
+        vec3 position;
+        vec3 color;
+      };
+
+      uniform Light u_light[2];
+      uniform vec3 u_colors[2];
+
+      void main() {
+        // Use the uniforms to ensure they're not optimized away
+        vec3 color = u_light[0].color + u_light[1].color + u_colors[0] + u_colors[1];
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `;
+
+    const vert = gl.createShader(gl.VERTEX_SHADER)!;
+    gl.shaderSource(vert, glslVert);
+    gl.compileShader(vert);
+    expect(gl.getShaderParameter(vert, gl.COMPILE_STATUS)).toBe(true);
+
+    const frag = gl.createShader(gl.FRAGMENT_SHADER)!;
+    gl.shaderSource(frag, glslFrag);
+    gl.compileShader(frag);
+    expect(gl.getShaderParameter(frag, gl.COMPILE_STATUS)).toBe(true);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vert);
+    gl.attachShader(program, frag);
+    gl.linkProgram(program);
+
+    // For now, array access returns null (not implemented)
+    // When implemented, these should return proper locations with offsets
+
+    expect(
+      extractUniformInfo(gl.getUniformLocation(program, 'u_light[0]')),
+    ).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 0,
+        "byteOffset": 0,
+        "dataType": "struct:Light",
+      }
+    `);
+
+    expect(
+      extractUniformInfo(gl.getUniformLocation(program, 'u_light[0].position')),
+    ).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 0,
+        "byteOffset": 0,
+        "dataType": "vec3f",
+      }
+    `);
+
+    expect(
+      extractUniformInfo(gl.getUniformLocation(program, 'u_light[1].color')),
+    ).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 0,
+        "byteOffset": 48,
+        "dataType": "vec3f",
+      }
+    `);
+
+    expect(
+      extractUniformInfo(gl.getUniformLocation(program, 'u_colors[0]')),
+    ).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 1,
+        "byteOffset": 0,
+        "dataType": "vec3f",
+      }
+    `);
+
+    expect(
+      extractUniformInfo(gl.getUniformLocation(program, 'u_colors[1]')),
+    ).toMatchInlineSnapshot(`
+      {
+        "bindingIdx": 1,
+        "byteOffset": 16,
+        "dataType": "vec3f",
+      }
+    `);
   });
 });

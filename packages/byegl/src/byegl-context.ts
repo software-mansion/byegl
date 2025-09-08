@@ -1073,9 +1073,7 @@ export class ByeGLContext {
       if (typeof node === 'number' && dataType.type === 'array') {
         dataType = dataType.elementType as AnyWgslData;
         byteOffset += roundUp(sizeOf(dataType), alignmentOf(dataType)) * node;
-      }
-
-      if (dataType.type === 'struct') {
+      } else if (dataType.type === 'struct') {
         const propTypes = dataType.propTypes as Record<string, AnyWgslData>;
         for (const [propKey, propType] of Object.entries(propTypes)) {
           // Aligning to the start of the prop
@@ -1088,9 +1086,6 @@ export class ByeGLContext {
 
           byteOffset += sizeOf(propType);
         }
-
-        // No prop found :(
-        return null;
       }
     }
 

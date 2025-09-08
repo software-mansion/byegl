@@ -226,6 +226,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       return (value as d.AnyWgslData).type;
     }
 
+    if (value.type === 'array') {
+      return `array<${this.aliasOf(value.elementType as ByeglData)}, ${value.elementCount}>`;
+    }
+
     const alias = this.#state.aliases.get(value);
     if (alias) {
       return alias;
@@ -426,6 +430,16 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         return snip(`${object.value}[${property.value}]`, UnknownType);
       }
       return snip(`${object.value}.${property.value}`, UnknownType);
+    }
+
+    if (expression.type === 'UpdateExpression') {
+      const argument = this.generateExpression(expression.argument);
+      // TODO: Implement type inference
+      if (expression.prefix) {
+        return snip(`${expression.operator}${argument.value}`, UnknownType);
+      } else {
+        return snip(`${argument.value}${expression.operator}`, UnknownType);
+      }
     }
 
     throw new Error(`Unsupported expression type: ${expression.type}`);
@@ -719,13 +733,39 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       let code = '';
 
       for (const decl of statement.declarations) {
-        const wgslType = this.getDataType(decl.typeSpecifier);
+        const isUniform = decl.qualifiers.includes('uniform');
+
+        let wgslType = this.getDataType(decl.typeSpecifier);
+
+        // TODO: Fix shaderkit type definition
+        let id = decl.id as unknown as
+          | shaderkit.Identifier
+          | shaderkit.ArraySpecifier;
+
+        if (id.type === 'ArraySpecifier') {
+          const dims = id.dimensions
+            .filter((expr) => !!expr)
+            .map((expr) => this.precomputeExpression(expr)) as number[];
+
+          for (const dim of dims) {
+            wgslType = d.arrayOf(wgslType as d.AnyWgslData, dim);
+          }
+          id = id.typeSpecifier;
+        }
+
+        if (isUniform) {
+          // Booleans are not host-shareable
+          if (wgslType === d.bool) {
+            wgslType = d.u32;
+          }
+        }
+
         const wgslTypeAlias = this.aliasOf(wgslType);
 
-        if (state.alreadyDefined.has(decl.id.name) && !state.definingFunction) {
+        if (state.alreadyDefined.has(id.name) && !state.definingFunction) {
           continue;
         }
-        state.alreadyDefined.add(decl.id.name);
+        state.alreadyDefined.add(id.name);
 
         if (decl.qualifiers.includes('attribute')) {
           // Finding the next available attribute index
@@ -733,16 +773,16 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.lastAttributeIdx++;
           } while (state.attributes.has(state.lastAttributeIdx));
 
-          state.attributePropKeys.set(state.lastAttributeIdx, decl.id.name);
+          state.attributePropKeys.set(state.lastAttributeIdx, id.name);
 
           state.attributes.set(state.lastAttributeIdx, {
-            id: decl.id.name,
+            id: id.name,
             location: state.lastAttributeIdx,
             type: wgslType as d.AnyWgslData,
           });
 
           // Defining proxies
-          code += `/* attribute */ var<private> ${decl.id.name}: ${wgslTypeAlias};\n`;
+          code += `/* attribute */ var<private> ${id.name}: ${wgslTypeAlias};\n`;
         } else if (decl.qualifiers.includes('varying')) {
           // Finding the next available varying index
           do {
@@ -754,17 +794,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
             state.varyingPropKeys.set(
               state.lastVaryingIdx,
-              this.uniqueId(decl.id.name),
+              this.uniqueId(id.name),
             );
 
             state.varyings.set(state.lastVaryingIdx, {
-              id: decl.id.name,
+              id: id.name,
               location: state.lastVaryingIdx,
               type: wgslType as d.AnyWgslData,
             });
 
             // Defining proxies
-            code += `/* varying */ var<private> ${decl.id.name}: ${wgslTypeAlias};\n`;
+            code += `/* varying */ var<private> ${id.name}: ${wgslTypeAlias};\n`;
           }
         } else if (decl.qualifiers.includes('uniform')) {
           // Finding the next available uniform index
@@ -773,26 +813,22 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           } while (state.uniforms.has(state.lastBindingIdx));
 
           const uniformInfo: UniformInfo = {
-            id: decl.id.name,
+            id: id.name,
             location: state.lastBindingIdx,
             type: wgslType,
           };
           state.uniforms.set(state.lastBindingIdx, uniformInfo);
 
-          // Booleans are not host-shareable
-          const uniformTypeAlias =
-            wgslTypeAlias === 'bool' ? 'u32' : wgslTypeAlias;
-
           // Textures need an accompanying sampler
           if (wgslType.type.startsWith('texture_')) {
-            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${decl.id.name}: ${uniformTypeAlias};\n`;
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${id.name}: ${wgslTypeAlias};\n`;
 
             // Finding the next available uniform index
             do {
               state.lastBindingIdx++;
             } while (state.uniforms.has(state.lastBindingIdx));
 
-            const samplerId = this.uniqueId(decl.id.name + '_sampler');
+            const samplerId = this.uniqueId(id.name + '_sampler');
             const samplerUniformInfo: UniformInfo = {
               id: samplerId,
               location: state.lastBindingIdx,
@@ -804,18 +840,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${samplerId}: sampler;\n`;
           } else {
-            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${decl.id.name}: ${uniformTypeAlias};\n`;
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${id.name}: ${wgslTypeAlias};\n`;
           }
         } else {
           // Regular variable
           if (decl.init) {
-            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslTypeAlias} = ${this.generateExpression(decl.init).value};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${id.name}: ${wgslTypeAlias} = ${this.generateExpression(decl.init).value};\n`;
           } else {
-            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${decl.id.name}: ${wgslTypeAlias};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${id.name}: ${wgslTypeAlias};\n`;
           }
         }
 
-        state.variables.set(decl.id.name, wgslType);
+        state.variables.set(id.name, wgslType);
 
         // TODO: Handle manual layout qualifiers (e.g. layout(location=0))
       }
@@ -924,6 +960,34 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       } else {
         return `${state.lineStart}if (${condition.value}) {\n${consequent}\n}`;
       }
+    }
+
+    if (statement.type === 'ForStatement') {
+      const initNode = statement.init;
+      const init = initNode
+        ? initNode.type === 'VariableDeclaration'
+          ? this.forkState({ lineStart: '' }, () =>
+              this.generateStatement(initNode).slice(0, -1),
+            )
+          : this.generateExpression(initNode).value
+        : ';';
+
+      const test = statement.test
+        ? this.generateExpression(statement.test).value
+        : '';
+
+      const update = statement.update
+        ? this.generateExpression(statement.update).value
+        : '';
+
+      const body = this.forkState(
+        {
+          lineStart: state.lineStart + '  ',
+        },
+        () => this.generateStatement(statement.body),
+      );
+
+      return `${state.lineStart}for (${init} ${test}; ${update}) {\n${body}${state.lineStart}}\n`;
     }
 
     throw new Error(`Cannot generate ${statement.type} statements yet.`);
