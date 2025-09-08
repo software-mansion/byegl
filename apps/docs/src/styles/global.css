@@ -10,7 +10,7 @@
   }
 
   h2 {
-    @apply text-xl font-semibold my-2;
+    @apply text-xl font-semibold mt-4 mb-2;
   }
 
   .astro-code {

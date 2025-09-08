@@ -38,6 +38,12 @@ export async function enable() {
   };
 }
 
+export function isIntercepted(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+): boolean {
+  return gl instanceof ByeGLContext;
+}
+
 export function getDevice(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
 ): GPUDevice {
