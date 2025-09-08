@@ -323,6 +323,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (state.typeDefs.has(funcName)) {
       funcName = this.aliasOf(state.typeDefs.get(funcName)!);
+    } else if (
+      !state.extraFunctions.has(funcName) &&
+      !state.preprocessorMacros.has(funcName)
+    ) {
+      funcName += state.shaderType === 'vertex' ? '_vert' : '_frag';
     }
 
     return snip(`${funcName}(${argsValue})`, UnknownType);
@@ -832,8 +837,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           state.shaderType === 'vertex'
             ? state.fakeVertexMainId
             : state.fakeFragmentMainId;
+      } else {
+        funcName += state.shaderType === 'vertex' ? '_vert' : '_frag';
       }
-
       if (state.alreadyDefined.has(funcName)) {
         return '';
       }
