@@ -65,6 +65,15 @@ const wgsl = byegl.getWGSLSource(gl, program);
 //    ^? string | undefined
 ```
 
+## Checking if byegl is enabled
+
+You can check if byegl has intercepted a specific context by calling `byegl.isIntercepted(gl)`.
+
+```ts
+const intercepted = byegl.isIntercepted(gl);
+//    ^? boolean
+```
+
 ## Disabling byegl
 
 If you want more granular control over when `byegl` intercepts contexts, `byegl.enable()` returns a function to disable it.
