@@ -17,8 +17,14 @@ import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
-import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
+import {
+  ByeGLUniformLocation,
+  extractAccessPath,
+  UniformBufferCache,
+} from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
+import { roundUp } from './math-utils.ts';
+import { alignmentOf, AnyData, AnyWgslData, sizeOf } from 'typegpu/data';
 
 const gl = WebGL2RenderingContext;
 
@@ -1048,10 +1054,47 @@ export class ByeGLContext {
   ): WebGLUniformLocation | null {
     const compiled = program[$internal].compiled;
     if (compiled === undefined) {
-      throw new Error('Program not linked');
+      this.#lastError = gl.INVALID_OPERATION;
+      return null;
     }
-    const idx = compiled.uniforms.find((u) => u.id === name)?.location;
-    return idx !== undefined ? new ByeGLUniformLocation(idx) : null;
+    const path = extractAccessPath(name);
+    // Silently fail, gotta love WebGL error handling
+    if (path === undefined || path.length === 0) return null;
+
+    const info = compiled.uniforms.find((u) => u.id === path[0]);
+    // Silently fail, gotta love WebGL error handling
+    if (info === undefined) return null;
+
+    let byteOffset = 0;
+    let dataType = info.type;
+    for (let i = 1; i < path.length; i++) {
+      const node = path[i];
+
+      if (typeof node === 'number' && dataType.type === 'array') {
+        dataType = dataType.elementType as AnyWgslData;
+        byteOffset += roundUp(sizeOf(dataType), alignmentOf(dataType)) * node;
+      }
+
+      if (dataType.type === 'struct') {
+        const propTypes = dataType.propTypes as Record<string, AnyWgslData>;
+        for (const [propKey, propType] of Object.entries(propTypes)) {
+          // Aligning to the start of the prop
+          byteOffset = roundUp(byteOffset, alignmentOf(propType));
+
+          if (propKey === node) {
+            dataType = propType;
+            break;
+          }
+
+          byteOffset += sizeOf(propType);
+        }
+
+        // No prop found :(
+        return null;
+      }
+    }
+
+    return new ByeGLUniformLocation(info.location, byteOffset, dataType);
   }
 
   getVertexAttrib(index: GLuint, pname: GLenum): any {
@@ -1372,7 +1415,7 @@ export class ByeGLContext {
     if (!location || !compiled) {
       return undefined;
     }
-    const idx = location[$internal];
+    const idx = location[$internal].bindingIdx;
     return compiled.uniforms.find((u) => u.location === idx);
   }
 

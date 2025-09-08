@@ -1,7 +1,7 @@
 import type { TgpuRoot } from 'typegpu';
 import { type AnyWgslData, sizeOf } from 'typegpu/data';
 import { $internal } from './types.ts';
-import type { UniformInfo } from './wgsl/wgsl-generator.ts';
+import type { ByeglData, UniformInfo } from './wgsl/wgsl-generator.ts';
 
 export type UniformValue =
   | number
@@ -144,9 +144,46 @@ export class UniformBufferCache {
 
 // WebGLUniformLocation
 export class ByeGLUniformLocation {
-  readonly [$internal]: number;
+  readonly [$internal]: {
+    bindingIdx: number;
+    byteOffset: number;
+    dataType: ByeglData;
+    // TODO: Might not be necessary
+    accessPath: (string | number)[] | undefined;
+  };
 
-  constructor(idx: number) {
-    this[$internal] = idx;
+  constructor(
+    bindingIdx: number,
+    byteOffset: number,
+    dataType: ByeglData,
+    accessPath?: (string | number)[] | undefined,
+  ) {
+    this[$internal] = { bindingIdx, byteOffset, dataType, accessPath };
   }
+}
+
+/**
+ * Extracts parts from a uniform location query
+ *
+ * @example
+ * extractAccessPath('uniformName[0].subUniform');
+ * // Output: ['uniformName', 0, 'subUniform']
+ *
+ * @param query
+ */
+export function extractAccessPath(
+  query: string,
+): (string | number)[] | undefined {
+  // Splits on any dot or bracket
+  const parts = query.split(/[\.\[\]]+/);
+  const result: (string | number)[] = [];
+
+  for (const part of parts) {
+    if (part !== '') {
+      const num = Number.parseInt(part, 10);
+      result.push(isNaN(num) ? part : num);
+    }
+  }
+
+  return result.length > 0 ? result : undefined;
 }

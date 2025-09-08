@@ -1,5 +1,6 @@
 import { describe, expect } from 'vitest';
 import * as byegl from '../src/index.ts';
+import { extractAccessPath } from '../src/uniform.ts';
 import { test } from './extendedTest.ts';
 
 describe('float uniform', () => {
@@ -58,5 +59,76 @@ describe('float uniform', () => {
       }
       "
     `);
+  });
+});
+
+describe('extractAccessPath', () => {
+  test('simple uniform name', () => {
+    expect(extractAccessPath('uniformName')).toEqual(['uniformName']);
+  });
+
+  test('uniform with array index', () => {
+    expect(extractAccessPath('uniformName[0]')).toEqual(['uniformName', 0]);
+  });
+
+  test('uniform with property access', () => {
+    expect(extractAccessPath('uniformName.subUniform')).toEqual([
+      'uniformName',
+      'subUniform',
+    ]);
+  });
+
+  test('uniform with array index and property access', () => {
+    expect(extractAccessPath('uniformName[0].subUniform')).toEqual([
+      'uniformName',
+      0,
+      'subUniform',
+    ]);
+  });
+
+  test('uniform with multiple array indices', () => {
+    expect(extractAccessPath('uniformName[0][1]')).toEqual([
+      'uniformName',
+      0,
+      1,
+    ]);
+  });
+
+  test('uniform with nested property access', () => {
+    expect(extractAccessPath('uniformName.prop1.prop2')).toEqual([
+      'uniformName',
+      'prop1',
+      'prop2',
+    ]);
+  });
+
+  test('uniform with mixed array and property access', () => {
+    expect(extractAccessPath('uniformName[1].prop[2].subProp')).toEqual([
+      'uniformName',
+      1,
+      'prop',
+      2,
+      'subProp',
+    ]);
+  });
+
+  test('empty string', () => {
+    expect(extractAccessPath('')).toBeUndefined();
+  });
+
+  test('string with only separators', () => {
+    expect(extractAccessPath('...')).toBeUndefined();
+  });
+
+  test('string with only brackets', () => {
+    expect(extractAccessPath('[]')).toBeUndefined();
+  });
+
+  test('large array index', () => {
+    expect(extractAccessPath('uniformName[999]')).toEqual(['uniformName', 999]);
+  });
+
+  test('zero index', () => {
+    expect(extractAccessPath('uniformName[0]')).toEqual(['uniformName', 0]);
   });
 });
