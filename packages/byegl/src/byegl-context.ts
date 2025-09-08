@@ -9,6 +9,7 @@ import {
   normalizedVertexFormatCatalog,
   primitiveMap,
   shaderPrecisionFormatCatalog,
+  uniformTypeCatalog,
   unnormalizedVertexFormatCatalog,
 } from './constants.ts';
 import { NotImplementedYetError } from './errors.ts';
@@ -655,17 +656,27 @@ export class ByeGLContext {
   }
 
   getActiveUniform(
-    program_: ByeGLProgram,
+    glProgram: ByeGLProgram,
     index: GLuint,
   ): WebGLActiveInfo | null {
-    const program = program_[$internal];
-    const uniform = program.compiled?.uniforms[index];
+    const program = glProgram[$internal];
+    const uniform = program.activeUniforms[index][$internal];
     if (!uniform) {
       this.#lastError = gl.INVALID_VALUE;
       return null;
     }
 
-    return null;
+    if (!(uniform.dataType.type in uniformTypeCatalog)) {
+      throw new Error(`Unsupported uniform type: ${uniform.dataType.type}`);
+    }
+
+    return {
+      name: uniform.name,
+      size: uniform.size,
+      type: uniformTypeCatalog[
+        uniform.dataType.type as keyof typeof uniformTypeCatalog
+      ],
+    };
   }
 
   getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
@@ -992,7 +1003,7 @@ export class ByeGLContext {
       return program[$internal].compiled?.attributes.length ?? 0;
     }
     if (pname === gl.ACTIVE_UNIFORMS) {
-      return program[$internal].compiled?.uniforms.length ?? 0;
+      return program[$internal].activeUniforms.length;
     }
     throw new NotImplementedYetError(`gl.getProgramParameter (pname=${pname})`);
   }
@@ -1049,53 +1060,17 @@ export class ByeGLContext {
   }
 
   getUniformLocation(
-    program: ByeGLProgram,
+    glProgram: ByeGLProgram,
     name: string,
   ): WebGLUniformLocation | null {
-    const compiled = program[$internal].compiled;
-    if (compiled === undefined) {
+    const program = glProgram[$internal];
+    const uniform = program.uniformLocationsMap?.get(name);
+    if (uniform === undefined) {
       this.#lastError = gl.INVALID_OPERATION;
       return null;
     }
 
-    const path = extractAccessPath(name);
-    // Silently fail, gotta love WebGL error handling
-    if (path === undefined || path.length === 0) return null;
-
-    const info = compiled.uniforms.find((u) => u.id === path[0]);
-    // Silently fail, gotta love WebGL error handling
-    if (info === undefined) return null;
-
-    let byteOffset = 0;
-    let dataType = info.type;
-    for (let i = 1; i < path.length; i++) {
-      const node = path[i];
-
-      if (typeof node === 'number' && dataType.type === 'array') {
-        dataType = dataType.elementType as AnyWgslData;
-        byteOffset += roundUp(sizeOf(dataType), alignmentOf(dataType)) * node;
-      } else if (dataType.type === 'struct') {
-        const propTypes = dataType.propTypes as Record<string, AnyWgslData>;
-        for (const [propKey, propType] of Object.entries(propTypes)) {
-          // Aligning to the start of the prop
-          byteOffset = roundUp(byteOffset, alignmentOf(propType));
-
-          if (propKey === node) {
-            dataType = propType;
-            break;
-          }
-
-          byteOffset += sizeOf(propType);
-        }
-      }
-    }
-
-    if (dataType.type === 'array') {
-      // u_foo should be the same as u_foo[0]
-      dataType = dataType.elementType as AnyWgslData;
-    }
-
-    return new ByeGLUniformLocation(info.location, byteOffset, dataType);
+    return uniform;
   }
 
   getVertexAttrib(index: GLuint, pname: GLenum): any {
@@ -1148,9 +1123,9 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.lineWidth');
   }
 
-  linkProgram(program: ByeGLProgram): void {
-    const $program = program[$internal];
-    const { vert, frag } = $program;
+  linkProgram(glProgram: ByeGLProgram): void {
+    const program = glProgram[$internal];
+    const { vert, frag } = program;
 
     if (!vert || !frag) {
       throw new Error(
@@ -1164,14 +1139,26 @@ export class ByeGLContext {
         frag[$internal].source ?? '',
       );
 
-      $program.compiled = result;
+      // Populating uniform locations
+      program.uniformLocationsMap = new Map();
+      for (const info of result.uniforms) {
+        program.populateUniform({
+          name: info.id,
+          baseInfo: info,
+          byteOffset: 0,
+          dataType: info.type,
+          size: 1,
+        });
+      }
+
+      program.compiled = result;
       const module = this.#root.device.createShaderModule({
         label: 'ByeGL Shader Module',
         code: result.wgsl,
       });
-      $program.wgpuShaderModule = module;
+      program.wgpuShaderModule = module;
     } catch (error) {
-      $program.infoLog =
+      program.infoLog =
         error && typeof error === 'object' && 'message' in error
           ? String(error.message)
           : String(error);
@@ -1410,9 +1397,8 @@ export class ByeGLContext {
   }
 
   uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1420,16 +1406,14 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
   uniform1i(location: ByeGLUniformLocation | null, value: GLint) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1437,16 +1421,14 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
   uniform2f(location: ByeGLUniformLocation | null, v0: GLfloat, v1: GLfloat) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, [v0, v1]);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, [v0, v1]);
     }
   }
 
@@ -1454,16 +1436,14 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
   uniform2i(location: ByeGLUniformLocation | null, v0: GLint, v1: GLint) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, [v0, v1]);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, [v0, v1]);
     }
   }
 
@@ -1471,9 +1451,8 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1483,9 +1462,8 @@ export class ByeGLContext {
     v1: GLfloat,
     v2: GLfloat,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2]);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, [v0, v1, v2]);
     }
   }
 
@@ -1493,9 +1471,8 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1505,9 +1482,8 @@ export class ByeGLContext {
     v1: GLint,
     v2: GLint,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2]);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, [v0, v1, v2]);
     }
   }
 
@@ -1515,9 +1491,8 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1528,9 +1503,8 @@ export class ByeGLContext {
     v2: GLfloat,
     v3: GLfloat,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2, v3]);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, [v0, v1, v2, v3]);
     }
   }
 
@@ -1538,9 +1512,8 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLfloat> | Float32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1551,9 +1524,8 @@ export class ByeGLContext {
     v2: GLint,
     v3: GLint,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, [v0, v1, v2, v3]);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, [v0, v1, v2, v3]);
     }
   }
 
@@ -1561,9 +1533,8 @@ export class ByeGLContext {
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
   ) {
-    const uniform = location?.[$internal];
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1572,10 +1543,9 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const uniform = location?.[$internal];
     // TODO: Handle transposing
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1584,10 +1554,9 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const uniform = location?.[$internal];
     // TODO: Handle transposing
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1596,10 +1565,9 @@ export class ByeGLContext {
     transpose: GLboolean,
     value: Iterable<GLfloat> | Float32List,
   ): void {
-    const uniform = location?.[$internal];
     // TODO: Handle transposing
-    if (uniform) {
-      this.#uniformBufferCache.updateUniform(uniform, value);
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
@@ -1690,12 +1658,12 @@ export class ByeGLContext {
 
     if (uniform.type.type === 'sampler') {
       return this.#getTextureForUniform(
-        compiled.samplerToTextureMap.get(uniform)!,
+        compiled.samplerToTextureMap.get(uniform.location)!,
       );
     }
 
     const textureUnit =
-      gl.TEXTURE0 + (this.#uniformBufferCache.getValue(uniform) as number);
+      gl.TEXTURE0 + (this.#uniformBufferCache.getValue(uniform.id) as number);
 
     const textureMap = this.#boundTexturesMap.get(textureUnit);
     // TODO: Always getting the TEXTURE_2D binding, but make it depend on the texture type

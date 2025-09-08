@@ -13,20 +13,20 @@ export type UniformValue =
 
 export class UniformBufferCache {
   #buffers: Map<number, GPUBuffer> = new Map();
-  #values: Map<number, UniformValue> = new Map();
+  #values: Map<string, UniformValue> = new Map();
   #root: TgpuRoot;
 
   constructor(root: TgpuRoot) {
     this.#root = root;
   }
 
-  getValue(uniform: UniformInfo): UniformValue {
-    if (!this.#values.has(uniform.location)) {
+  getValue(name: string): UniformValue {
+    if (!this.#values.has(name)) {
       // Returning appropriate '0' value
       // TODO: Return more appropriate value based on data type
       return 0;
     }
-    return this.#values.get(uniform.location)!;
+    return this.#values.get(name)!;
   }
 
   getBuffer(uniform: UniformInfo): GPUBuffer {
@@ -44,12 +44,15 @@ export class UniformBufferCache {
   }
 
   updateUniform(
-    uniform: UniformLocation,
+    glLocation: ByeGLUniformLocation,
     value: UniformValue | Iterable<number>,
   ) {
-    this.#values.set(uniform.bindingIdx, value as UniformValue);
+    const location = glLocation[$internal];
+    this.#values.set(location.name, value as UniformValue);
 
-    if (uniform.dataType.type.startsWith('texture_')) {
+    const dataType = location.dataType;
+
+    if (dataType.type.startsWith('texture_')) {
       // No need to create a buffer for texture uniforms
       // We just need the value to get updated, so that
       // we can match up which texture to bind to
@@ -58,47 +61,47 @@ export class UniformBufferCache {
     }
 
     let serialized: ArrayBuffer;
-    if (uniform.dataType.type === 'bool') {
+    if (dataType.type === 'bool') {
       // Booleans are actually not host-shareable, so we use
       // u32 to pass `0` or `1`.
       serialized = new Uint32Array([value ? 1 : 0]).buffer;
-    } else if (uniform.dataType.type === 'u32') {
+    } else if (dataType.type === 'u32') {
       serialized = new Uint32Array([value as number]).buffer;
-    } else if (uniform.dataType.type === 'i32') {
+    } else if (dataType.type === 'i32') {
       serialized = new Int32Array([value as number]).buffer;
-    } else if (uniform.dataType.type === 'f32') {
+    } else if (dataType.type === 'f32') {
       serialized = new Float32Array([value as number]).buffer;
     } else if (
-      uniform.dataType.type === 'vec2f' ||
-      uniform.dataType.type === 'vec3f' ||
-      uniform.dataType.type === 'vec4f'
+      dataType.type === 'vec2f' ||
+      dataType.type === 'vec3f' ||
+      dataType.type === 'vec4f'
     ) {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
-      this.#values.set(uniform.bindingIdx, f32Array);
+      this.#values.set(location.name, f32Array);
     } else if (
-      uniform.dataType.type === 'vec2i' ||
-      uniform.dataType.type === 'vec3i' ||
-      uniform.dataType.type === 'vec4i'
+      dataType.type === 'vec2i' ||
+      dataType.type === 'vec3i' ||
+      dataType.type === 'vec4i'
     ) {
       // Making sure it's definitely a Int32Array, as a basic array could have been passed in
       const i32Array = new Int32Array([...(value as Int32Array)]);
       serialized = i32Array.buffer;
-      this.#values.set(uniform.bindingIdx, i32Array);
+      this.#values.set(location.name, i32Array);
     } else if (
-      uniform.dataType.type === 'vec2u' ||
-      uniform.dataType.type === 'vec3u' ||
-      uniform.dataType.type === 'vec4u'
+      dataType.type === 'vec2u' ||
+      dataType.type === 'vec3u' ||
+      dataType.type === 'vec4u'
     ) {
       // Making sure it's definitely a Uint32Array, as a basic array could have been passed in
       const u32Array = new Uint32Array([...(value as Uint32Array)]);
       serialized = u32Array.buffer;
-      this.#values.set(uniform.bindingIdx, u32Array);
+      this.#values.set(location.name, u32Array);
     } else if (
-      uniform.dataType.type === 'vec2<bool>' ||
-      uniform.dataType.type === 'vec3<bool>' ||
-      uniform.dataType.type === 'vec4<bool>'
+      dataType.type === 'vec2<bool>' ||
+      dataType.type === 'vec3<bool>' ||
+      dataType.type === 'vec4<bool>'
     ) {
       // Booleans are actually not host-shareable, so we use
       // u32 to pass `0` or `1`.
@@ -106,39 +109,40 @@ export class UniformBufferCache {
         [...(value as boolean[])].map((v) => (v ? 1 : 0)),
       ).buffer;
     } else if (
-      uniform.dataType.type === 'mat2x2f' ||
-      uniform.dataType.type === 'mat3x3f' ||
-      uniform.dataType.type === 'mat4x4f'
+      dataType.type === 'mat2x2f' ||
+      dataType.type === 'mat3x3f' ||
+      dataType.type === 'mat4x4f'
     ) {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
-      this.#values.set(uniform.bindingIdx, f32Array);
+      this.#values.set(location.name, f32Array);
     } else {
-      throw new Error(`Cannot serialize ${uniform.dataType.type} yet.`);
+      throw new Error(`Cannot serialize ${dataType.type} yet.`);
     }
 
-    const cached = this.#buffers.get(uniform.bindingIdx);
-    if (cached && cached.size === serialized.byteLength) {
-      this.#root.device.queue.writeBuffer(cached, 0, serialized);
+    const cached = this.#buffers.get(location.baseInfo.location);
+    if (cached) {
+      this.#root.device.queue.writeBuffer(
+        cached,
+        location.byteOffset,
+        serialized,
+      );
       return cached;
     }
 
-    // Destroying cached buffer if it exists
-    cached?.destroy();
-
     const buffer = this.#root.device.createBuffer({
       label: 'ByeGL Uniform Buffer',
-      size: serialized.byteLength,
+      size: sizeOf(location.baseInfo.type as AnyWgslData),
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       mappedAtCreation: true,
     });
-    this.#buffers.set(uniform.bindingIdx, buffer);
+    this.#buffers.set(location.baseInfo.location, buffer);
     // Filling out the buffer with data
     const mappedBuffer = new Uint8Array(buffer.getMappedRange());
     const inView = new Uint8Array(serialized);
     for (let i = 0; i < serialized.byteLength; i++) {
-      mappedBuffer[i] = inView[i];
+      mappedBuffer[i + location.byteOffset] = inView[i];
     }
     buffer.unmap();
     return buffer;
@@ -146,8 +150,13 @@ export class UniformBufferCache {
 }
 
 export interface UniformLocation {
-  bindingIdx: number;
+  name: string;
   byteOffset: number;
+  /**
+   * Amount of "elements" in the uniform location
+   */
+  size: number;
+  baseInfo: UniformInfo;
   dataType: ByeglData;
 }
 
@@ -155,8 +164,8 @@ export interface UniformLocation {
 export class ByeGLUniformLocation {
   readonly [$internal]: UniformLocation;
 
-  constructor(bindingIdx: number, byteOffset: number, dataType: ByeglData) {
-    this[$internal] = { bindingIdx, byteOffset, dataType };
+  constructor(data: UniformLocation) {
+    this[$internal] = data;
   }
 }
 
