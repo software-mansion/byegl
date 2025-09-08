@@ -733,10 +733,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.lastAttributeIdx++;
           } while (state.attributes.has(state.lastAttributeIdx));
 
-          state.attributePropKeys.set(
-            state.lastAttributeIdx,
-            this.uniqueId(decl.id.name),
-          );
+          state.attributePropKeys.set(state.lastAttributeIdx, decl.id.name);
 
           state.attributes.set(state.lastAttributeIdx, {
             id: decl.id.name,
