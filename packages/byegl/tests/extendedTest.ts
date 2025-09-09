@@ -2,11 +2,8 @@ import { test as base, vi } from 'vitest';
 import './webgpuGlobals.ts';
 import tgpu, { TgpuRoot } from 'typegpu';
 import { ByeGLContext } from '../src/byegl-context.ts';
+import * as byegl from '../src/index.ts';
 import { ShaderkitWGSLGenerator } from '../src/wgsl/shaderkit-wgsl-generator.ts';
-
-const rootMock = {
-  device: {},
-} as TgpuRoot;
 
 const canvasMock = {
   width: 100,
@@ -155,6 +152,10 @@ const mockDevice = {
   destroy: vi.fn(),
 };
 
+const rootMock = {
+  device: mockDevice,
+} as unknown as TgpuRoot;
+
 export const test = base.extend<{
   _global: undefined;
   commandEncoder: GPUCommandEncoder & { mock: typeof mockCommandEncoder };
@@ -203,3 +204,29 @@ export const test = base.extend<{
     await use(gl);
   },
 });
+
+export function toWgsl(
+  gl: WebGL2RenderingContext,
+  glsl1: string,
+  glsl2?: string | undefined,
+): { wgsl: string; program: WebGLProgram } {
+  const [glslVert, glslFrag] = glsl2 ? [glsl1, glsl2] : ['', glsl1];
+
+  const vert = gl.createShader(gl.VERTEX_SHADER)!;
+  gl.shaderSource(vert, glslVert);
+  gl.compileShader(vert);
+
+  const frag = gl.createShader(gl.FRAGMENT_SHADER)!;
+  gl.shaderSource(frag, glslFrag);
+  gl.compileShader(frag);
+
+  const program = gl.createProgram();
+  gl.attachShader(program, vert);
+  gl.attachShader(program, frag);
+  gl.linkProgram(program);
+
+  return {
+    wgsl: byegl.getWGSLSource(gl, program) ?? gl.getProgramInfoLog(program)!,
+    program,
+  };
+}

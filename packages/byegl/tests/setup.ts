@@ -24,10 +24,3 @@ globalThis.WebGLShaderPrecisionFormat =
   {} as typeof globalThis.WebGLShaderPrecisionFormat;
 globalThis.WebGLShaderPrecisionFormat.prototype =
   {} as typeof globalThis.WebGLShaderPrecisionFormat.prototype;
-
-if (!navigator.gpu) {
-  // @ts-expect-error
-  navigator.gpu = {
-    getPreferredCanvasFormat: () => 'rgba8unorm',
-  };
-}

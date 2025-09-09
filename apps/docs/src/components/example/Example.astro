@@ -85,7 +85,8 @@
         sourceButton.href = `https://github.com/software-mansion-labs/byegl/blob/main/apps/docs/src/examples/${exampleKey}/index.ts`;
         sourceButton.classList.remove("hidden");
 
-        runExample(example).catch(() => {
+        runExample(example).catch((err) => {
+            console.error(err);
             webgpuUnsupported.classList.remove("hidden");
         });
     }

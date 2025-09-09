@@ -139,3 +139,22 @@ export const depthFuncCatalog = {
   [gl.GEQUAL]: 'greater-equal',
   [gl.ALWAYS]: 'always',
 } as const;
+
+export const wgslTypeToEnumCatalog = {
+  bool: gl.BOOL,
+  f32: gl.FLOAT,
+  u32: gl.UNSIGNED_INT,
+  i32: gl.INT,
+  vec2i: gl.INT_VEC2,
+  vec3i: gl.INT_VEC3,
+  vec4i: gl.INT_VEC4,
+  vec2f: gl.FLOAT_VEC2,
+  vec3f: gl.FLOAT_VEC3,
+  vec4f: gl.FLOAT_VEC4,
+  'vec2<bool>': gl.BOOL_VEC2,
+  'vec3<bool>': gl.BOOL_VEC3,
+  'vec4<bool>': gl.BOOL_VEC4,
+  mat2x2f: gl.FLOAT_MAT2,
+  mat3x3f: gl.FLOAT_MAT3,
+  mat4x4f: gl.FLOAT_MAT4,
+};
