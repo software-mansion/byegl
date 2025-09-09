@@ -22,6 +22,7 @@ import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
+import { AttributeState } from './attribute.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -60,14 +61,9 @@ export class ByeGLContext {
   #program: ByeGLProgram | undefined;
 
   /**
-   * Set using gl.enableVertexAttribArray and gl.disableVertexAttribArray.
+   * The currently bound array buffer. Set using gl.bindBuffer(gl.ARRAY_BUFFER, ???).
    */
-  #enabledVertexAttribArrays = new Set<number>();
-
-  /**
-   * The currently bound buffers. Set using gl.bindBuffer.
-   */
-  #boundBufferMap: Map<GLenum, ByeGLBuffer> = new Map();
+  #boundArrayBuffer: ByeGLBuffer | null = null;
 
   /**
    * The active texture unit. Set using gl.activeTexture.
@@ -79,7 +75,6 @@ export class ByeGLContext {
    */
   #boundTexturesMap: Map<number, Map<GLenum, ByeGLTexture>> = new Map();
 
-  #vertexBufferSegments: VertexBufferSegment[] = [];
   #uniformBufferCache: UniformBufferCache;
 
   /**
@@ -110,9 +105,18 @@ export class ByeGLContext {
     [gl.BLEND_DST_ALPHA, gl.ZERO],
   ]);
 
+  #globalAttributeState: AttributeState = {
+    boundElementArrayBuffer: null,
+    enabledVertexAttribArrays: new Set(),
+    vertexBufferSegments: [],
+  };
+
+  #boundAttributeState: AttributeState = this.#globalAttributeState;
+
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
-    return this.#vertexBufferSegments.filter((segment) =>
-      this.#enabledVertexAttribArrays.has(segment.shaderLocation),
+    const state = this.#boundAttributeState;
+    return state.vertexBufferSegments.filter((segment) =>
+      state.enabledVertexAttribArrays.has(segment.shaderLocation),
     );
   }
 
@@ -141,15 +145,29 @@ export class ByeGLContext {
     this.#canvasContext = canvasCtx;
   }
 
+  #getBufferForTarget(target: GLenum): ByeGLBuffer | null {
+    if (target === gl.ARRAY_BUFFER) {
+      return this.#boundArrayBuffer;
+    }
+
+    if (target === gl.ELEMENT_ARRAY_BUFFER) {
+      const state = this.#boundAttributeState;
+      return state.boundElementArrayBuffer;
+    }
+
+    return null;
+  }
+
   #setAttribute(newSegment: VertexBufferSegment) {
+    const state = this.#boundAttributeState;
     let segment: VertexBufferSegment | undefined =
-      this.#vertexBufferSegments.find(
+      state.vertexBufferSegments.find(
         (seg) => seg.shaderLocation === newSegment.shaderLocation,
       );
 
     if (!segment) {
       segment = newSegment;
-      this.#vertexBufferSegments.push(segment);
+      state.vertexBufferSegments.push(segment);
       return;
     }
 
@@ -218,13 +236,19 @@ export class ByeGLContext {
   }
 
   bindBuffer(target: GLenum, buffer: ByeGLBuffer | null): void {
-    if (buffer) {
-      if (target === gl.ELEMENT_ARRAY_BUFFER) {
+    if (target === gl.ELEMENT_ARRAY_BUFFER) {
+      const state = this.#boundAttributeState;
+
+      if (buffer) {
         buffer[$internal].boundAsIndexBuffer = true;
+        state.boundElementArrayBuffer = buffer;
+      } else {
+        state.boundElementArrayBuffer = null;
       }
-      this.#boundBufferMap.set(target, buffer);
+    } else if (target === gl.ARRAY_BUFFER) {
+      this.#boundArrayBuffer = buffer;
     } else {
-      this.#boundBufferMap.delete(target);
+      throw new NotImplementedYetError(`gl.bindBuffer(${target}, ???)`);
     }
   }
 
@@ -296,9 +320,9 @@ export class ByeGLContext {
     dataOrSize: AllowSharedBufferSource | GLsizeiptr | null,
     usage: GLenum,
   ): void {
-    const buffer = this.#boundBufferMap.get(target);
+    const buffer = this.#getBufferForTarget(target);
     if (!buffer) {
-      throw new Error(`Buffer not bound to ${target}`);
+      return;
     }
     const $buffer = buffer[$internal];
 
@@ -472,6 +496,11 @@ export class ByeGLContext {
     return new ByeGLTexture(this.#root);
   }
 
+  createVertexArray(): WebGLVertexArrayObject {
+    // TODO: Implement
+    throw new NotImplementedYetError('gl.createVertexArray');
+  }
+
   cullFace(mode: GLenum): void {
     this.#parameters.set(gl.CULL_FACE_MODE, mode);
   }
@@ -534,7 +563,7 @@ export class ByeGLContext {
   }
 
   disableVertexAttribArray(index: GLuint): void {
-    this.#enabledVertexAttribArrays.delete(index);
+    this.#boundAttributeState.enabledVertexAttribArrays.delete(index);
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
@@ -571,9 +600,8 @@ export class ByeGLContext {
     const renderPass = this.#createRenderPass(encoder, mode);
 
     // Index buffer
-    const indexBuffer = this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER)?.[
-      $internal
-    ];
+    const attribState = this.#boundAttributeState;
+    const indexBuffer = attribState.boundElementArrayBuffer?.[$internal];
 
     if (!indexBuffer) {
       throw new Error('No index buffer bound');
@@ -602,7 +630,7 @@ export class ByeGLContext {
   }
 
   enableVertexAttribArray(index: GLuint): void {
-    this.#enabledVertexAttribArrays.add(index);
+    this.#boundAttributeState.enabledVertexAttribArrays.add(index);
   }
 
   finish(): void {
@@ -763,7 +791,7 @@ export class ByeGLContext {
         // (e.g. rgba16float)
         return 8;
       case gl.ARRAY_BUFFER_BINDING:
-        return this.#boundBufferMap.get(gl.ARRAY_BUFFER) ?? null;
+        return this.#boundArrayBuffer;
       case gl.BLEND:
         return this.#enabledCapabilities.has(gl.BLEND);
       case gl.BLEND_COLOR:
@@ -804,7 +832,8 @@ export class ByeGLContext {
       case gl.DITHER:
         return this.#enabledCapabilities.has(pname);
       case gl.ELEMENT_ARRAY_BUFFER_BINDING:
-        return this.#boundBufferMap.get(gl.ELEMENT_ARRAY_BUFFER) ?? null;
+        const attribState = this.#boundAttributeState;
+        return attribState.boundElementArrayBuffer;
       case gl.FRAMEBUFFER_BINDING:
         // TODO: Implement
         return null;
@@ -1649,9 +1678,7 @@ export class ByeGLContext {
       remappedStride += bytesPerElement;
     }
 
-    const currentlyBoundBuffer = this.#boundBufferMap.get(gl.ARRAY_BUFFER)?.[
-      $internal
-    ];
+    const currentlyBoundBuffer = this.#boundArrayBuffer?.[$internal];
 
     if (!currentlyBoundBuffer) {
       throw new Error('No buffer bound to ARRAY_BUFFER');
