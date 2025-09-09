@@ -69,18 +69,19 @@ class ByeGLProgramInternals {
         if (isPrimitive(elementType)) {
           this.populateUniform(
             { ...elementUniform, size: elementCount },
-            active,
+            active && i === 0,
           );
-          // An alias, not part of the active uniforms
-          this.populateUniform(
-            { ...elementUniform, name: uniform.name, size: elementCount },
-            /* active */ false,
-          );
-          // Just the first element and alias are fine.
-          break;
-        }
 
-        this.populateUniform(elementUniform, active);
+          if (i === 0) {
+            // An alias, not part of the active uniforms
+            this.populateUniform(
+              { ...elementUniform, name: uniform.name, size: elementCount },
+              /* active */ false,
+            );
+          }
+        } else {
+          this.populateUniform(elementUniform, active);
+        }
 
         byteOffset += elementSize;
       }

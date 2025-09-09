@@ -184,9 +184,7 @@ describe('getUniformLocation', () => {
     gl.attachShader(program, frag);
     gl.linkProgram(program);
 
-    // For now, array access returns null (not implemented)
-    // When implemented, these should return proper locations with offsets
-
+    // Structs themselves don't get locations, only primitives
     expect(
       extractUniformInfo(gl.getUniformLocation(program, 'u_light[0]')),
     ).toMatchInlineSnapshot(`null`);
@@ -223,6 +221,12 @@ describe('getUniformLocation', () => {
 
     expect(
       extractUniformInfo(gl.getUniformLocation(program, 'u_colors[1]')),
-    ).toMatchInlineSnapshot(`null`);
+    ).toMatchInlineSnapshot(`
+      {
+        "byteOffset": 16,
+        "dataType": "vec3f",
+        "location": 1,
+      }
+    `);
   });
 });
