@@ -177,8 +177,9 @@ interface GenState {
   /** Used to track variable declarations with the `uniform` qualifier */
   lastBindingIdx: number;
 
-  fakeVertexMainId: string;
-  fakeFragmentMainId: string;
+  fakeVertexMainId?: string | undefined;
+  fakeFragmentMainId?: string | undefined;
+  fragmentOutProxyId: string;
 
   lineStart: string;
   definingFunction: boolean;
@@ -642,20 +643,16 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       return '';
     }
 
-    if (state.disabledAtScope !== undefined) {
-      // Skip the statement if it's disabled
-      return '';
-    }
-
     if (statement.name === 'elif') {
       // If the adjacent if statement was disabling execution, the elif is supposed to run (given the condition is true)
       // If execution wasn't disabled, then the else should be skipped
       if (state.disabledAtScope === state.preprocessorScope) {
         const condition = this.precomputeExpression(statement.value![0]);
         state.disabledAtScope = condition ? undefined : state.preprocessorScope;
-      } else {
+      } else if (state.disabledAtScope === undefined) {
         state.disabledAtScope = state.preprocessorScope;
       }
+      return '';
     }
 
     if (statement.name === 'else') {
@@ -663,9 +660,15 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       // If execution wasn't disabled, then the else should be skipped
       if (state.disabledAtScope === state.preprocessorScope) {
         state.disabledAtScope = undefined;
-      } else {
+      } else if (state.disabledAtScope === undefined) {
         state.disabledAtScope = state.preprocessorScope;
       }
+      return '';
+    }
+
+    if (state.disabledAtScope !== undefined) {
+      // Skip the statement if it's disabled
+      return '';
     }
 
     if (statement.name === 'version') {
@@ -772,7 +775,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       let code = '';
 
       for (const decl of statement.declarations) {
-        const isUniform = decl.qualifiers.includes('uniform');
+        const qualifiers = decl.qualifiers;
+        const isUniform = qualifiers.includes('uniform');
+        const isAttribute =
+          qualifiers.includes('attribute') ||
+          (state.shaderType === 'vertex' && qualifiers.includes('in'));
+        const isVarying =
+          qualifiers.includes('varying') ||
+          (state.shaderType === 'vertex' && qualifiers.includes('out')) ||
+          (state.shaderType === 'fragment' && qualifiers.includes('in'));
+        const isFragmentOut =
+          state.shaderType === 'fragment' && qualifiers.includes('out');
 
         let { id, dataType } = this.getDataType(decl);
 
@@ -790,7 +803,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         }
         state.alreadyDefined.add(id);
 
-        if (decl.qualifiers.includes('attribute')) {
+        if (isFragmentOut) {
+          // We don't generate the variable, as it replaced the builtin 'gl_FragColor' proxy.
+          state.fragmentOutProxyId = id;
+        } else if (isAttribute) {
           // Finding the next available attribute index
           do {
             state.lastAttributeIdx++;
@@ -806,7 +822,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
           // Defining proxies
           code += `/* attribute */ var<private> ${id}: ${wgslTypeAlias};\n`;
-        } else if (decl.qualifiers.includes('varying')) {
+        } else if (isVarying) {
           // Finding the next available varying index
           do {
             state.lastVaryingIdx++;
@@ -826,7 +842,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             // Defining proxies
             code += `/* varying */ var<private> ${id}: ${wgslTypeAlias};\n`;
           }
-        } else if (decl.qualifiers.includes('uniform')) {
+        } else if (isUniform) {
           // Finding the next available uniform index
           do {
             state.lastBindingIdx++;
@@ -884,10 +900,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         // We're generating the entry function!
         // We approach it by generating a "fake" entry function
         // that gets called by the actual entry function.
-        funcName =
-          state.shaderType === 'vertex'
-            ? state.fakeVertexMainId
-            : state.fakeFragmentMainId;
+        if (state.shaderType === 'vertex') {
+          funcName = state.fakeVertexMainId =
+            state.fakeVertexMainId ?? this.uniqueId('fake_vertex');
+        } else {
+          funcName = state.fakeFragmentMainId =
+            state.fakeFragmentMainId ?? this.uniqueId('fake_fragment');
+        }
       }
 
       if (state.alreadyDefined.has(funcName)) {
@@ -1047,8 +1066,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       lastVaryingIdx: -1,
       lastBindingIdx: -1,
 
-      fakeVertexMainId: this.uniqueId('fake_vertex'),
-      fakeFragmentMainId: this.uniqueId('fake_fragment'),
+      fragmentOutProxyId: 'gl_FragColor',
 
       lineStart: '',
       definingFunction: false,
@@ -1071,11 +1089,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       throw error;
     }
 
-    let wgsl = `\
-var<private> gl_Position: vec4<f32>;
-var<private> gl_FragColor: vec4<f32>;
-
-`;
+    let wgsl = '\n\n';
 
     state.lastVaryingIdx = -1;
     state.shaderType = 'vertex';
@@ -1094,19 +1108,27 @@ var<private> gl_FragColor: vec4<f32>;
       wgsl += this.generateStatement(statement);
     }
 
+    wgsl += `
+var<private> gl_Position: vec4f;
+var<private> ${state.fragmentOutProxyId}: vec4f;
+`;
+
     // Generating the real entry functions
-    let vertexInStructId: string | undefined;
-    if (state.attributes.size > 0) {
-      vertexInStructId = this.uniqueId('VertexIn');
-      wgsl += `
+
+    if (state.fakeVertexMainId) {
+      let vertexInStructId: string | undefined;
+      if (state.attributes.size > 0) {
+        vertexInStructId = this.uniqueId('VertexIn');
+        wgsl += `
 struct ${vertexInStructId} {
 ${[...state.attributes.values()].map((attribute) => `@location(${attribute.location}) ${state.attributePropKeys.get(attribute.location)}: ${this.aliasOf(attribute.type)},`).join('\n')}
 }`;
-    }
-    // Vertex output struct
-    const vertOutStructId = this.uniqueId('VertexOut');
-    const posOutParamId = this.uniqueId('posOut');
-    wgsl += `
+      }
+
+      // Vertex output struct
+      const vertOutStructId = this.uniqueId('VertexOut');
+      const posOutParamId = this.uniqueId('posOut');
+      wgsl += `
 struct ${vertOutStructId} {
   @builtin(position) ${posOutParamId}: vec4f,
 ${[...state.varyings.values()].map((varying) => `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`).join('\n')}
@@ -1114,25 +1136,7 @@ ${[...state.varyings.values()].map((varying) => `  @location(${varying.location}
 
 `;
 
-    // Fragment input struct
-    let fragInStructId: string | undefined;
-    if (state.varyings.size > 0) {
-      fragInStructId = this.uniqueId('FragmentIn');
-      const fragInParams = [...state.varyings.values()]
-        .map(
-          (varying) =>
-            `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`,
-        )
-        .join('\n');
       wgsl += `
-struct ${fragInStructId} {
-${fragInParams}
-}
-
-`;
-    }
-
-    wgsl += `
 @vertex
 fn ${this.uniqueId('vert_main')}(${vertexInStructId ? `input: ${vertexInStructId}` : ''}) -> ${vertOutStructId} {
 ${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = input.${attribute.id};\n`).join('')}
@@ -1145,15 +1149,38 @@ ${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = input.$
 ${[...state.varyings.values()].map((varying) => `  output.${varying.id} = ${varying.id};\n`).join('')}
   return output;
 }
+`;
+    }
 
+    if (state.fakeFragmentMainId) {
+      // Fragment input struct
+      let fragInStructId: string | undefined;
+      if (state.varyings.size > 0) {
+        fragInStructId = this.uniqueId('FragmentIn');
+        const fragInParams = [...state.varyings.values()]
+          .map(
+            (varying) =>
+              `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`,
+          )
+          .join('\n');
+        wgsl += `
+struct ${fragInStructId} {
+${fragInParams}
+}
+
+`;
+      }
+
+      wgsl += `
 @fragment
 fn ${this.uniqueId('frag_main')}(${fragInStructId ? `input: ${fragInStructId}` : ''}) -> @location(0) vec4f {
   // Filling proxies with varying data
 ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
-  ${this.#state.fakeFragmentMainId}();
-  return gl_FragColor;
+  ${state.fakeFragmentMainId}();
+  return ${state.fragmentOutProxyId};
 }
 `;
+    }
 
     const resolvedWgsl =
       '// Generated by byegl\n\n' +
