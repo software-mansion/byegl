@@ -1,5 +1,5 @@
 import { TgpuRoot } from 'typegpu';
-import { AnyWgslData, alignmentOf, sizeOf } from 'typegpu/data';
+import { AttributeState, ByeGLVertexArrayObject } from './attribute.ts';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import {
   blendEquationMap,
@@ -15,14 +15,12 @@ import {
 import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { ByeGLFramebuffer } from './framebuffer.ts';
-import { roundUp } from './math-utils.ts';
 import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
-import { AttributeState, ByeGLVertexArrayObject } from './attribute.ts';
 
 const gl = WebGL2RenderingContext;
 
