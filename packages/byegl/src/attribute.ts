@@ -1,4 +1,5 @@
-import { ByeGLBuffer, VertexBufferSegment } from './buffer';
+import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
+import { $internal } from './types.ts';
 
 /**
  * WebGL state related to attributes. There is a global AttributeState, but
@@ -16,4 +17,16 @@ export interface AttributeState {
    * Set using gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ???).
    */
   boundElementArrayBuffer: ByeGLBuffer | null;
+}
+
+export class ByeGLVertexArrayObject {
+  readonly [$internal]: AttributeState;
+
+  constructor() {
+    this[$internal] = {
+      boundElementArrayBuffer: null,
+      enabledVertexAttribArrays: new Set(),
+      vertexBufferSegments: [],
+    };
+  }
 }

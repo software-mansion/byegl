@@ -1,3 +1,4 @@
+import * as byegl from 'byegl';
 import type { ExampleContext } from '../../types.ts';
 
 export default function ({ canvas }: ExampleContext) {
@@ -48,6 +49,12 @@ export default function ({ canvas }: ExampleContext) {
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
+
+  console.log('Program Info: ', gl.getProgramInfoLog(program));
+
+  if (byegl.isIntercepted(gl)) {
+    console.log(byegl.getWGSLSource(gl, program));
+  }
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   const colorLocation = gl.getAttribLocation(program, 'a_color');

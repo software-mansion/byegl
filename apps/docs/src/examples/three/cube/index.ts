@@ -3,6 +3,7 @@ import type { ExampleContext } from '../../types.ts';
 
 export default function ({ canvas }: ExampleContext) {
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#222244');
   const camera = new THREE.PerspectiveCamera(
     75,
     canvas.width / canvas.height,

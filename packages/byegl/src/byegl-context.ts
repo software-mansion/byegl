@@ -22,7 +22,7 @@ import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
-import { AttributeState } from './attribute.ts';
+import { AttributeState, ByeGLVertexArrayObject } from './attribute.ts';
 
 const gl = WebGL2RenderingContext;
 
@@ -279,6 +279,14 @@ export class ByeGLContext {
     }
   }
 
+  bindVertexArray(vao: ByeGLVertexArrayObject | null): void {
+    if (vao !== null) {
+      this.#boundAttributeState = vao[$internal];
+    } else {
+      this.#boundAttributeState = this.#globalAttributeState;
+    }
+  }
+
   blendColor(r: number, g: number, b: number, a: number): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.blendColor');
@@ -497,8 +505,7 @@ export class ByeGLContext {
   }
 
   createVertexArray(): WebGLVertexArrayObject {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.createVertexArray');
+    return new ByeGLVertexArrayObject();
   }
 
   cullFace(mode: GLenum): void {
