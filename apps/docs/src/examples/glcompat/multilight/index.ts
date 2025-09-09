@@ -171,10 +171,6 @@ export default function ({ canvas, trace }: ExampleContext) {
         gl.getUniformLocation(program, `u_light[${i}].color`),
         colors[i],
       );
-      gl.uniform3fv(
-        gl.getUniformLocation(program, `u_colors[${i}]`),
-        [1, 1, 1],
-      );
     }
 
     gl.clearColor(0, 0, 0, 1);
