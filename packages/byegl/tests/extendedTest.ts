@@ -209,7 +209,7 @@ export function toWgsl(
   gl: WebGL2RenderingContext,
   glsl1: string,
   glsl2?: string | undefined,
-): string {
+): { wgsl: string; program: WebGLProgram } {
   const [glslVert, glslFrag] = glsl2 ? [glsl1, glsl2] : ['', glsl1];
 
   const vert = gl.createShader(gl.VERTEX_SHADER)!;
@@ -225,5 +225,8 @@ export function toWgsl(
   gl.attachShader(program, frag);
   gl.linkProgram(program);
 
-  return byegl.getWGSLSource(gl, program) ?? gl.getProgramInfoLog(program)!;
+  return {
+    wgsl: byegl.getWGSLSource(gl, program) ?? gl.getProgramInfoLog(program)!,
+    program,
+  };
 }

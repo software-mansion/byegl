@@ -140,9 +140,11 @@ export const depthFuncCatalog = {
   [gl.ALWAYS]: 'always',
 } as const;
 
-export const uniformTypeCatalog = {
+export const wgslTypeToEnumCatalog = {
   bool: gl.BOOL,
-  float: gl.FLOAT,
+  f32: gl.FLOAT,
+  u32: gl.UNSIGNED_INT,
+  i32: gl.INT,
   vec2i: gl.INT_VEC2,
   vec3i: gl.INT_VEC3,
   vec4i: gl.INT_VEC4,

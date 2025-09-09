@@ -1,7 +1,7 @@
 import { describe, expect } from 'vitest';
 import * as byegl from '../src/index.ts';
 import { $internal } from '../src/types.ts';
-import { ByeGLUniformLocation, extractAccessPath } from '../src/uniform.ts';
+import { ByeGLUniformLocation } from '../src/uniform.ts';
 import { test } from './extendedTest.ts';
 
 function extractUniformInfo(location: WebGLUniformLocation | null) {
@@ -11,7 +11,7 @@ function extractUniformInfo(location: WebGLUniformLocation | null) {
   const internal = (location as ByeGLUniformLocation)[$internal];
 
   return {
-    bindingIdx: internal.bindingIdx,
+    location: internal.baseInfo.location,
     byteOffset: internal.byteOffset,
     dataType: String(internal.dataType),
   };
@@ -76,77 +76,6 @@ describe('float uniform', () => {
   });
 });
 
-describe('extractAccessPath', () => {
-  test('simple uniform name', () => {
-    expect(extractAccessPath('uniformName')).toEqual(['uniformName']);
-  });
-
-  test('uniform with array index', () => {
-    expect(extractAccessPath('uniformName[0]')).toEqual(['uniformName', 0]);
-  });
-
-  test('uniform with property access', () => {
-    expect(extractAccessPath('uniformName.subUniform')).toEqual([
-      'uniformName',
-      'subUniform',
-    ]);
-  });
-
-  test('uniform with array index and property access', () => {
-    expect(extractAccessPath('uniformName[0].subUniform')).toEqual([
-      'uniformName',
-      0,
-      'subUniform',
-    ]);
-  });
-
-  test('uniform with multiple array indices', () => {
-    expect(extractAccessPath('uniformName[0][1]')).toEqual([
-      'uniformName',
-      0,
-      1,
-    ]);
-  });
-
-  test('uniform with nested property access', () => {
-    expect(extractAccessPath('uniformName.prop1.prop2')).toEqual([
-      'uniformName',
-      'prop1',
-      'prop2',
-    ]);
-  });
-
-  test('uniform with mixed array and property access', () => {
-    expect(extractAccessPath('uniformName[1].prop[2].subProp')).toEqual([
-      'uniformName',
-      1,
-      'prop',
-      2,
-      'subProp',
-    ]);
-  });
-
-  test('empty string', () => {
-    expect(extractAccessPath('')).toBeUndefined();
-  });
-
-  test('string with only separators', () => {
-    expect(extractAccessPath('...')).toBeUndefined();
-  });
-
-  test('string with only brackets', () => {
-    expect(extractAccessPath('[]')).toBeUndefined();
-  });
-
-  test('large array index', () => {
-    expect(extractAccessPath('uniformName[999]')).toEqual(['uniformName', 999]);
-  });
-
-  test('zero index', () => {
-    expect(extractAccessPath('uniformName[0]')).toEqual(['uniformName', 0]);
-  });
-});
-
 describe('getUniformLocation', () => {
   test('basic uniform location', ({ gl }) => {
     const glslVert = `
@@ -183,9 +112,9 @@ describe('getUniformLocation', () => {
     const fooLocation = gl.getUniformLocation(program, 'u_foo');
     expect(extractUniformInfo(fooLocation)).toMatchInlineSnapshot(`
       {
-        "bindingIdx": 0,
         "byteOffset": 0,
         "dataType": "f32Cast",
+        "location": 0,
       }
     `);
 
@@ -193,9 +122,9 @@ describe('getUniformLocation', () => {
     const vec3Location = gl.getUniformLocation(program, 'u_vec3');
     expect(extractUniformInfo(vec3Location)).toMatchInlineSnapshot(`
       {
-        "bindingIdx": 2,
         "byteOffset": 0,
         "dataType": "vec3f",
+        "location": 2,
       }
     `);
 
@@ -204,9 +133,9 @@ describe('getUniformLocation', () => {
     expect(mat4Location).not.toBeNull();
     expect(extractUniformInfo(mat4Location)).toMatchInlineSnapshot(`
       {
-        "bindingIdx": 3,
         "byteOffset": 0,
         "dataType": "mat4x4f",
+        "location": 3,
       }
     `);
   });
@@ -260,21 +189,15 @@ describe('getUniformLocation', () => {
 
     expect(
       extractUniformInfo(gl.getUniformLocation(program, 'u_light[0]')),
-    ).toMatchInlineSnapshot(`
-      {
-        "bindingIdx": 0,
-        "byteOffset": 0,
-        "dataType": "struct:Light",
-      }
-    `);
+    ).toMatchInlineSnapshot(`null`);
 
     expect(
       extractUniformInfo(gl.getUniformLocation(program, 'u_light[0].position')),
     ).toMatchInlineSnapshot(`
       {
-        "bindingIdx": 0,
         "byteOffset": 0,
         "dataType": "vec3f",
+        "location": 0,
       }
     `);
 
@@ -282,9 +205,9 @@ describe('getUniformLocation', () => {
       extractUniformInfo(gl.getUniformLocation(program, 'u_light[1].color')),
     ).toMatchInlineSnapshot(`
       {
-        "bindingIdx": 0,
         "byteOffset": 48,
         "dataType": "vec3f",
+        "location": 0,
       }
     `);
 
@@ -292,20 +215,14 @@ describe('getUniformLocation', () => {
       extractUniformInfo(gl.getUniformLocation(program, 'u_colors[0]')),
     ).toMatchInlineSnapshot(`
       {
-        "bindingIdx": 1,
         "byteOffset": 0,
         "dataType": "vec3f",
+        "location": 1,
       }
     `);
 
     expect(
       extractUniformInfo(gl.getUniformLocation(program, 'u_colors[1]')),
-    ).toMatchInlineSnapshot(`
-      {
-        "bindingIdx": 1,
-        "byteOffset": 16,
-        "dataType": "vec3f",
-      }
-    `);
+    ).toMatchInlineSnapshot(`null`);
   });
 });

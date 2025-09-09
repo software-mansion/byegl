@@ -9,8 +9,8 @@ import {
   normalizedVertexFormatCatalog,
   primitiveMap,
   shaderPrecisionFormatCatalog,
-  uniformTypeCatalog,
   unnormalizedVertexFormatCatalog,
+  wgslTypeToEnumCatalog,
 } from './constants.ts';
 import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
@@ -20,11 +20,7 @@ import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
-import {
-  ByeGLUniformLocation,
-  extractAccessPath,
-  UniformBufferCache,
-} from './uniform.ts';
+import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
 
 const gl = WebGL2RenderingContext;
@@ -648,11 +644,27 @@ export class ByeGLContext {
   }
 
   getActiveAttrib(
-    program: WebGLProgram,
+    glProgram: ByeGLProgram,
     index: GLuint,
   ): WebGLActiveInfo | null {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getActiveAttrib');
+    const program = glProgram[$internal];
+    const attrib = program.activeAttribs[index];
+    if (!attrib) {
+      this.#lastError = gl.INVALID_VALUE;
+      return null;
+    }
+
+    if (!(attrib.type.type in wgslTypeToEnumCatalog)) {
+      throw new Error(`Unsupported attribute type: ${attrib.type.type}`);
+    }
+
+    return {
+      name: attrib.id,
+      size: 1,
+      type: wgslTypeToEnumCatalog[
+        attrib.type.type as keyof typeof wgslTypeToEnumCatalog
+      ],
+    };
   }
 
   getActiveUniform(
@@ -666,15 +678,15 @@ export class ByeGLContext {
       return null;
     }
 
-    if (!(uniform.dataType.type in uniformTypeCatalog)) {
+    if (!(uniform.dataType.type in wgslTypeToEnumCatalog)) {
       throw new Error(`Unsupported uniform type: ${uniform.dataType.type}`);
     }
 
     return {
       name: uniform.name,
       size: uniform.size,
-      type: uniformTypeCatalog[
-        uniform.dataType.type as keyof typeof uniformTypeCatalog
+      type: wgslTypeToEnumCatalog[
+        uniform.dataType.type as keyof typeof wgslTypeToEnumCatalog
       ],
     };
   }
@@ -1151,6 +1163,9 @@ export class ByeGLContext {
         });
       }
 
+      // Populating active attributes
+      program.activeAttribs = result.attributes;
+
       program.compiled = result;
       const module = this.#root.device.createShaderModule({
         label: 'ByeGL Shader Module',
@@ -1417,6 +1432,12 @@ export class ByeGLContext {
     }
   }
 
+  uniform1ui(location: ByeGLUniformLocation | null, value: GLuint) {
+    if (location) {
+      this.#uniformBufferCache.updateUniform(location, value);
+    }
+  }
+
   uniform1iv(
     location: ByeGLUniformLocation | null,
     value: Iterable<GLint> | Int32List,
@@ -1658,7 +1679,7 @@ export class ByeGLContext {
 
     if (uniform.type.type === 'sampler') {
       return this.#getTextureForUniform(
-        compiled.samplerToTextureMap.get(uniform.location)!,
+        compiled.samplerToTextureMap.get(uniform)!,
       );
     }
 

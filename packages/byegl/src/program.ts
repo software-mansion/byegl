@@ -1,8 +1,14 @@
-import { alignmentOf, AnyWgslData, sizeOf } from 'typegpu/data';
+import {
+  type AnyWgslData,
+  alignmentOf,
+  isDecorated,
+  sizeOf,
+} from 'typegpu/data';
+import { isPrimitive } from './data-types.ts';
+import { roundUp } from './math-utils.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformLocation } from './uniform.ts';
-import { WgslGeneratorResult } from './wgsl/wgsl-generator.ts';
-import { roundUp } from './math-utils.ts';
+import { AttributeInfo, WgslGeneratorResult } from './wgsl/wgsl-generator.ts';
 
 export class ByeGLShader implements WebGLShader {
   readonly [$internal]: {
@@ -26,26 +32,32 @@ class ByeGLProgramInternals {
   compiled: WgslGeneratorResult | undefined;
   uniformLocationsMap: Map<string, ByeGLUniformLocation> | undefined;
   activeUniforms: ByeGLUniformLocation[] = [];
+  activeAttribs: AttributeInfo[] = [];
   infoLog: string = '';
   wgpuShaderModule: GPUShaderModule | undefined;
 
   constructor() {}
 
-  populateUniform(uniform: UniformLocation, active = true) {
+  populateUniform(uniform: UniformLocation, active = true): void {
     let byteOffset = uniform.byteOffset;
+    let dataType = uniform.dataType;
+    if (isDecorated(dataType)) {
+      dataType = dataType.inner;
+    }
 
-    if (uniform.dataType.type === 'array') {
-      if (uniform.dataType.elementCount === 0) {
+    if (dataType.type === 'array') {
+      const elementCount = dataType.elementCount;
+      if (elementCount === 0) {
         return;
       }
 
-      const elementType = uniform.dataType.elementType as AnyWgslData;
+      const elementType = dataType.elementType as AnyWgslData;
       const elementSize = roundUp(
         sizeOf(elementType),
         alignmentOf(elementType),
       );
 
-      for (let i = 0; i < uniform.dataType.elementCount; ++i) {
+      for (let i = 0; i < elementCount; ++i) {
         const elementUniform: UniformLocation = {
           baseInfo: uniform.baseInfo,
           name: `${uniform.name}[${i}]`,
@@ -53,23 +65,31 @@ class ByeGLProgramInternals {
           byteOffset,
           dataType: elementType,
         };
+
+        if (isPrimitive(elementType)) {
+          this.populateUniform(
+            { ...elementUniform, size: elementCount },
+            active,
+          );
+          // An alias, not part of the active uniforms
+          this.populateUniform(
+            { ...elementUniform, name: uniform.name, size: elementCount },
+            /* active */ false,
+          );
+          // Just the first element and alias are fine.
+          break;
+        }
+
         this.populateUniform(elementUniform, active);
-        // An alias, not part of the active uniforms
-        this.populateUniform(
-          { ...elementUniform, name: uniform.name },
-          /* active */ false,
-        );
+
         byteOffset += elementSize;
       }
 
       return;
     }
 
-    if (uniform.dataType.type === 'struct') {
-      const propTypes = uniform.dataType.propTypes as Record<
-        string,
-        AnyWgslData
-      >;
+    if (dataType.type === 'struct') {
+      const propTypes = dataType.propTypes as Record<string, AnyWgslData>;
       for (const [propKey, propType] of Object.entries(propTypes)) {
         // Aligning to the start of the prop
         byteOffset = roundUp(byteOffset, alignmentOf(propType));
@@ -87,12 +107,15 @@ class ByeGLProgramInternals {
 
         byteOffset += sizeOf(propType);
       }
-      byteOffset = roundUp(byteOffset, alignmentOf(uniform.dataType));
+      byteOffset = roundUp(byteOffset, alignmentOf(dataType));
 
       return;
     }
 
-    const location = new ByeGLUniformLocation(uniform);
+    const location = new ByeGLUniformLocation({
+      ...uniform,
+      dataType,
+    });
     this.uniformLocationsMap!.set(uniform.name, location);
 
     if (active) {

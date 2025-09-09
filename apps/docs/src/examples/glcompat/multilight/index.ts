@@ -76,12 +76,22 @@ export default function ({ canvas, trace }: ExampleContext) {
     console.error('Error linking program:', gl.getProgramInfoLog(program));
   }
 
+  console.log('Uniforms:');
   for (
     let i = 0;
     i < gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
     i++
   ) {
     console.log(gl.getActiveUniform(program, i));
+  }
+
+  console.log('Attributes:');
+  for (
+    let i = 0;
+    i < gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+    i++
+  ) {
+    console.log(gl.getActiveAttrib(program, i));
   }
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
@@ -160,6 +170,10 @@ export default function ({ canvas, trace }: ExampleContext) {
       gl.uniform3fv(
         gl.getUniformLocation(program, `u_light[${i}].color`),
         colors[i],
+      );
+      gl.uniform3fv(
+        gl.getUniformLocation(program, `u_colors[${i}]`),
+        [1, 1, 1],
       );
     }
 

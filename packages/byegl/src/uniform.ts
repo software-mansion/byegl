@@ -168,29 +168,3 @@ export class ByeGLUniformLocation {
     this[$internal] = data;
   }
 }
-
-/**
- * Extracts parts from a uniform location query
- *
- * @example
- * extractAccessPath('uniformName[0].subUniform');
- * // Output: ['uniformName', 0, 'subUniform']
- *
- * @param query
- */
-export function extractAccessPath(
-  query: string,
-): (string | number)[] | undefined {
-  // Splits on any dot or bracket
-  const parts = query.split(/[\.\[\]]+/);
-  const result: (string | number)[] = [];
-
-  for (const part of parts) {
-    if (part !== '') {
-      const num = Number.parseInt(part, 10);
-      result.push(isNaN(num) ? part : num);
-    }
-  }
-
-  return result.length > 0 ? result : undefined;
-}
