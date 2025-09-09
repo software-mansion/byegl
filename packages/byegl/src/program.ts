@@ -42,7 +42,7 @@ class ByeGLProgramInternals {
     let byteOffset = uniform.byteOffset;
     let dataType = uniform.dataType;
     if (isDecorated(dataType)) {
-      dataType = dataType.inner;
+      dataType = dataType.inner as AnyWgslData;
     }
 
     if (dataType.type === 'array') {

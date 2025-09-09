@@ -1,7 +1,8 @@
 import type { TgpuRoot } from 'typegpu';
 import { type AnyWgslData, sizeOf } from 'typegpu/data';
+import type { ByeglData } from './data-types.ts';
 import { $internal } from './types.ts';
-import type { ByeglData, UniformInfo } from './wgsl/wgsl-generator.ts';
+import type { UniformInfo } from './wgsl/wgsl-generator.ts';
 
 export type UniformValue =
   | number
