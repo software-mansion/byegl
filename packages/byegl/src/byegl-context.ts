@@ -1,5 +1,9 @@
 import { TgpuRoot } from 'typegpu';
-import { AttributeState, ByeGLVertexArrayObject } from './attribute.ts';
+import {
+  AttributeState,
+  ByeGLVertexArrayObject,
+  destroyVAO,
+} from './attribute.ts';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import {
   blendEquationMap,
@@ -541,6 +545,10 @@ export class ByeGLContext {
     if (texture) {
       texture[$internal].destroy();
     }
+  }
+
+  deleteVertexArray(vao: ByeGLVertexArrayObject | null): void {
+    vao && destroyVAO(vao);
   }
 
   depthFunc(func: GLenum): void {
