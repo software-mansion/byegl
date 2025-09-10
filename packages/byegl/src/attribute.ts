@@ -30,3 +30,10 @@ export class ByeGLVertexArrayObject {
     };
   }
 }
+
+export function destroyVAO(vao: ByeGLVertexArrayObject) {
+  const internal = vao[$internal];
+  internal.boundElementArrayBuffer = null;
+  internal.enabledVertexAttribArrays.clear();
+  internal.vertexBufferSegments = [];
+}
