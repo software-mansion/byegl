@@ -28,6 +28,15 @@ interface PreprocessorMacro {
   expr: shaderkit.Expression;
 }
 
+interface FunctionSignature {
+  key: string; // Unique key representing the function signature
+  originalName: string;
+  shaderType: 'vertex' | 'fragment';
+  paramTypes: ByeglData[];
+  astNode: shaderkit.FunctionDeclaration;
+  mangledName: string; // The unique name to be used in wgsl
+}
+
 const glslToWgslTypeMap = {
   void: d.Void,
   int: d.i32,
@@ -181,6 +190,7 @@ interface GenState {
    * the two shaders, but with a different values.
    */
   alreadyDefined: Set<string>;
+  functionMap: Map<string, FunctionSignature>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
   functions: Map<
