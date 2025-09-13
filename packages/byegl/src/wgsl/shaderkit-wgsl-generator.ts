@@ -24,6 +24,15 @@ interface PreprocessorMacro {
   expr: shaderkit.Expression;
 }
 
+interface FunctionSignature {
+  key: string; // Unique key representing the function signature
+  originalName: string;
+  shaderType: 'vertex' | 'fragment';
+  paramTypes: ByeglData[];
+  astNode: shaderkit.FunctionDeclaration;
+  mangledName: string; // The unique name to be used in wgsl
+}
+
 const glslToWgslTypeMap = {
   int: d.i32,
   float: d.f32,
@@ -153,6 +162,7 @@ interface GenState {
    * the two shaders, but with a different values.
    */
   alreadyDefined: Set<string>;
+  functionMap: Map<string, FunctionSignature>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
 
@@ -275,6 +285,142 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     return key;
   }
 
+  #getSignatureKey(
+    name: string,
+    paramTypes: ByeglData[],
+    shaderType: 'vertex' | 'fragment',
+  ): string {
+    const typeNames = paramTypes.map((type) => this.aliasOf(type)).join('_');
+    return `${name}_${typeNames}_${shaderType}`;
+  }
+
+  #collectSignatures(
+    ast: shaderkit.Program,
+    shaderType: 'vertex' | 'fragment',
+  ): { signatures: FunctionSignature[]; identifiers: Set<string> } {
+    const signatures: FunctionSignature[] = [];
+    const identifiers = new Set<string>();
+
+    for (const statement of ast.body) {
+      if (statement.type === 'FunctionDeclaration') {
+        if (statement.id.name === 'main') continue;
+        const paramTypes = statement.params
+          .map((param) => this.getDataType(param.typeSpecifier))
+          .filter((type) => type !== d.Void);
+
+        const signatureKey = this.#getSignatureKey(
+          statement.id.name,
+          paramTypes,
+          shaderType,
+        );
+        signatures.push({
+          key: signatureKey,
+          originalName: statement.id.name,
+          shaderType,
+          paramTypes,
+          astNode: statement,
+          mangledName: '',
+        });
+        identifiers.add(statement.id.name);
+      } else if (statement.type === 'VariableDeclaration') {
+        statement.declarations.forEach((d) => identifiers.add(d.id.name));
+      } else if (statement.type === 'StructDeclaration') {
+        identifiers.add(statement.id.name);
+      }
+    }
+    return { signatures, identifiers };
+  }
+
+  #mangleFunctionNames(
+    allSignatures: FunctionSignature[],
+    allIdentifiers: Set<string>,
+  ): void {
+    const groupedByName = new Map<string, FunctionSignature[]>();
+    for (const sig of allSignatures) {
+      if (!groupedByName.has(sig.originalName)) {
+        groupedByName.set(sig.originalName, []);
+      }
+      groupedByName.get(sig.originalName)!.push(sig);
+    }
+    for (const [name, sigs] of groupedByName.entries()) {
+      // If the function name is unique, no need to mangle
+      if (sigs.length === 1) {
+        const sig = sigs[0];
+        let finalName = name;
+        let counter = 1;
+        // Only run if there's a conflict and the conflict isn't with itself
+        while (
+          allIdentifiers.has(finalName) &&
+          finalName !== sig.originalName
+        ) {
+          finalName = `${name}_${counter++}`;
+        }
+        allIdentifiers.add(finalName);
+        sig.mangledName = finalName;
+        continue;
+      }
+
+      for (const sig of sigs) {
+        let baseName = name;
+        const typeSuffix = sig.paramTypes.map((p) => this.aliasOf(p)).join('_');
+        // Only append type suffix if there are parameters
+        if (typeSuffix) {
+          baseName += `_${typeSuffix}`;
+        }
+        // Check if an identical function (same name and param types) already exists in another shader stage
+        const hasSameSignatureInOtherStage = allSignatures.some(
+          (s) =>
+            s.originalName === sig.originalName &&
+            s.shaderType !== sig.shaderType &&
+            s.paramTypes.length === sig.paramTypes.length &&
+            s.paramTypes.every((type, idx) => type === sig.paramTypes[idx]),
+        );
+        if (hasSameSignatureInOtherStage) {
+          baseName += `_${sig.shaderType}`;
+        }
+        // Ensure the new name doesn't conflict with existing identifiers
+        // In case a user defined function already has the mangled name
+        let finalName = baseName;
+        let counter = 1;
+        while (allIdentifiers.has(finalName)) {
+          finalName = `${baseName}_${counter++}`;
+        }
+        allIdentifiers.add(finalName);
+        sig.mangledName = finalName;
+      }
+    }
+  }
+
+  #analyzeAndMangleFunctions(
+    vertexAst: shaderkit.Program,
+    fragmentAst: shaderkit.Program,
+  ): Map<string, FunctionSignature> {
+    // First pass: collect all function signatures and identifiers
+    const vertexResult = this.forkState({ shaderType: 'vertex' }, () =>
+      this.#collectSignatures(vertexAst, 'vertex'),
+    );
+    const fragmentResult = this.forkState({ shaderType: 'fragment' }, () =>
+      this.#collectSignatures(fragmentAst, 'fragment'),
+    );
+
+    const allSignatures = [
+      ...vertexResult.signatures,
+      ...fragmentResult.signatures,
+    ];
+    const allIdentifiers = new Set([
+      ...vertexResult.identifiers,
+      ...fragmentResult.identifiers,
+    ]);
+
+    // Second pass: mangle function names to ensure uniqueness
+    this.#mangleFunctionNames(allSignatures, allIdentifiers);
+    // Third pass: create a map for easy lookup
+    const functionMap = new Map<string, FunctionSignature>();
+    for (const sig of allSignatures) {
+      functionMap.set(sig.key, sig);
+    }
+    return functionMap;
+  }
   generateCallExpression(expression: shaderkit.CallExpression): Snippet {
     const state = this.#state;
 
@@ -327,7 +473,15 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       !state.extraFunctions.has(funcName) &&
       !state.preprocessorMacros.has(funcName)
     ) {
-      funcName += state.shaderType === 'vertex' ? '_vert' : '_frag';
+      // This is a user defined function, look up its mangled name.
+      const paramTypes = args.map((arg) => arg.type as ByeglData);
+      const key = this.#getSignatureKey(funcName, paramTypes, state.shaderType);
+      const signature = state.functionMap.get(key);
+      if (signature) {
+        funcName = signature.mangledName;
+      }
+      // If no signature is found, we assume it's a built-in function or an external function
+      // leave as it is and hope for the best
     }
 
     return snip(`${funcName}(${argsValue})`, UnknownType);
@@ -841,7 +995,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             ? state.fakeVertexMainId
             : state.fakeFragmentMainId;
       } else {
-        funcName += state.shaderType === 'vertex' ? '_vert' : '_frag';
+        // Look up the mangled name
+        const paramTypes = statement.params
+          .map((param) => this.getDataType(param.typeSpecifier))
+          .filter((type) => type !== d.Void);
+        const key = this.#getSignatureKey(
+          funcName,
+          paramTypes,
+          state.shaderType,
+        );
+        const signature = state.functionMap.get(key)!; // Must exist
+        funcName = signature.mangledName;
       }
       if (state.alreadyDefined.has(funcName)) {
         return '';
@@ -950,6 +1114,11 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       disabledAtScope: undefined,
 
       alreadyDefined: new Set(),
+      // Populated after parsing both shaders
+      // to allow cross-stage function calls
+      // (which will be mangled to avoid conflicts)
+      // See #analyzeAndMangleFunctions
+      functionMap: new Map(),
       typeDefs: new Map(),
       extraFunctions: new Map(),
       aliases: new Map(),
@@ -994,7 +1163,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       console.error('Error parsing fragment shader:', fragmentCode);
       throw error;
     }
-
+    state.functionMap = this.#analyzeAndMangleFunctions(vertexAst, fragmentAst);
     let wgsl = `\
 var<private> gl_Position: vec4<f32>;
 var<private> gl_FragColor: vec4<f32>;

@@ -61,10 +61,12 @@ describe('float uniform', () => {
   });
 });
 
-describe('WGSL Generator - separate function names ', () => {
-  test('Produce vertex and fragment functions', ({ gl }) => {
+describe('WGSL Generator - separate function names', () => {
+  test('Produce vertex and fragment functions with mangled names', ({ gl }) => {
     const glslVert = `
       float foo() { return 1.0; }
+      float foo(float v) { return v + 1.0; }
+      float foo(int v) { return float(v) + 2.0; }
       void main() { gl_Position = vec4(foo()); }
     `;
     const glslFrag = `
@@ -90,28 +92,36 @@ describe('WGSL Generator - separate function names ', () => {
       var<private> gl_FragColor: vec4<f32>;
 
 
-      fn foo_vert() -> f32 {
+      fn foo_vertex() -> f32 {
         return 1.0;
       }
+
+      fn foo_f32(v: f32) -> f32 {
+        return v + 1.0;
+      }
       
-      fn _byegl_fake_vertex_0() {
-        gl_Position = vec4f(foo_vert());
+      fn foo_i32(v: i32) -> f32 {
+        return f32(v) + 2.0;
       }
 
-      fn foo_frag() -> f32 {
+      fn _byegl_fake_vertex_0() {
+        gl_Position = vec4f(foo_vertex());
+      }
+
+      fn foo_fragment() -> f32 {
         return 2.0;
       }
 
       fn _byegl_fake_fragment_1() {
-        gl_FragColor = vec4f(foo_frag());
+        gl_FragColor = vec4f(foo_fragment());
       }
 
       struct _byegl_VertexOut_2 {
         @builtin(position) _byegl_posOut_3: vec4f,
-      
+
       }
-      
-      
+
+
       @vertex
       fn _byegl_vert_main_4() -> _byegl_VertexOut_2 {
 
@@ -121,14 +131,14 @@ describe('WGSL Generator - separate function names ', () => {
         output._byegl_posOut_3 = gl_Position;
         // NOTE: OpenGL uses z in the range [-1, 1], while WebGPU uses z in the range [0, 1].
         output._byegl_posOut_3.z = output._byegl_posOut_3.z * 0.5 + 0.5;
-      
+
         return output;
       }
 
       @fragment
       fn _byegl_frag_main_5() -> @location(0) vec4f {
         // Filling proxies with varying data
-      
+
         _byegl_fake_fragment_1();
         return gl_FragColor;
       }
