@@ -67,6 +67,7 @@ describe('WGSL Generator - separate function names', () => {
       float foo() { return 1.0; }
       float foo(float v) { return v + 1.0; }
       float foo(int v) { return float(v) + 2.0; }
+      vec4 foo_f32(float v) { return vec4(v); }
       void main() { gl_Position = vec4(foo()); }
     `;
     const glslFrag = `
@@ -96,12 +97,16 @@ describe('WGSL Generator - separate function names', () => {
         return 1.0;
       }
 
-      fn foo_f32(v: f32) -> f32 {
+      fn foo_f32_1(v: f32) -> f32 {
         return v + 1.0;
       }
       
       fn foo_i32(v: i32) -> f32 {
         return f32(v) + 2.0;
+      }
+
+      fn foo_f32(v: f32) -> vec4f {
+        return vec4f(v);
       }
 
       fn _byegl_fake_vertex_0() {
