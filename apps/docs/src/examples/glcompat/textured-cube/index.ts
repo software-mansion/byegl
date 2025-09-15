@@ -39,7 +39,6 @@ export default async function ({ canvas }: ExampleContext) {
 
   // Load texture
   const texture = await loadTexture(gl, crateUrl.src);
-  console.log('Texture loaded:', texture);
 
   const vertexShader = gl.createShader(gl.VERTEX_SHADER) as WebGLShader;
   gl.shaderSource(vertexShader, vertexShaderSource);

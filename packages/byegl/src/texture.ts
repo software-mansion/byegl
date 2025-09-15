@@ -14,6 +14,7 @@ export class ByeGLTextureInternal {
 
   #size: [number, number] | undefined;
   #gpuTexture: GPUTexture | undefined;
+
   gpuTextureDirty = true;
 
   #gpuSampler: GPUSampler | undefined;
@@ -79,6 +80,10 @@ export class ByeGLTextureInternal {
       this.#size = [...size];
       this.gpuTextureDirty = true;
     }
+  }
+
+  getParameters() {
+    return this.#parameters;
   }
 
   setParameter(parameter: GLenum, value: GLint | GLboolean | GLenum) {

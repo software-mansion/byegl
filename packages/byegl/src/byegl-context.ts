@@ -277,7 +277,19 @@ export class ByeGLContext {
     if (!texture) {
       textureMap.delete(target);
     } else {
-      textureMap.set(target, texture);
+      if (target === gl.TEXTURE_CUBE_MAP) {
+        textureMap.set(gl.TEXTURE_CUBE_MAP_NEGATIVE_X, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_POSITIVE_X, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_POSITIVE_Y, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_POSITIVE_Z, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, texture);
+        textureMap.set(gl.TEXTURE_CUBE_MAP_POSITIVE_Z, texture);
+        textureMap.set(target, texture);
+      } else {
+        textureMap.set(target, texture);
+      }
     }
   }
 
@@ -1228,8 +1240,7 @@ export class ByeGLContext {
   }
 
   pixelStorei(pname: GLenum, param: GLint): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.pixelStorei');
+    this.#parameters.set(pname, param);
   }
 
   polygonOffset(factor: GLfloat, units: GLfloat): void {
@@ -1334,6 +1345,7 @@ export class ByeGLContext {
     // TODO: Not sure what to do with 'internalformat' just yet.
 
     const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+
     const texture = textureMap?.get(target)?.[$internal];
     if (!texture) {
       // TODO: Generate a WebGL appropriate error
@@ -1438,19 +1450,84 @@ export class ByeGLContext {
     texture.setParameter(pname, param);
   }
 
-  texSubImage2D(
+  texStorage2D(
     target: GLenum,
-    level: GLint,
-    xoffset: GLint,
-    yoffset: GLint,
+    levels: GLsizei,
+    internalformat: GLenum,
     width: GLsizei,
     height: GLsizei,
-    format: GLenum,
-    type: GLenum,
-    pixels: ArrayBufferView | null,
   ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.texSubImage2D');
+    const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    const texture = textureMap?.get(target)?.[$internal];
+    if (!texture) {
+      return;
+    }
+
+    // For MVP, just create storage like texImage2D does
+    texture.size = [width, height];
+  }
+
+  // biome-ignore format: Easier to read
+  texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
+  // biome-ignore format: Easier to read
+  texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
+  // biome-ignore format: Easier to read
+  texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, ...rest: [width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null] | [format: GLenum, type: GLenum, source: TexImageSource]): void {
+    const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
+    const texture = textureMap?.get(target)?.[$internal];
+    if (!texture) {
+      return;
+    }
+
+    if (rest.length === 5) {
+      // ArrayBufferView version
+      const [width, height, format, type, pixels] = rest;
+
+      if (!pixels) {
+        return;
+      }
+
+      // TODO: Handle different format/type combinations
+      if (format === gl.RGBA && type === gl.UNSIGNED_BYTE) {
+        this.#root.device.queue.writeTexture(
+          {
+            texture: texture.gpuTexture,
+            origin: { x: xoffset, y: yoffset, z: 0 },
+            mipLevel: level,
+          },
+          pixels as ArrayBufferView<ArrayBuffer>,
+          {
+            bytesPerRow: width * 4,
+            rowsPerImage: height,
+          },
+          { width, height, depthOrArrayLayers: 1 }
+        );
+      } else {
+        throw new NotImplementedYetError(`gl.texSubImage2D with format=${format}, type=${type}`);
+      }
+    } else {
+      // TexImageSource version
+      const [format, type, source] = rest;
+
+      let width: number, height: number;
+      if ('width' in source) {
+        width = source.width;
+        height = source.height;
+      } else {
+        width = source.displayWidth;
+        height = source.displayHeight;
+      }
+
+      this.#root.device.queue.copyExternalImageToTexture(
+        { source },
+        {
+          texture: texture.gpuTexture,
+          origin: { x: xoffset, y: yoffset, z: 0 },
+          mipLevel: level,
+        },
+        { width, height, depthOrArrayLayers: 1 }
+      );
+    }
   }
 
   uniform1f(location: ByeGLUniformLocation | null, value: GLfloat) {
@@ -1727,8 +1804,21 @@ export class ByeGLContext {
       gl.TEXTURE0 + (this.#uniformBufferCache.getValue(uniform.id) as number);
 
     const textureMap = this.#boundTexturesMap.get(textureUnit);
-    // TODO: Always getting the TEXTURE_2D binding, but make it depend on the texture type
-    const texture = textureMap?.get(gl.TEXTURE_2D);
+    const typeToTextureBinding = {
+      'texture_2d<f32>': gl.TEXTURE_2D,
+      'texture_2d_array<f32>': gl.TEXTURE_2D_ARRAY,
+      'texture_cube<f32>': gl.TEXTURE_CUBE_MAP,
+      'texture_3d<f32>': gl.TEXTURE_3D,
+      'texture_2d<u32>': gl.TEXTURE_2D,
+    };
+    const textureBinding =
+      typeToTextureBinding[
+        uniform.type.type as keyof typeof typeToTextureBinding
+      ];
+    if (!textureBinding) {
+      throw new Error(`Unsupported texture type: ${uniform.type.type}`);
+    }
+    const texture = textureMap?.get(textureBinding);
 
     if (!texture) {
       throw new Error(`Texture not found for unit ${textureUnit}`);

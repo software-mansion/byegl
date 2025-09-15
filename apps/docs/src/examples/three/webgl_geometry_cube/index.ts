@@ -3,6 +3,7 @@ import type { ExampleContext } from '../../types.ts';
 
 export default function ({ canvas }: ExampleContext) {
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color(1, 1, 1);
   const camera = new THREE.PerspectiveCamera(
     70,
     canvas.width / canvas.height,
@@ -17,8 +18,7 @@ export default function ({ canvas }: ExampleContext) {
   texture.colorSpace = THREE.SRGBColorSpace;
 
   const geometry = new THREE.BoxGeometry();
-  // TODO: Fix texture bug in order to show the crate texture
-  const material = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+  const material = new THREE.MeshBasicMaterial({ map: texture });
 
   const cube = new THREE.Mesh(geometry, material);
   scene.add(cube);
@@ -27,7 +27,15 @@ export default function ({ canvas }: ExampleContext) {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(canvas.width, canvas.height);
 
+  const frameTime = 1000;
+  let now = performance.now();
   function animate() {
+    const newNow = performance.now();
+    const delta = newNow - now;
+    if (delta < frameTime) return;
+
+    now = newNow;
+
     cube.rotation.x += 0.01;
     cube.rotation.y += 0.01;
     renderer.render(scene, camera);
