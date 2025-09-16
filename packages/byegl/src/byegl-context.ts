@@ -22,6 +22,10 @@ import { ByeGLFramebuffer } from './framebuffer.ts';
 import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
+import {
+  convertRGBToRGBA,
+  getTextureFormat,
+} from './texture-format-mapping.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
@@ -105,6 +109,10 @@ export class ByeGLContext {
     [gl.BLEND_DST_RGB, gl.ZERO],
     [gl.BLEND_SRC_ALPHA, gl.ONE],
     [gl.BLEND_DST_ALPHA, gl.ZERO],
+    [gl.UNPACK_FLIP_Y_WEBGL, 0],
+    [gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0],
+    [gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL],
+    [gl.UNPACK_ALIGNMENT, 4],
   ]);
 
   #globalAttributeState: AttributeState = {
@@ -1342,7 +1350,7 @@ export class ByeGLContext {
     let width = 0;
     let height = 0;
     let format: number = gl.RGBA;
-    // TODO: Not sure what to do with 'internalformat' just yet.
+    let type: number = gl.UNSIGNED_BYTE;
 
     const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
 
@@ -1353,31 +1361,51 @@ export class ByeGLContext {
     }
 
     if (rest.length === 6) {
-      const [width_, height_, border, format_, type, pixels] = rest;
+      const [width_, height_, border, format_, type_, pixels] = rest;
       width = width_;
       height = height_;
       format = format_;
+      type = type_;
+
+      const formatInfo = getTextureFormat(format, type, internalformat);
+      texture.setFormatInfo(formatInfo);
 
       const size = [width, height] as const;
       texture.size = size;
 
       if (pixels) {
-        // For now, assume RGBA/UNSIGNED_BYTE format
-        // TODO: Handle different format/type combinations
-        if (format === gl.RGBA && type === gl.UNSIGNED_BYTE) {
-          this.#root.device.queue.writeTexture(
-            { texture: texture.gpuTexture },
-            pixels as ArrayBufferView<ArrayBuffer>,
-            { bytesPerRow: width * 4, rowsPerImage: height },
-            { width, height }
-          );
-        } else {
-          throw new NotImplementedYetError(`gl.texImage2D with format=${format}, type=${type}`);
+        let dataToUpload = pixels as ArrayBufferView;
+        let bytesPerRow = width * formatInfo.bytesPerPixel;
+
+        if (format === gl.RGB && (type === gl.UNSIGNED_BYTE || type === gl.UNSIGNED_SHORT_5_6_5)) {
+          if (type === gl.UNSIGNED_BYTE) {
+            const rgbaData = convertRGBToRGBA(pixels, width, height);
+            dataToUpload = rgbaData;
+            bytesPerRow = width * 4;
+          }
         }
+
+        const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
+
+        if (flipY && type === gl.UNSIGNED_BYTE) {
+          dataToUpload = this.#flipImageVertically(dataToUpload as Uint8Array, width, height, formatInfo.bytesPerPixel);
+        }
+
+        this.#root.device.queue.writeTexture(
+          { texture: texture.gpuTexture },
+          dataToUpload as ArrayBufferView<ArrayBuffer>,
+          { bytesPerRow, rowsPerImage: height },
+          { width, height }
+        );
       }
     } else {
-      const [_format, type, source] = rest;
+      const [_format, _type, source] = rest;
       format = _format;
+      type = _type;
+
+      const formatInfo = getTextureFormat(format, type, internalformat);
+      texture.setFormatInfo(formatInfo);
+
       if ('width' in source) {
         width = source.width;
         height = source.height;
@@ -1385,12 +1413,17 @@ export class ByeGLContext {
         width = source.displayWidth;
         height = source.displayHeight;
       }
-      // TODO: Do something with 'type'
+
       const size = [width, height] as const;
       texture.size = size;
-      this.#root.device.queue.copyExternalImageToTexture({ source }, {
-        texture: texture.gpuTexture,
-      }, size);
+
+      const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
+
+      this.#root.device.queue.copyExternalImageToTexture(
+        { source, flipY },
+        { texture: texture.gpuTexture },
+        size
+      );
     }
 
     // TODO: Implement mip-mapping
@@ -1463,7 +1496,13 @@ export class ByeGLContext {
       return;
     }
 
-    // For MVP, just create storage like texImage2D does
+    const formatInfo = getTextureFormat(
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      internalformat,
+    );
+    texture.setFormatInfo(formatInfo);
+
     texture.size = [width, height];
   }
 
@@ -1487,15 +1526,25 @@ export class ByeGLContext {
         return;
       }
 
-      // TODO: Handle different format/type combinations
-      if (format === gl.RGBA && type === gl.UNSIGNED_BYTE) {
+      const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
+      let dataToUpload = pixels as ArrayBufferView;
+
+      if (format === gl.RGB && type === gl.UNSIGNED_BYTE) {
+        dataToUpload = convertRGBToRGBA(pixels, width, height);
+      }
+
+      if (flipY && type === gl.UNSIGNED_BYTE) {
+        const bytesPerPixel = format === gl.RGBA ? 4 : format === gl.RGB ? 3 : 1;
+        dataToUpload = this.#flipImageVertically(dataToUpload as Uint8Array, width, height, bytesPerPixel);
+      }
+      if ((format === gl.RGBA || format === gl.RGB) && type === gl.UNSIGNED_BYTE) {
         this.#root.device.queue.writeTexture(
           {
             texture: texture.gpuTexture,
             origin: { x: xoffset, y: yoffset, z: 0 },
             mipLevel: level,
           },
-          pixels as ArrayBufferView<ArrayBuffer>,
+          dataToUpload as ArrayBufferView<ArrayBuffer>,
           {
             bytesPerRow: width * 4,
             rowsPerImage: height,
@@ -1506,8 +1555,8 @@ export class ByeGLContext {
         throw new NotImplementedYetError(`gl.texSubImage2D with format=${format}, type=${type}`);
       }
     } else {
-      // TexImageSource version
       const [format, type, source] = rest;
+      const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
 
       let width: number, height: number;
       if ('width' in source) {
@@ -1519,13 +1568,13 @@ export class ByeGLContext {
       }
 
       this.#root.device.queue.copyExternalImageToTexture(
-        { source },
+        { source, flipY },
         {
           texture: texture.gpuTexture,
           origin: { x: xoffset, y: yoffset, z: 0 },
           mipLevel: level,
         },
-        { width, height, depthOrArrayLayers: 1 }
+        [width, height]
       );
     }
   }
@@ -1676,6 +1725,28 @@ export class ByeGLContext {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
+  }
+
+  #flipImageVertically(
+    data: Uint8Array,
+    width: number,
+    height: number,
+    bytesPerPixel: number,
+  ): Uint8Array {
+    const rowBytes = width * bytesPerPixel;
+    const flipped = new Uint8Array(data.length);
+
+    for (let row = 0; row < height; row++) {
+      const sourceRow = height - 1 - row;
+      const sourceStart = sourceRow * rowBytes;
+      const destStart = row * rowBytes;
+
+      for (let col = 0; col < rowBytes; col++) {
+        flipped[destStart + col] = data[sourceStart + col];
+      }
+    }
+
+    return flipped;
   }
 
   uniformMatrix2fv(

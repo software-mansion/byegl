@@ -27,15 +27,7 @@ export default function ({ canvas }: ExampleContext) {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(canvas.width, canvas.height);
 
-  const frameTime = 1000;
-  let now = performance.now();
   function animate() {
-    const newNow = performance.now();
-    const delta = newNow - now;
-    if (delta < frameTime) return;
-
-    now = newNow;
-
     cube.rotation.x += 0.01;
     cube.rotation.y += 0.01;
     renderer.render(scene, camera);
