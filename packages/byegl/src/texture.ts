@@ -1,4 +1,5 @@
 import { TgpuRoot } from 'typegpu';
+import type { TextureFormatInfo } from './texture-format-mapping.ts';
 import { $internal } from './types.ts';
 
 const gl = WebGL2RenderingContext;
@@ -14,6 +15,11 @@ export class ByeGLTextureInternal {
 
   #size: [number, number] | undefined;
   #gpuTexture: GPUTexture | undefined;
+  #formatInfo: TextureFormatInfo = {
+    webgpuFormat: 'rgba8unorm',
+    bytesPerPixel: 4,
+  };
+
   gpuTextureDirty = true;
 
   #gpuSampler: GPUSampler | undefined;
@@ -81,8 +87,23 @@ export class ByeGLTextureInternal {
     }
   }
 
+  getParameters() {
+    return this.#parameters;
+  }
+
   setParameter(parameter: GLenum, value: GLint | GLboolean | GLenum) {
     this.#parameters.set(parameter, value);
+  }
+
+  setFormatInfo(formatInfo: TextureFormatInfo) {
+    if (this.#formatInfo.webgpuFormat !== formatInfo.webgpuFormat) {
+      this.#formatInfo = formatInfo;
+      this.gpuTextureDirty = true;
+    }
+  }
+
+  get formatInfo(): TextureFormatInfo {
+    return this.#formatInfo;
   }
 
   importExistingWebGPUTexture(texture: GPUTexture) {
@@ -116,7 +137,7 @@ export class ByeGLTextureInternal {
     this.#gpuTexture = this.#root.device.createTexture({
       label: 'ByeGL Texture',
       size: this.#size!,
-      format: 'rgba8unorm',
+      format: this.#formatInfo.webgpuFormat,
       dimension: '2d',
       usage:
         GPUTextureUsage.TEXTURE_BINDING |

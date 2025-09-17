@@ -17,8 +17,7 @@ export default function ({ canvas }: ExampleContext) {
   texture.colorSpace = THREE.SRGBColorSpace;
 
   const geometry = new THREE.BoxGeometry();
-  // TODO: Fix texture bug in order to show the crate texture
-  const material = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+  const material = new THREE.MeshBasicMaterial({ map: texture });
 
   const cube = new THREE.Mesh(geometry, material);
   scene.add(cube);

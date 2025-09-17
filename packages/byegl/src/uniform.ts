@@ -109,15 +109,22 @@ export class UniformBufferCache {
       serialized = new Uint32Array(
         [...(value as boolean[])].map((v) => (v ? 1 : 0)),
       ).buffer;
-    } else if (
-      dataType.type === 'mat2x2f' ||
-      dataType.type === 'mat3x3f' ||
-      dataType.type === 'mat4x4f'
-    ) {
+    } else if (dataType.type === 'mat2x2f' || dataType.type === 'mat4x4f') {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
       this.#values.set(location.name, f32Array);
+    } else if (dataType.type === 'mat3x3f') {
+      // mat3x3f requires padding - each row is 3 values + 1 empty (16 bytes total)
+      const inputArray = value as Float32Array;
+      const paddedArray = new Float32Array(12); // 3 rows * 4 floats per row
+
+      for (let row = 0; row < 3; row++) {
+        paddedArray.set(inputArray.subarray(row * 3, (row + 1) * 3), row * 4);
+      }
+
+      serialized = paddedArray.buffer;
+      this.#values.set(location.name, paddedArray);
     } else {
       throw new Error(`Cannot serialize ${dataType.type} yet.`);
     }
