@@ -157,8 +157,8 @@ export const wgslTypeToEnumCatalog = {
   mat2x2f: gl.FLOAT_MAT2,
   mat3x3f: gl.FLOAT_MAT3,
   mat4x4f: gl.FLOAT_MAT4,
-  // TODO: Not sure if UNSIGNED_INT, or INT
-  'texture_1d<f32>': gl.UNSIGNED_INT,
+  // TODO: Not sure what to do with texture1d
+  'texture_1d<f32>': gl.SAMPLER_2D,
   'texture_2d<f32>': gl.SAMPLER_2D,
   'texture_2d_array<f32>': gl.SAMPLER_2D_ARRAY,
   'texture_3d<f32>': gl.SAMPLER_3D,
