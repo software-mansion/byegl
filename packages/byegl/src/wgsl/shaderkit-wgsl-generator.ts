@@ -1,4 +1,4 @@
-import * as shaderkit from '@iwoplaza/shaderkit';
+import * as shaderkit from 'shaderkit';
 import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
 import {

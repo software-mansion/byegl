@@ -20,7 +20,11 @@ function recreateCanvas(id: string): HTMLCanvasElement {
   const existingCanvas = document.querySelector<HTMLCanvasElement>(`#${id}`);
   const parentElement = existingCanvas?.parentElement;
   if (existingCanvas && parentElement) {
-    const newCanvas = existingCanvas.cloneNode(false) as HTMLCanvasElement;
+    const newCanvas = document.createElement('canvas');
+    newCanvas.width = 1024;
+    newCanvas.height = 1024;
+    newCanvas.id = id;
+    newCanvas.className = existingCanvas.className;
     parentElement.replaceChild(newCanvas, existingCanvas);
     return newCanvas;
   }
