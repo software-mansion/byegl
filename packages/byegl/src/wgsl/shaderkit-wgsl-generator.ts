@@ -95,6 +95,7 @@ const primitiveTypes: Set<ByeglData> = new Set([
 ]);
 
 const opToPrecedence = {
+  ',': 0,
   '+': 1,
   '-': 1,
   '*': 2,
