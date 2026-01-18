@@ -122,6 +122,15 @@ const createMat3FromMat4 = tgpu.fn([d.mat4x4f], d.mat3x3f)`(arg4) {
   return mat3x3f(arg4[0].xyz, arg4[1].xyz, arg4[2].xyz);
 }`.$name('_byegl_createMat3FromMat4');
 
+/*
+ * A helper function that mimics the behavior of modf's `out` parameter
+ */
+const modfWrapperFloat = tgpu.fn([d.f32, d.ptrFn(d.f32)], d.f32)`(arg, out) {
+  let result = modf(arg);
+  (*out) = result.whole;
+  return result.fract;
+}`.$name('_byegl_modfWrapperFloat');
+
 /**
  * A piece of generated WGSL code, inferred to be a specific WGSL data type.
  */
@@ -318,6 +327,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     return key;
   }
 
+  /**
+   * Adds the `modfWrapperFloat` function to the shader.
+   * @returns the name of the function, which can be injected into the shader
+   */
+  useModfWrapperFloat(): string {
+    const key = '_byegl_modfWrapperFloat';
+    if (!this.#state.extraFunctions.has(key)) {
+      this.#state.extraFunctions.set(key, modfWrapperFloat);
+    }
+    return key;
+  }
+
   generateCallExpression(expression: shaderkit.CallExpression): Snippet {
     const state = this.#state;
 
@@ -334,6 +355,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     if (funcName === 'mat3' && args.length === 1) {
       // GLSL supports a mat3 constructor that takes in a mat4, while WGSL does not
       return snip(`${this.useCreateMat3FromMat4()}(${argsValue})`, d.mat3x3f);
+    }
+
+    if (funcName === 'modf') {
+      // TODO: Bring back type check when type inference works properly
+      // if (args[0].type === UnknownType || args[0].type.type !== 'f32') {
+      //   throw new Error(`Unsupported modf parameter type: ${String(args[0].type)}`);
+      // }
+      return snip(
+        `${this.useModfWrapperFloat()}(${args[0].value}, &${args[1].value})`,
+        d.f32,
+      );
     }
 
     if (funcName === 'texture2D') {
