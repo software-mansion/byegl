@@ -76,7 +76,7 @@ describe('arrays', () => {
       var<private> gl_FragColor: vec4f;
       "
     `);
-  })
+  });
 });
 
 describe('for statements', () => {

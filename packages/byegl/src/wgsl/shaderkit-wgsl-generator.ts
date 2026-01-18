@@ -129,7 +129,7 @@ class Snippet {
   constructor(
     public value: string,
     public type: ByeglData | UnknownType,
-  ) { }
+  ) {}
 }
 
 /**
@@ -928,15 +928,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             lineStart: state.lineStart + '  ',
           },
           () => {
-            const params = statement.params.map((param) => this.getDataType(param));
+            const params = statement.params.map((param) =>
+              this.getDataType(param),
+            );
             const paramSnippets = params
               .filter((param) => !!param.id)
-              .map((param) =>
-                snip(
-                  param.id,
-                  param.dataType,
-                ),
-              );
+              .map((param) => snip(param.id, param.dataType));
 
             for (const param of paramSnippets) {
               state.variables.set(param.value, param.type as ByeglData);
@@ -1009,8 +1006,8 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const init = initNode
         ? initNode.type === 'VariableDeclaration'
           ? this.forkState({ lineStart: '' }, () =>
-            this.generateStatement(initNode).slice(0, -1),
-          )
+              this.generateStatement(initNode).slice(0, -1),
+            )
           : this.generateExpression(initNode).value
         : ';';
 
