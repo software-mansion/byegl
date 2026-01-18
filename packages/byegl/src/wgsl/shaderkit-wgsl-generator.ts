@@ -467,7 +467,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         const funcInfo = state.functions.get(state.currentFunction || '');
         if (funcInfo) {
           const param = funcInfo.params.find(
-            (p) => p.id === expression.left.name,
+            (p) => p.id === (expression.left as shaderkit.Identifier).name,
           );
           if (param && (param.flow === 'out' || param.flow === 'inout')) {
             leftValue = `*${leftValue}`;
@@ -634,7 +634,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     if (expression.type === 'CallExpression') {
       if (
         expression.callee.type === 'Identifier' &&
-        expression.callee.name === 'defined'
+        (expression.callee as shaderkit.Identifier).name === 'defined'
       ) {
         if (
           expression.arguments.length !== 1 ||
@@ -645,7 +645,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           );
         }
 
-        const name = expression.arguments[0].name;
+        const name = (expression.arguments[0] as shaderkit.Identifier).name;
         return state.preprocessorDefines.has(name);
       }
     }
@@ -1002,7 +1002,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
               }
               let finalDataType = dataType;
               if (flow === 'out' || flow === 'inout') {
-                finalDataType = d.ptrFn(dataType);
+                finalDataType = d.ptrFn(dataType as d.AnyData);
               }
               return { id, dataType: finalDataType, flow };
             });
