@@ -179,6 +179,11 @@ interface GenState {
   alreadyDefined: Set<string>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
+  functions: Map<
+    string,
+    { params: { id: string; flow: 'in' | 'out' | 'inout' }[] }
+  >;
+  currentFunction: string | undefined;
 
   /** Used to track variable declarations with the `attribute` qualifier */
   lastAttributeIdx: number;
@@ -350,7 +355,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     const args = expression.arguments.map((arg) =>
       this.generateExpression(arg),
     );
-    const argsValue = args.map((arg) => arg.value).join(', ');
+    let argsValue = args.map((arg) => arg.value).join(', ');
 
     if (funcName === 'mat3' && args.length === 1) {
       // GLSL supports a mat3 constructor that takes in a mat4, while WGSL does not
@@ -400,6 +405,19 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       funcName = this.aliasOf(state.structDefs.get(funcName)!);
     }
 
+    // It's a user-defined function, and we might need to change how arguments are passed
+    const funcInfo = state.functions.get(funcName);
+    if (funcInfo) {
+      const modifiedArgs = args.map((arg, i) => {
+        const param = funcInfo.params[i];
+        if (param && (param.flow === 'out' || param.flow === 'inout')) {
+          return snip(`&${arg.value}`, d.ptrFn(arg.type as d.AnyData));
+        }
+        return arg;
+      });
+      argsValue = modifiedArgs.map((a) => a.value).join(', ');
+    }
+
     return snip(`${funcName}(${argsValue})`, UnknownType);
   }
 
@@ -444,8 +462,20 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     if (expression.type === 'AssignmentExpression') {
       const left = this.generateExpression(expression.left);
       const right = this.generateExpression(expression.right);
+      let leftValue = left.value;
+      if (expression.left.type === 'Identifier') {
+        const funcInfo = state.functions.get(state.currentFunction || '');
+        if (funcInfo) {
+          const param = funcInfo.params.find(
+            (p) => p.id === expression.left.name,
+          );
+          if (param && (param.flow === 'out' || param.flow === 'inout')) {
+            leftValue = `*${leftValue}`;
+          }
+        }
+      }
       return snip(
-        `${left.value} ${expression.operator} ${right.value}`,
+        `${leftValue} ${expression.operator} ${right.value}`,
         left.type,
       );
     }
@@ -957,13 +987,32 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             // A new scope
             variables: new Map(state.variables),
             definingFunction: true,
+            currentFunction: funcName,
             lineStart: state.lineStart + '  ',
           },
           () => {
-            const params = statement.params.map((param) =>
-              this.getDataType(param),
-            );
-            const paramSnippets = params
+            const paramInfos = statement.params.map((param) => {
+              const qualifiers = param.qualifiers || [];
+              const { id, dataType } = this.getDataType(param);
+              let flow: 'in' | 'out' | 'inout' = 'in';
+              if (qualifiers.includes('inout')) {
+                flow = 'inout';
+              } else if (qualifiers.includes('out')) {
+                flow = 'out';
+              }
+              let finalDataType = dataType;
+              if (flow === 'out' || flow === 'inout') {
+                finalDataType = d.ptrFn(dataType);
+              }
+              return { id, dataType: finalDataType, flow };
+            });
+            state.functions.set(funcName, {
+              params: paramInfos.map((p) => ({
+                id: p.id,
+                flow: p.flow,
+              })),
+            });
+            const paramSnippets = paramInfos
               .filter((param) => !!param.id)
               .map((param) => snip(param.id, param.dataType));
 
@@ -1086,6 +1135,8 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         ['gl_FragDepth', d.f32],
         ['gl_FrontFacing', d.bool],
       ]),
+      functions: new Map(),
+      currentFunction: undefined,
       attributes: new Map(),
       varyings: new Map(),
       uniforms: new Map(),
