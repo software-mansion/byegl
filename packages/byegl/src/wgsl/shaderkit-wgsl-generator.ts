@@ -1,4 +1,4 @@
-import * as shaderkit from 'shaderkit';
+import * as shaderkit from '@iwoplaza/shaderkit';
 import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
 import {
@@ -778,6 +778,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       for (const decl of statement.declarations) {
         const qualifiers = decl.qualifiers;
         const isUniform = qualifiers.includes('uniform');
+        const isConst = qualifiers.includes('const');
         const isAttribute =
           qualifiers.includes('attribute') ||
           (state.shaderType === 'vertex' && qualifiers.includes('in'));
@@ -879,6 +880,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           } else {
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${id}: ${wgslTypeAlias};\n`;
           }
+        } else if (isConst) {
+          // Const
+          code += `${state.lineStart}const ${id}: ${wgslTypeAlias} = ${this.generateExpression(decl.init!).value};\n`;
         } else {
           // Regular variable
           if (decl.init) {
@@ -924,23 +928,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             lineStart: state.lineStart + '  ',
           },
           () => {
-            const params = statement.params
+            const params = statement.params.map((param) =>
+              this.getDataType(param),
+            );
+            const paramSnippets = params
               .filter((param) => !!param.id)
-              .map((param) =>
-                snip(
-                  param.id?.name!,
-                  this.withTrace(
-                    `type of ${param.id?.name ?? '<unnamed>'} param`,
-                    () => this.getDataType(param).dataType,
-                  ),
-                ),
-              );
+              .map((param) => snip(param.id, param.dataType));
 
-            for (const param of params) {
+            for (const param of paramSnippets) {
               state.variables.set(param.value, param.type as ByeglData);
             }
 
-            const paramsValue = params
+            const paramsValue = paramSnippets
               .map(
                 (param) =>
                   `${param.value}: ${this.aliasOf(param.type as ByeglData)}`,
@@ -1053,6 +1052,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         ['gl_Position', d.vec4f],
         ['gl_FragColor', d.vec4f],
         ['gl_FragDepth', d.f32],
+        ['gl_FrontFacing', d.bool],
       ]),
       attributes: new Map(),
       varyings: new Map(),
@@ -1081,12 +1081,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       vertexAst = shaderkit.parse(vertexCode);
     } catch (error) {
       console.error('Error parsing vertex shader:', vertexCode);
+      console.error(error);
       throw error;
     }
     try {
       fragmentAst = shaderkit.parse(fragmentCode);
     } catch (error) {
       console.error('Error parsing fragment shader:', fragmentCode);
+      console.error(error);
       throw error;
     }
 
@@ -1111,6 +1113,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     wgsl += `
 var<private> gl_Position: vec4f;
+var<private> gl_FrontFacing: bool;
 var<private> ${state.fragmentOutProxyId}: vec4f;
 `;
 
@@ -1155,27 +1158,27 @@ ${[...state.varyings.values()].map((varying) => `  output.${varying.id} = ${vary
 
     if (state.fakeFragmentMainId) {
       // Fragment input struct
-      let fragInStructId: string | undefined;
-      if (state.varyings.size > 0) {
-        fragInStructId = this.uniqueId('FragmentIn');
-        const fragInParams = [...state.varyings.values()]
-          .map(
-            (varying) =>
-              `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`,
-          )
-          .join('\n');
-        wgsl += `
+      const fragInStructId = this.uniqueId('FragmentIn');
+      const frontFacingParamId = this.uniqueId('frontFacing');
+      const fragInParams = [...state.varyings.values()]
+        .map(
+          (varying) =>
+            `  @location(${varying.location}) ${varying.id}: ${this.aliasOf(varying.type)},`,
+        )
+        .join('\n');
+      wgsl += `
 struct ${fragInStructId} {
+  @builtin(front_facing) ${frontFacingParamId}: bool,
 ${fragInParams}
 }
 
 `;
-      }
 
       wgsl += `
 @fragment
 fn ${this.uniqueId('frag_main')}(${fragInStructId ? `input: ${fragInStructId}` : ''}) -> @location(0) vec4f {
   // Filling proxies with varying data
+  gl_FrontFacing = input.${frontFacingParamId};
 ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
   ${state.fakeFragmentMainId}();
   return ${state.fragmentOutProxyId};

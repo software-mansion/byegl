@@ -38,6 +38,7 @@ describe('float uniform', () => {
       @group(0) @binding(1) var<uniform> uBar: f32;
 
       var<private> gl_Position: vec4f;
+      var<private> gl_FrontFacing: bool;
       var<private> gl_FragColor: vec4f;
       "
     `);
