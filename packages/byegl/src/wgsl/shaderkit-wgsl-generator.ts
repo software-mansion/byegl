@@ -115,6 +115,8 @@ const opToPrecedence = {
   '.': 4,
 };
 
+const logicalOps = ['==', '!=', '>', '>=', '<', '<=', '!'];
+
 /**
  * A helper function that polyfills the mat3(arg: mat4) constructor from GLSL
  */
@@ -352,6 +354,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     let funcName = expression.callee.name;
+
+    // Is it a preprocessor define?
+    if (state.preprocessorDefines.has(funcName)) {
+      const define = state.preprocessorDefines.get(funcName)!;
+      funcName = (define as shaderkit.Identifier).name;
+    }
+
     const args = expression.arguments.map((arg) =>
       this.generateExpression(arg),
     );
@@ -373,7 +382,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       );
     }
 
-    if (funcName === 'texture2D') {
+    if (funcName === 'texture2D' || funcName === 'texture') {
       const textureName = args[0].value;
       const sampler = state.textureToSamplerMap.get(textureName)!;
       const uv = args[1].value;
@@ -450,7 +459,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const alternate = this.generateExpression(expression.alternate);
       // TODO: Infer the type of the conditional expression based on the operands
       return snip(
-        `select(${consequent.value}, ${alternate.value}, ${test.value})`,
+        `select(${consequent.value}, ${alternate.value}, bool(${test.value}))`,
         d.f32,
       );
     }
@@ -488,6 +497,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         const left = this.generateExpression(expression.left);
         const right = this.generateExpression(expression.right);
         state.parentPrecedence = parentPrecedence;
+
+        if (
+          ((left.type as ByeglData).type?.startsWith('vec') ||
+            (right.type as ByeglData).type?.startsWith('vec')) &&
+          logicalOps.includes(expression.operator)
+        ) {
+          return snip(
+            `all(${left.value} ${expression.operator} ${right.value})`,
+            d.bool,
+          );
+        }
 
         if (myPrecedence < parentPrecedence) {
           return snip(
