@@ -73,7 +73,7 @@ describe('getUniformLocation', () => {
     expect(extractUniformInfo(fooLocation)).toMatchInlineSnapshot(`
       {
         "byteOffset": 0,
-        "dataType": "f32Cast",
+        "dataType": "f32",
         "location": 0,
       }
     `);

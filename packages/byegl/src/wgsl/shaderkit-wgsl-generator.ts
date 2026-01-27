@@ -433,7 +433,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const modifiedArgs = args.map((arg, i) => {
         const param = funcInfo.params[i];
         if (param && (param.flow === 'out' || param.flow === 'inout')) {
-          return snip(`&${arg.value}`, d.ptrFn(arg.type as d.AnyData));
+          return snip(`&${arg.value}`, d.ptrFn(arg.type as d.StorableData));
         }
         return arg;
       });
@@ -1056,7 +1056,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
               }
               let finalDataType = dataType;
               if (flow === 'out' || flow === 'inout') {
-                finalDataType = d.ptrFn(dataType as d.AnyData);
+                finalDataType = d.ptrFn(dataType as d.StorableData);
               }
               return { id, dataType: finalDataType, flow };
             });
