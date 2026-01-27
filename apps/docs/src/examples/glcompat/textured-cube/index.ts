@@ -39,6 +39,8 @@ export default async function ({ canvas }: ExampleContext) {
 
   // Load texture
   const texture = await loadTexture(gl, crateUrl.src);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture.texture);
 
   const vertexShader = gl.createShader(gl.VERTEX_SHADER) as WebGLShader;
   gl.shaderSource(vertexShader, vertexShaderSource);
@@ -57,6 +59,7 @@ export default async function ({ canvas }: ExampleContext) {
   const positionLocation = gl.getAttribLocation(program, 'a_position');
   const uvLocation = gl.getAttribLocation(program, 'a_uv');
   const mvpMatrixLocation = gl.getUniformLocation(program, 'u_mvpMatrix');
+  const textureLocation = gl.getUniformLocation(program, 'u_texture');
 
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -156,6 +159,7 @@ export default async function ({ canvas }: ExampleContext) {
     mat4.multiply(mvpMatrix, projectionMatrix, modelMatrix);
 
     gl.enable(gl.CULL_FACE);
+    gl.uniform1i(textureLocation, 0);
     gl.uniformMatrix4fv(mvpMatrixLocation, false, mvpMatrix);
 
     gl.clearColor(0, 0, 0, 1);

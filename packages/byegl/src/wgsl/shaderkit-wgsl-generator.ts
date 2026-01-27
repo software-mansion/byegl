@@ -1,6 +1,7 @@
 import * as shaderkit from '@iwoplaza/shaderkit';
 import tgpu, { TgpuFn } from 'typegpu';
 import * as d from 'typegpu/data';
+import { alignmentOf, sizeOf } from 'typegpu/data';
 import {
   ByeglData,
   samplerType,
@@ -15,6 +16,7 @@ import {
 import { ShaderCompilationError } from '../errors.ts';
 import {
   AttributeInfo,
+  UniformBufferLayout,
   UniformInfo,
   VaryingInfo,
   WgslGenerator,
@@ -193,6 +195,17 @@ interface GenState {
   lastVaryingIdx: number;
   /** Used to track variable declarations with the `uniform` qualifier */
   lastBindingIdx: number;
+
+  /**
+   * Names of uniforms (excluding textures/samplers) that go into the unified struct.
+   */
+  uniformStructMembers: Set<string>;
+
+  /**
+   * Non-texture/sampler uniform infos in order of declaration (for struct generation).
+   */
+  uniformStructInfos: UniformInfo[];
+  uniformStructBindingIdx: number | undefined;
 
   fakeVertexMainId?: string | undefined;
   fakeFragmentMainId?: string | undefined;
@@ -444,6 +457,12 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       if (!varType && state.seekIdentifier) {
         throw new Error(`Variable not found: ${expression.name}`);
       }
+
+      // Access uniforms through the unified struct
+      if (state.uniformStructMembers.has(expression.name)) {
+        return snip(`_uniforms.${expression.name}`, varType ?? UnknownType);
+      }
+
       return snip(expression.name, varType ?? UnknownType);
     }
 
@@ -927,23 +946,23 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             code += `/* varying */ var<private> ${id}: ${wgslTypeAlias};\n`;
           }
         } else if (isUniform) {
-          // Finding the next available uniform index
-          do {
-            state.lastBindingIdx++;
-          } while (state.uniforms.has(state.lastBindingIdx));
-
-          const uniformInfo: UniformInfo = {
-            id: id,
-            location: state.lastBindingIdx,
-            type: dataType,
-          };
-          state.uniforms.set(state.lastBindingIdx, uniformInfo);
-
-          // Textures need an accompanying sampler
+          // Textures need an accompanying sampler - they get individual bindings
           if (dataType.type.startsWith('texture_')) {
+            // Finding the next available uniform index for texture
+            do {
+              state.lastBindingIdx++;
+            } while (state.uniforms.has(state.lastBindingIdx));
+
+            const uniformInfo: UniformInfo = {
+              id: id,
+              location: state.lastBindingIdx,
+              type: dataType,
+            };
+            state.uniforms.set(state.lastBindingIdx, uniformInfo);
+
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${id}: ${wgslTypeAlias};\n`;
 
-            // Finding the next available uniform index
+            // Finding the next available uniform index for sampler
             do {
               state.lastBindingIdx++;
             } while (state.uniforms.has(state.lastBindingIdx));
@@ -960,7 +979,22 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${samplerId}: sampler;\n`;
           } else {
-            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var<uniform> ${id}: ${wgslTypeAlias};\n`;
+            // Non-texture uniforms go into the unified struct
+            if (state.uniformStructBindingIdx === undefined) {
+              // Finding the next available uniform index for texture
+              do {
+                state.lastBindingIdx++;
+              } while (state.uniforms.has(state.lastBindingIdx));
+              state.uniformStructBindingIdx = state.lastBindingIdx;
+            }
+            const uniformInfo: UniformInfo = {
+              id: id,
+              location: state.uniformStructBindingIdx,
+              type: dataType,
+            };
+            state.uniformStructMembers.add(id);
+            state.uniformStructInfos.push(uniformInfo);
+            // Don't emit code here - struct will be generated at the end
           }
         } else if (isConst) {
           // Const
@@ -1170,6 +1204,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       lastVaryingIdx: -1,
       lastBindingIdx: -1,
 
+      uniformStructMembers: new Set(),
+      uniformStructInfos: [],
+      uniformStructBindingIdx: undefined,
+
       fragmentOutProxyId: 'gl_FragColor',
 
       lineStart: '',
@@ -1289,6 +1327,54 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
 `;
     }
 
+    // Generate the unified uniform struct and calculate layout
+    let uniformBufferLayout: UniformBufferLayout | undefined;
+    const textureUniforms: UniformInfo[] = [];
+
+    // Collect texture uniforms (they keep individual bindings)
+    for (const uniformInfo of state.uniforms.values()) {
+      textureUniforms.push(uniformInfo);
+    }
+
+    if (state.uniformStructBindingIdx !== undefined) {
+      // Calculate offsets for each uniform respecting WGSL alignment rules
+      const offsets = new Map<string, number>();
+      let currentOffset = 0;
+
+      for (const uniformInfo of state.uniformStructInfos) {
+        const dataType = uniformInfo.type as d.AnyWgslData;
+        // Making the alignment be a multiple of 16
+        const alignment = Math.ceil(alignmentOf(dataType) / 16) * 16;
+        // Align to the next boundary
+        currentOffset = Math.ceil(currentOffset / alignment) * alignment;
+        offsets.set(uniformInfo.id, currentOffset);
+        currentOffset += sizeOf(dataType);
+      }
+
+      // Align total size to 16 bytes (uniform buffer alignment requirement)
+      const totalSize = Math.ceil(currentOffset / 16) * 16;
+
+      uniformBufferLayout = {
+        totalSize: totalSize || 16, // Minimum 16 bytes
+        offsets,
+        bindingIndex: state.uniformStructBindingIdx,
+      };
+
+      // Generate the uniform struct and prepend it (will be resolved by tgpu.resolve)
+      // Note: we add a leading newline since tgpu.resolve may prepend type definitions without trailing newlines
+      const uniformStructId = '_Uniforms';
+      let uniformStructCode = `\nstruct ${uniformStructId} {\n`;
+      for (const uniformInfo of state.uniformStructInfos) {
+        const wgslType = this.aliasOf(uniformInfo.type);
+        uniformStructCode += `  @align(16) ${uniformInfo.id}: ${wgslType},\n`;
+      }
+      uniformStructCode += `}\n`;
+      uniformStructCode += `@group(${this.#bindingGroupIdx}) @binding(${state.uniformStructBindingIdx}) var<uniform> _uniforms: ${uniformStructId};\n`;
+
+      // Prepend the uniform declarations
+      wgsl = uniformStructCode + '\n' + wgsl;
+    }
+
     const resolvedWgsl =
       '// Generated by byegl\n\n' +
       tgpu.resolve({
@@ -1302,8 +1388,10 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
     return {
       wgsl: resolvedWgsl,
       attributes: [...state.attributes.values()],
-      uniforms: [...state.uniforms.values()],
+      uniforms: [...state.uniformStructInfos, ...state.uniforms.values()],
+      textureUniforms,
       samplerToTextureMap: state.samplerToTextureMap,
+      uniformBufferLayout,
     };
   }
 }

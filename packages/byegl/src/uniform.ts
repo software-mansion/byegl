@@ -1,6 +1,6 @@
 import type { TgpuRoot } from 'typegpu';
-import { type AnyWgslData, sizeOf } from 'typegpu/data';
 import type { ByeglData } from './data-types.ts';
+import type { ByeGLProgramInternals } from './program.ts';
 import { $internal } from './types.ts';
 import type { UniformInfo } from './wgsl/wgsl-generator.ts';
 
@@ -13,7 +13,6 @@ export type UniformValue =
   | boolean[];
 
 export class UniformBufferCache {
-  #buffers: Map<number, GPUBuffer> = new Map();
   #values: Map<string, UniformValue> = new Map();
   #root: TgpuRoot;
 
@@ -30,38 +29,16 @@ export class UniformBufferCache {
     return this.#values.get(name)!;
   }
 
-  getBuffer(uniform: UniformInfo): GPUBuffer {
-    let cached = this.#buffers.get(uniform.location);
-    if (!cached) {
-      cached = this.#root.device.createBuffer({
-        label: 'ByeGL Uniform Buffer',
-        size: sizeOf(uniform.type as AnyWgslData),
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-      this.#buffers.set(uniform.location, cached);
-    }
-
-    return cached;
-  }
-
-  updateUniform(
-    glLocation: ByeGLUniformLocation,
+  /**
+   * Serializes a uniform value to an ArrayBuffer based on its data type.
+   */
+  #serializeValue(
+    dataType: ByeglData,
     value: UniformValue | Iterable<number>,
-  ) {
-    const location = glLocation[$internal];
-    this.#values.set(location.name, value as UniformValue);
-
-    const dataType = location.dataType;
-
-    if (dataType.type.startsWith('texture_')) {
-      // No need to create a buffer for texture uniforms
-      // We just need the value to get updated, so that
-      // we can match up which texture to bind to
-      // which uniform.
-      return;
-    }
-
+    name: string,
+  ): ArrayBuffer {
     let serialized: ArrayBuffer;
+
     if (dataType.type === 'bool') {
       // Booleans are actually not host-shareable, so we use
       // u32 to pass `0` or `1`.
@@ -80,7 +57,7 @@ export class UniformBufferCache {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
-      this.#values.set(location.name, f32Array);
+      this.#values.set(name, f32Array);
     } else if (
       dataType.type === 'vec2i' ||
       dataType.type === 'vec3i' ||
@@ -89,7 +66,7 @@ export class UniformBufferCache {
       // Making sure it's definitely a Int32Array, as a basic array could have been passed in
       const i32Array = new Int32Array([...(value as Int32Array)]);
       serialized = i32Array.buffer;
-      this.#values.set(location.name, i32Array);
+      this.#values.set(name, i32Array);
     } else if (
       dataType.type === 'vec2u' ||
       dataType.type === 'vec3u' ||
@@ -98,7 +75,7 @@ export class UniformBufferCache {
       // Making sure it's definitely a Uint32Array, as a basic array could have been passed in
       const u32Array = new Uint32Array([...(value as Uint32Array)]);
       serialized = u32Array.buffer;
-      this.#values.set(location.name, u32Array);
+      this.#values.set(name, u32Array);
     } else if (
       dataType.type === 'vec2<bool>' ||
       dataType.type === 'vec3<bool>' ||
@@ -113,7 +90,7 @@ export class UniformBufferCache {
       // Making sure it's definitely a Float32Array, as a basic array could have been passed in
       const f32Array = new Float32Array([...(value as Float32Array)]);
       serialized = f32Array.buffer;
-      this.#values.set(location.name, f32Array);
+      this.#values.set(name, f32Array);
     } else if (dataType.type === 'mat3x3f') {
       // mat3x3f requires padding - each row is 3 values + 1 empty (16 bytes total)
       const inputArray = value as Float32Array;
@@ -124,36 +101,55 @@ export class UniformBufferCache {
       }
 
       serialized = paddedArray.buffer;
-      this.#values.set(location.name, paddedArray);
+      this.#values.set(name, paddedArray);
     } else {
       throw new Error(`Cannot serialize ${dataType.type} yet.`);
     }
 
-    const cached = this.#buffers.get(location.baseInfo.location);
-    if (cached) {
-      this.#root.device.queue.writeBuffer(
-        cached,
-        location.byteOffset,
-        serialized,
-      );
-      return cached;
+    return serialized;
+  }
+
+  /**
+   * Updates a uniform value in the program's unified uniform buffer.
+   *
+   * @param program The program whose uniform buffer to update
+   * @param glLocation The uniform location
+   * @param value The value to set
+   */
+  updateUniform(
+    glLocation: ByeGLUniformLocation,
+    value: UniformValue | Iterable<number>,
+  ) {
+    const location = glLocation[$internal];
+    this.#values.set(location.name, value as UniformValue);
+
+    const dataType = location.dataType;
+
+    if (dataType.type.startsWith('texture_')) {
+      // No need to write to buffer for texture uniforms.
+      // We just need the value to get updated, so that
+      // we can match up which texture to bind to
+      // which uniform.
+      return;
     }
 
-    const buffer = this.#root.device.createBuffer({
-      label: 'ByeGL Uniform Buffer',
-      size: sizeOf(location.baseInfo.type as AnyWgslData),
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      mappedAtCreation: true,
-    });
-    this.#buffers.set(location.baseInfo.location, buffer);
-    // Filling out the buffer with data
-    const mappedBuffer = new Uint8Array(buffer.getMappedRange());
-    const inView = new Uint8Array(serialized);
-    for (let i = 0; i < serialized.byteLength; i++) {
-      mappedBuffer[i + location.byteOffset] = inView[i];
+    const programInternal = location.program;
+    const buffer = programInternal.gpuUniformBuffer;
+
+    if (!buffer) {
+      // Program doesn't have a uniform buffer (no non-texture uniforms)
+      return;
     }
-    buffer.unmap();
-    return buffer;
+
+    // The location.byteOffset already includes the base offset of the uniform
+    // plus any additional offset for struct/array members
+    const finalOffset = location.byteOffset;
+
+    // Serialize the value
+    const serialized = this.#serializeValue(dataType, value, location.name);
+
+    // Write to the unified buffer
+    this.#root.device.queue.writeBuffer(buffer, finalOffset, serialized);
   }
 }
 
@@ -166,6 +162,7 @@ export interface UniformLocation {
   size: number;
   baseInfo: UniformInfo;
   dataType: ByeglData;
+  program: ByeGLProgramInternals;
 }
 
 // WebGLUniformLocation

@@ -31,6 +31,15 @@ export interface UniformInfo {
   type: ByeglData;
 }
 
+export interface UniformBufferLayout {
+  /** Total size of the uniform buffer in bytes (aligned to 16) */
+  totalSize: number;
+  /** Offset within the buffer for each uniform, keyed by uniform id */
+  offsets: Map<string, number>;
+  /** The binding index for the unified uniform buffer */
+  bindingIndex: number;
+}
+
 export interface WgslGeneratorResult {
   wgsl: string;
 
@@ -46,7 +55,7 @@ export interface WgslGeneratorResult {
   attributes: AttributeInfo[];
 
   /**
-   * A list of uniforms.
+   * A list of uniforms (non-texture/sampler) that are part of the unified uniform buffer.
    * Valid for definitions using the `uniform` qualifier.
    * @example
    * ```ts
@@ -57,9 +66,19 @@ export interface WgslGeneratorResult {
   uniforms: UniformInfo[];
 
   /**
+   * Uniforms that need individual bindings (textures and samplers).
+   */
+  textureUniforms: UniformInfo[];
+
+  /**
    * Associates sampler bindings and texture bindings
    */
   samplerToTextureMap: Map<UniformInfo, UniformInfo>;
+
+  /**
+   * Layout info for non-texture uniforms. Undefined if there are no such uniforms.
+   */
+  uniformBufferLayout?: UniformBufferLayout;
 }
 
 export interface WgslGenerator {

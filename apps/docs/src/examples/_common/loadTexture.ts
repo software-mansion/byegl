@@ -42,6 +42,8 @@ export function loadTexture(
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       }
 
+      gl.bindTexture(gl.TEXTURE_2D, null);
+
       resolve({ texture, width: image.width, height: image.height });
     });
   });
