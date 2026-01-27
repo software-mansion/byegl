@@ -1216,10 +1216,14 @@ export class ByeGLContext {
       // Populating uniform locations
       program.uniformLocationsMap = new Map();
       for (const info of result.uniforms) {
+        // Get the base byte offset for this uniform from the layout
+        const baseOffset =
+          result.uniformBufferLayout?.offsets.get(info.id) ?? 0;
         program.populateUniform({
+          program: glProgram[$internal],
           name: info.id,
           baseInfo: info,
-          byteOffset: 0,
+          byteOffset: baseOffset,
           dataType: info.type,
           size: 1,
         });
@@ -1229,6 +1233,23 @@ export class ByeGLContext {
       program.activeAttribs = result.attributes;
 
       program.compiled = result;
+
+      // Create the unified uniform buffer if there are non-texture uniforms
+      if (
+        result.uniformBufferLayout &&
+        result.uniformBufferLayout.totalSize > 0
+      ) {
+        program.gpuUniformBuffer = this.#root.device.createBuffer({
+          label: 'ByeGL Unified Uniform Buffer',
+          size: result.uniformBufferLayout.totalSize,
+          usage:
+            GPUBufferUsage.UNIFORM |
+            GPUBufferUsage.COPY_DST |
+            GPUBufferUsage.COPY_SRC,
+        });
+        program.uniformBufferLayout = result.uniformBufferLayout;
+      }
+
       const module = this.#root.device.createShaderModule({
         label: 'ByeGL Shader Module',
         code: result.wgsl,
@@ -1952,39 +1973,45 @@ export class ByeGLContext {
       throw new Error(`Unsupported primitive topology: ${mode}`);
     }
 
+    // Build bind group layout entries
+    const layoutEntries: GPUBindGroupLayoutEntry[] = [];
+
+    // Add unified uniform buffer entry if there are non-texture uniforms
+    if (program.gpuUniformBuffer && compiled.uniformBufferLayout) {
+      layoutEntries.push({
+        binding: compiled.uniformBufferLayout.bindingIndex,
+        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+        buffer: {
+          type: 'uniform',
+        },
+      });
+    }
+
+    // Add texture/sampler entries
+    for (const uniform of compiled.textureUniforms) {
+      if (uniform.type.type === 'sampler') {
+        layoutEntries.push({
+          binding: uniform.location,
+          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+          sampler: {
+            type: 'filtering',
+          },
+        });
+      } else if (uniform.type.type.startsWith('texture_')) {
+        layoutEntries.push({
+          binding: uniform.location,
+          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+          texture: {
+            sampleType: 'float',
+          },
+        });
+      }
+    }
     const layout =
-      compiled.uniforms.length > 0
+      layoutEntries.length > 0
         ? this.#root.device.createBindGroupLayout({
             label: 'ByeGL Bind Group Layout',
-            entries: compiled.uniforms.map((uniform) => {
-              if (uniform.type.type === 'sampler') {
-                return {
-                  binding: uniform.location,
-                  visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
-                  sampler: {
-                    type: 'filtering',
-                  },
-                } satisfies GPUBindGroupLayoutEntry;
-              }
-
-              if (uniform.type.type.startsWith('texture_')) {
-                return {
-                  binding: uniform.location,
-                  visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
-                  texture: {
-                    sampleType: 'float',
-                  },
-                } satisfies GPUBindGroupLayoutEntry;
-              }
-
-              return {
-                binding: uniform.location,
-                visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
-                buffer: {
-                  type: 'uniform',
-                },
-              } satisfies GPUBindGroupLayoutEntry;
-            }),
+            entries: layoutEntries,
           })
         : undefined;
 
@@ -2102,38 +2129,40 @@ export class ByeGLContext {
       }
     }
 
-    // Uniforms
+    // Uniforms - build bind group entries
+    const bindGroupEntries: GPUBindGroupEntry[] = [];
+
+    // Add unified uniform buffer entry if there are non-texture uniforms
+    if (program.gpuUniformBuffer && compiled.uniformBufferLayout) {
+      bindGroupEntries.push({
+        binding: compiled.uniformBufferLayout.bindingIndex,
+        resource: {
+          buffer: program.gpuUniformBuffer,
+        },
+      });
+    }
+
+    // Add texture/sampler entries
+    for (const uniform of compiled.textureUniforms) {
+      if (uniform.type.type.startsWith('texture_')) {
+        const texture = this.#getTextureForUniform(uniform)[$internal];
+        bindGroupEntries.push({
+          binding: uniform.location,
+          resource: texture.gpuTextureView,
+        });
+      } else if (uniform.type.type === 'sampler') {
+        const texture = this.#getTextureForUniform(uniform)[$internal];
+        bindGroupEntries.push({
+          binding: uniform.location,
+          resource: texture.gpuSampler,
+        });
+      }
+    }
+
     const group = layout
       ? this.#root.device.createBindGroup({
           layout,
-          entries: compiled.uniforms.map((uniform) => {
-            if (uniform.type.type.startsWith('texture_')) {
-              const texture = this.#getTextureForUniform(uniform)[$internal];
-
-              return {
-                binding: uniform.location,
-                resource: texture.gpuTextureView,
-              } satisfies GPUBindGroupEntry;
-            }
-
-            if (uniform.type.type === 'sampler') {
-              const texture = this.#getTextureForUniform(uniform)[$internal];
-
-              return {
-                binding: uniform.location,
-                resource: texture.gpuSampler,
-              } satisfies GPUBindGroupEntry;
-            }
-
-            const buffer = this.#uniformBufferCache.getBuffer(uniform);
-
-            return {
-              binding: uniform.location,
-              resource: {
-                buffer,
-              },
-            } satisfies GPUBindGroupEntry;
-          }),
+          entries: bindGroupEntries,
         })
       : undefined;
 

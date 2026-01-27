@@ -8,7 +8,11 @@ import { isPrimitive } from './data-types.ts';
 import { roundUp } from './math-utils.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformLocation } from './uniform.ts';
-import { AttributeInfo, WgslGeneratorResult } from './wgsl/wgsl-generator.ts';
+import {
+  AttributeInfo,
+  UniformBufferLayout,
+  WgslGeneratorResult,
+} from './wgsl/wgsl-generator.ts';
 
 export class ByeGLShader implements WebGLShader {
   readonly [$internal]: {
@@ -26,7 +30,7 @@ export class ByeGLShader implements WebGLShader {
   }
 }
 
-class ByeGLProgramInternals {
+export class ByeGLProgramInternals {
   vert: ByeGLShader | undefined;
   frag: ByeGLShader | undefined;
   compiled: WgslGeneratorResult | undefined;
@@ -35,6 +39,12 @@ class ByeGLProgramInternals {
   activeAttribs: AttributeInfo[] = [];
   infoLog: string = '';
   wgpuShaderModule: GPUShaderModule | undefined;
+
+  /** The unified GPU buffer for all non-texture uniforms */
+  gpuUniformBuffer: GPUBuffer | undefined;
+
+  /** Layout information for writing uniform values */
+  uniformBufferLayout: UniformBufferLayout | undefined;
 
   constructor() {}
 
@@ -59,6 +69,7 @@ class ByeGLProgramInternals {
 
       for (let i = 0; i < elementCount; ++i) {
         const elementUniform: UniformLocation = {
+          program: this,
           baseInfo: uniform.baseInfo,
           name: `${uniform.name}[${i}]`,
           size: 1,
@@ -97,6 +108,7 @@ class ByeGLProgramInternals {
 
         this.populateUniform(
           {
+            program: this,
             baseInfo: uniform.baseInfo,
             name: `${uniform.name}.${propKey}`,
             size: 1,

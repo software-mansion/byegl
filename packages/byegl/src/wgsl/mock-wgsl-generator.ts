@@ -19,7 +19,9 @@ export class MockWGSLGenerator implements WgslGenerator {
       `,
       attributes: [{ id: 'a_position', location: 0, type: d.vec4f }],
       uniforms: [],
+      textureUniforms: [],
       samplerToTextureMap: new Map(),
+      uniformBufferLayout: undefined,
     };
   }
 }
