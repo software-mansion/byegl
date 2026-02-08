@@ -1159,7 +1159,6 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           state.shaderType === 'vertex'
             ? state.fakeVertexMainId
             : state.fakeFragmentMainId;
-
       } else {
         // Look up the mangled name
         const paramTypes = statement.params
