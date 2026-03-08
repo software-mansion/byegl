@@ -1,9 +1,5 @@
 import { TgpuRoot } from 'typegpu';
-import {
-  AttributeState,
-  ByeGLVertexArrayObject,
-  destroyVAO,
-} from './attribute.ts';
+import { AttributeState, ByeGLVertexArrayObject, destroyVAO } from './attribute.ts';
 import { ByeGLBuffer, VertexBufferSegment } from './buffer.ts';
 import {
   blendEquationMap,
@@ -22,10 +18,7 @@ import { ByeGLFramebuffer } from './framebuffer.ts';
 import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
-import {
-  convertRGBToRGBA,
-  getTextureFormat,
-} from './texture-format-mapping.ts';
+import { convertRGBToRGBA, getTextureFormat } from './texture-format-mapping.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
@@ -130,12 +123,7 @@ export class ByeGLContext {
     );
   }
 
-  constructor(
-    glVersion: 1 | 2,
-    root: TgpuRoot,
-    canvas: HTMLCanvasElement,
-    wgslGen: WgslGenerator,
-  ) {
+  constructor(glVersion: 1 | 2, root: TgpuRoot, canvas: HTMLCanvasElement, wgslGen: WgslGenerator) {
     this[$internal] = { device: root.device, glVersion };
     this.#root = root;
     this.#remapper = new Remapper(root);
@@ -170,10 +158,9 @@ export class ByeGLContext {
 
   #setAttribute(newSegment: VertexBufferSegment) {
     const state = this.#boundAttributeState;
-    let segment: VertexBufferSegment | undefined =
-      state.vertexBufferSegments.find(
-        (seg) => seg.shaderLocation === newSegment.shaderLocation,
-      );
+    let segment: VertexBufferSegment | undefined = state.vertexBufferSegments.find(
+      (seg) => seg.shaderLocation === newSegment.shaderLocation,
+    );
 
     if (!segment) {
       segment = newSegment;
@@ -267,10 +254,7 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.bindFramebuffer');
   }
 
-  bindRenderbuffer(
-    target: GLenum,
-    renderbuffer: WebGLRenderbuffer | null,
-  ): void {
+  bindRenderbuffer(target: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.bindRenderbuffer');
   }
@@ -333,12 +317,7 @@ export class ByeGLContext {
     this.#parameters.set(gl.BLEND_DST_ALPHA, dst);
   }
 
-  blendFuncSeparate(
-    srcRGB: GLenum,
-    dstRGB: GLenum,
-    srcAlpha: GLenum,
-    dstAlpha: GLenum,
-  ): void {
+  blendFuncSeparate(srcRGB: GLenum, dstRGB: GLenum, srcAlpha: GLenum, dstAlpha: GLenum): void {
     this.#parameters.set(gl.BLEND_SRC_RGB, srcRGB);
     this.#parameters.set(gl.BLEND_DST_RGB, dstRGB);
     this.#parameters.set(gl.BLEND_SRC_ALPHA, srcAlpha);
@@ -377,11 +356,7 @@ export class ByeGLContext {
         );
       }
     } else {
-      this.#root.device.queue.writeBuffer(
-        $buffer.gpuBuffer,
-        0,
-        dataOrSize as any,
-      );
+      this.#root.device.queue.writeBuffer($buffer.gpuBuffer, 0, dataOrSize as any);
     }
   }
 
@@ -433,12 +408,7 @@ export class ByeGLContext {
     this.#parameters.set(gl.STENCIL_CLEAR_VALUE, stencil);
   }
 
-  colorMask(
-    red: GLboolean,
-    green: GLboolean,
-    blue: GLboolean,
-    alpha: GLboolean,
-  ): void {
+  colorMask(red: GLboolean, green: GLboolean, blue: GLboolean, alpha: GLboolean): void {
     this.#parameters.set(gl.COLOR_WRITEMASK, [red, green, blue, alpha]);
   }
 
@@ -615,12 +585,7 @@ export class ByeGLContext {
     this.#root.device.queue.submit([encoder.finish()]);
   }
 
-  drawElements(
-    mode: GLenum,
-    count: GLsizei,
-    type: GLenum,
-    offset: GLintptr,
-  ): void {
+  drawElements(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr): void {
     const program = this.#program?.[$internal];
     if (!program) {
       throw new Error('No program bound');
@@ -641,11 +606,7 @@ export class ByeGLContext {
     }
 
     const indexFormat =
-      type === gl.UNSIGNED_SHORT
-        ? 'uint16'
-        : type === gl.UNSIGNED_INT
-          ? 'uint32'
-          : undefined;
+      type === gl.UNSIGNED_SHORT ? 'uint16' : type === gl.UNSIGNED_INT ? 'uint32' : undefined;
 
     if (!indexFormat) {
       throw new Error(`Unsupported index type: ${type}`);
@@ -704,10 +665,7 @@ export class ByeGLContext {
     // TODO: Implement
   }
 
-  getActiveAttrib(
-    glProgram: ByeGLProgram,
-    index: GLuint,
-  ): WebGLActiveInfo | null {
+  getActiveAttrib(glProgram: ByeGLProgram, index: GLuint): WebGLActiveInfo | null {
     const program = glProgram[$internal];
     const attrib = program.activeAttribs[index];
     if (!attrib) {
@@ -722,16 +680,11 @@ export class ByeGLContext {
     return {
       name: attrib.id,
       size: 1,
-      type: wgslTypeToEnumCatalog[
-        attrib.type.type as keyof typeof wgslTypeToEnumCatalog
-      ],
+      type: wgslTypeToEnumCatalog[attrib.type.type as keyof typeof wgslTypeToEnumCatalog],
     };
   }
 
-  getActiveUniform(
-    glProgram: ByeGLProgram,
-    index: GLuint,
-  ): WebGLActiveInfo | null {
+  getActiveUniform(glProgram: ByeGLProgram, index: GLuint): WebGLActiveInfo | null {
     const program = glProgram[$internal];
     const uniform = program.activeUniforms[index][$internal];
     if (!uniform) {
@@ -746,9 +699,7 @@ export class ByeGLContext {
     return {
       name: uniform.name,
       size: uniform.size,
-      type: wgslTypeToEnumCatalog[
-        uniform.dataType.type as keyof typeof wgslTypeToEnumCatalog
-      ],
+      type: wgslTypeToEnumCatalog[uniform.dataType.type as keyof typeof wgslTypeToEnumCatalog],
     };
   }
 
@@ -786,11 +737,7 @@ export class ByeGLContext {
     return null;
   }
 
-  getFramebufferAttachmentParameter(
-    target: GLenum,
-    attachment: GLenum,
-    pname: GLenum,
-  ): GLint {
+  getFramebufferAttachmentParameter(target: GLenum, attachment: GLenum, pname: GLenum): GLint {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getFramebufferAttachmentParameter');
   }
@@ -897,10 +844,7 @@ export class ByeGLContext {
       case gl.MAX_FRAGMENT_UNIFORM_VECTORS:
         // Assuming the biggest vector was chosen (4-elements)
         // and using every uniforms buffer binding
-        return (
-          (limits.maxUniformBufferBindingSize / 4) *
-          limits.maxUniformBuffersPerShaderStage
-        );
+        return (limits.maxUniformBufferBindingSize / 4) * limits.maxUniformBuffersPerShaderStage;
       case gl.MAX_VARYING_VECTORS:
         return limits.maxInterStageShaderVariables;
       case gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS:
@@ -1069,9 +1013,7 @@ export class ByeGLContext {
       return true;
     }
     if (pname === gl.ATTACHED_SHADERS) {
-      return (
-        (program[$internal].vert ? 1 : 0) + (program[$internal].frag ? 1 : 0)
-      );
+      return (program[$internal].vert ? 1 : 0) + (program[$internal].frag ? 1 : 0);
     }
     if (pname === gl.ACTIVE_ATTRIBUTES) {
       return program[$internal].compiled?.attributes.length ?? 0;
@@ -1133,10 +1075,7 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.getUniform');
   }
 
-  getUniformLocation(
-    glProgram: ByeGLProgram,
-    name: string,
-  ): WebGLUniformLocation | null {
+  getUniformLocation(glProgram: ByeGLProgram, name: string): WebGLUniformLocation | null {
     const program = glProgram[$internal];
     const uniform = program.uniformLocationsMap?.get(name);
     if (uniform === undefined) {
@@ -1202,9 +1141,7 @@ export class ByeGLContext {
     const { vert, frag } = program;
 
     if (!vert || !frag) {
-      throw new Error(
-        'Vertex and fragment shaders must be attached before linking',
-      );
+      throw new Error('Vertex and fragment shaders must be attached before linking');
     }
 
     try {
@@ -1217,8 +1154,7 @@ export class ByeGLContext {
       program.uniformLocationsMap = new Map();
       for (const info of result.uniforms) {
         // Get the base byte offset for this uniform from the layout
-        const baseOffset =
-          result.uniformBufferLayout?.offsets.get(info.id) ?? 0;
+        const baseOffset = result.uniformBufferLayout?.offsets.get(info.id) ?? 0;
         program.populateUniform({
           program: glProgram[$internal],
           name: info.id,
@@ -1235,17 +1171,11 @@ export class ByeGLContext {
       program.compiled = result;
 
       // Create the unified uniform buffer if there are non-texture uniforms
-      if (
-        result.uniformBufferLayout &&
-        result.uniformBufferLayout.totalSize > 0
-      ) {
+      if (result.uniformBufferLayout && result.uniformBufferLayout.totalSize > 0) {
         program.gpuUniformBuffer = this.#root.device.createBuffer({
           label: 'ByeGL Unified Uniform Buffer',
           size: result.uniformBufferLayout.totalSize,
-          usage:
-            GPUBufferUsage.UNIFORM |
-            GPUBufferUsage.COPY_DST |
-            GPUBufferUsage.COPY_SRC,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
         });
         program.uniformBufferLayout = result.uniformBufferLayout;
       }
@@ -1319,12 +1249,7 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.stencilFunc');
   }
 
-  stencilFuncSeparate(
-    face: GLenum,
-    func: GLenum,
-    ref: GLint,
-    mask: GLuint,
-  ): void {
+  stencilFuncSeparate(face: GLenum, func: GLenum, ref: GLint, mask: GLuint): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.stencilFuncSeparate');
   }
@@ -1352,21 +1277,16 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.stencilOp');
   }
 
-  stencilOpSeparate(
-    face: GLenum,
-    opFail: GLenum,
-    opZFail: GLenum,
-    opZPass: GLenum,
-  ): void {
+  stencilOpSeparate(face: GLenum, opFail: GLenum, opZFail: GLenum, opZPass: GLenum): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.stencilOpSeparate');
   }
 
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage2D(target: GLenum, level: GLint, internalformat: GLint, width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage2D(target: GLenum, level: GLint, internalformat: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage2D(target: GLenum, level: GLint, internalformat: GLint, ...rest: [width: GLsizei, height: GLsizei, border: GLint, format: GLenum, type: GLenum, pixels: ArrayBufferView | null] | [format: GLenum, type: GLenum, source: TexImageSource]): void {
     let width = 0;
     let height = 0;
@@ -1450,13 +1370,13 @@ export class ByeGLContext {
     // TODO: Implement mip-mapping
   }
 
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, srcData: ArrayBufferView): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, srcData: ArrayBufferView, srcOffset: number): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texImage3D(target: GLenum, level: GLint, internalformat: GLenum, width: GLsizei, height: GLsizei, depth: GLsizei, border: GLint, format: GLenum, type: GLenum, offset: GLintptr): void;
 
   texImage3D(
@@ -1517,21 +1437,17 @@ export class ByeGLContext {
       return;
     }
 
-    const formatInfo = getTextureFormat(
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      internalformat,
-    );
+    const formatInfo = getTextureFormat(gl.RGBA, gl.UNSIGNED_BYTE, internalformat);
     texture.setFormatInfo(formatInfo);
 
     texture.size = [width, height];
   }
 
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, format: GLenum, type: GLenum, source: TexImageSource): void;
-  // biome-ignore format: Easier to read
+  // oxfmt-ignore
   texSubImage2D(target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, ...rest: [width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, pixels: ArrayBufferView | null] | [format: GLenum, type: GLenum, source: TexImageSource]): void {
     const textureMap = this.#boundTexturesMap.get(this.#activeTextureUnit);
     const texture = textureMap?.get(target)?.[$internal];
@@ -1606,10 +1522,7 @@ export class ByeGLContext {
     }
   }
 
-  uniform1fv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLfloat> | Float32List,
-  ) {
+  uniform1fv(location: ByeGLUniformLocation | null, value: Iterable<GLfloat> | Float32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
@@ -1627,10 +1540,7 @@ export class ByeGLContext {
     }
   }
 
-  uniform1iv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLint> | Int32List,
-  ) {
+  uniform1iv(location: ByeGLUniformLocation | null, value: Iterable<GLint> | Int32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
@@ -1642,10 +1552,7 @@ export class ByeGLContext {
     }
   }
 
-  uniform2fv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLfloat> | Float32List,
-  ) {
+  uniform2fv(location: ByeGLUniformLocation | null, value: Iterable<GLfloat> | Float32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
@@ -1657,50 +1564,31 @@ export class ByeGLContext {
     }
   }
 
-  uniform2iv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLint> | Int32List,
-  ) {
+  uniform2iv(location: ByeGLUniformLocation | null, value: Iterable<GLint> | Int32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
-  uniform3f(
-    location: ByeGLUniformLocation | null,
-    v0: GLfloat,
-    v1: GLfloat,
-    v2: GLfloat,
-  ) {
+  uniform3f(location: ByeGLUniformLocation | null, v0: GLfloat, v1: GLfloat, v2: GLfloat) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, [v0, v1, v2]);
     }
   }
 
-  uniform3fv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLfloat> | Float32List,
-  ) {
+  uniform3fv(location: ByeGLUniformLocation | null, value: Iterable<GLfloat> | Float32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
-  uniform3i(
-    location: ByeGLUniformLocation | null,
-    v0: GLint,
-    v1: GLint,
-    v2: GLint,
-  ) {
+  uniform3i(location: ByeGLUniformLocation | null, v0: GLint, v1: GLint, v2: GLint) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, [v0, v1, v2]);
     }
   }
 
-  uniform3iv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLint> | Int32List,
-  ) {
+  uniform3iv(location: ByeGLUniformLocation | null, value: Iterable<GLint> | Int32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
@@ -1718,31 +1606,19 @@ export class ByeGLContext {
     }
   }
 
-  uniform4fv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLfloat> | Float32List,
-  ) {
+  uniform4fv(location: ByeGLUniformLocation | null, value: Iterable<GLfloat> | Float32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
   }
 
-  uniform4i(
-    location: ByeGLUniformLocation | null,
-    v0: GLint,
-    v1: GLint,
-    v2: GLint,
-    v3: GLint,
-  ) {
+  uniform4i(location: ByeGLUniformLocation | null, v0: GLint, v1: GLint, v2: GLint, v3: GLint) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, [v0, v1, v2, v3]);
     }
   }
 
-  uniform4iv(
-    location: ByeGLUniformLocation | null,
-    value: Iterable<GLint> | Int32List,
-  ) {
+  uniform4iv(location: ByeGLUniformLocation | null, value: Iterable<GLint> | Int32List) {
     if (location) {
       this.#uniformBufferCache.updateUniform(location, value);
     }
@@ -1842,11 +1718,9 @@ export class ByeGLContext {
       throw new Error(`Unsupported vertex type: ${type}`);
     }
 
-    let format = (
-      normalized
-        ? normalizedVertexFormatCatalog
-        : unnormalizedVertexFormatCatalog
-    )[type][size];
+    let format = (normalized ? normalizedVertexFormatCatalog : unnormalizedVertexFormatCatalog)[
+      type
+    ][size];
 
     if (!format) {
       throw new Error(`Unsupported vertex format: ${type} ${size}`);
@@ -1887,13 +1761,10 @@ export class ByeGLContext {
     const compiled = this.#program?.[$internal]!.compiled!;
 
     if (uniform.type.type === 'sampler') {
-      return this.#getTextureForUniform(
-        compiled.samplerToTextureMap.get(uniform)!,
-      );
+      return this.#getTextureForUniform(compiled.samplerToTextureMap.get(uniform)!);
     }
 
-    const textureUnit =
-      gl.TEXTURE0 + (this.#uniformBufferCache.getValue(uniform.id) as number);
+    const textureUnit = gl.TEXTURE0 + (this.#uniformBufferCache.getValue(uniform.id) as number);
 
     const textureMap = this.#boundTexturesMap.get(textureUnit);
     const typeToTextureBinding = {
@@ -1904,9 +1775,7 @@ export class ByeGLContext {
       'texture_2d<u32>': gl.TEXTURE_2D,
     };
     const textureBinding =
-      typeToTextureBinding[
-        uniform.type.type as keyof typeof typeToTextureBinding
-      ];
+      typeToTextureBinding[uniform.type.type as keyof typeof typeToTextureBinding];
     if (!textureBinding) {
       throw new Error(`Unsupported texture type: ${uniform.type.type}`);
     }
@@ -1960,8 +1829,7 @@ export class ByeGLContext {
       depthStencil = {
         format: 'depth24plus',
         depthWriteEnabled: true,
-        depthCompare:
-          depthFuncCatalog[glDepthFunc as keyof typeof depthFuncCatalog],
+        depthCompare: depthFuncCatalog[glDepthFunc as keyof typeof depthFuncCatalog],
       };
     }
 
@@ -2072,13 +1940,9 @@ export class ByeGLContext {
       },
     });
 
-    const clearColorValue: Float32Array = this.#parameters.get(
-      gl.COLOR_CLEAR_VALUE,
-    );
+    const clearColorValue: Float32Array = this.#parameters.get(gl.COLOR_CLEAR_VALUE);
     const clearDepthValue: number = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
-    const clearStencilValue: number = this.#parameters.get(
-      gl.STENCIL_CLEAR_VALUE,
-    );
+    const clearStencilValue: number = this.#parameters.get(gl.STENCIL_CLEAR_VALUE);
 
     const renderPass = encoder.beginRenderPass({
       label: 'ByeGL Render Pass',
@@ -2093,8 +1957,7 @@ export class ByeGLContext {
       depthStencilAttachment: depthTextureView
         ? {
             view: depthTextureView!,
-            depthLoadOp:
-              this.#bitsToClear & gl.DEPTH_BUFFER_BIT ? 'clear' : 'load',
+            depthLoadOp: this.#bitsToClear & gl.DEPTH_BUFFER_BIT ? 'clear' : 'load',
             depthStoreOp: 'store',
             depthClearValue: clearDepthValue,
             stencilClearValue: clearStencilValue,
@@ -2121,11 +1984,7 @@ export class ByeGLContext {
           segment.offset,
         );
       } else {
-        renderPass.setVertexBuffer(
-          vertexBufferIdx++,
-          segment.buffer.gpuBuffer,
-          segment.offset,
-        );
+        renderPass.setVertexBuffer(vertexBufferIdx++, segment.buffer.gpuBuffer, segment.offset);
       }
     }
 

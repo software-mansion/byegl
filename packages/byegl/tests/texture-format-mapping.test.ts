@@ -82,11 +82,7 @@ describe('texture format mapping', () => {
     });
 
     it('should handle sRGB formats', () => {
-      const result = getTextureFormat(
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        gl.SRGB8_ALPHA8,
-      );
+      const result = getTextureFormat(gl.RGBA, gl.UNSIGNED_BYTE, gl.SRGB8_ALPHA8);
       expect(result).toEqual({
         webgpuFormat: 'rgba8unorm-srgb',
         bytesPerPixel: 4,
@@ -110,11 +106,7 @@ describe('texture format mapping', () => {
     });
 
     it('should prioritize internal format over format/type', () => {
-      const result = getTextureFormat(
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        gl.SRGB8_ALPHA8,
-      );
+      const result = getTextureFormat(gl.RGBA, gl.UNSIGNED_BYTE, gl.SRGB8_ALPHA8);
       expect(result.webgpuFormat).toBe('rgba8unorm-srgb');
     });
 

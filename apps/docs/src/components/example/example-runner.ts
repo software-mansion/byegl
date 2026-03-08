@@ -100,7 +100,9 @@ export async function runExample(example: ExampleContent) {
   if (!example.meta.usesHooks) {
     // Only run ground-truth if the example does not use byegl hooks
     activeContext = 'groundTruth';
-    prevGroundTruthCleanup = await (await example.execute())({
+    prevGroundTruthCleanup = await (
+      await example.execute()
+    )({
       canvas: groundTruthCanvas,
       trace(...values) {
         groundTruthTrace.push(...values);
@@ -112,7 +114,9 @@ export async function runExample(example: ExampleContent) {
   const disable = await byegl.enable();
   try {
     activeContext = 'byegl';
-    prevCleanup = await (await example.execute())({
+    prevCleanup = await (
+      await example.execute()
+    )({
       canvas,
       trace(...values) {
         trace.push(...values);

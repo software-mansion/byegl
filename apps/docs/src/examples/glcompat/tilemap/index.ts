@@ -88,10 +88,7 @@ class TileGrid {
 
     this.#positionLocation = gl.getAttribLocation(this.#program, 'a_position');
     this.#uvLocation = gl.getAttribLocation(this.#program, 'a_uv');
-    this.#mvpMatrixLocation = gl.getUniformLocation(
-      this.#program,
-      'u_mvpMatrix',
-    )!;
+    this.#mvpMatrixLocation = gl.getUniformLocation(this.#program, 'u_mvpMatrix')!;
 
     gl.bindTexture(gl.TEXTURE_2D, tileMap.texture!);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -193,12 +190,7 @@ class TileGrid {
     gl.useProgram(this.#program);
     gl.uniformMatrix4fv(this.#mvpMatrixLocation, false, mvpMatrix);
 
-    gl.drawElements(
-      gl.TRIANGLES,
-      this.width * this.height * 6,
-      gl.UNSIGNED_SHORT,
-      0,
-    );
+    gl.drawElements(gl.TRIANGLES, this.width * this.height * 6, gl.UNSIGNED_SHORT, 0);
   }
 }
 
@@ -240,13 +232,7 @@ export default async function ({ canvas }: ExampleContext) {
   const modelMatrix = mat4.create();
 
   const projectionMatrix = mat4.create();
-  mat4.perspective(
-    projectionMatrix,
-    Math.PI / 4,
-    canvas.width / canvas.height,
-    0.1,
-    100,
-  );
+  mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
 
   const mvpMatrix = mat4.create();
 

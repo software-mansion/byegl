@@ -23,9 +23,7 @@ export class ShaderCompilationError extends Error {
 
     super(
       `Compilation of the following tree failed:\n${entries.join('\n')}: ${
-        cause && typeof cause === 'object' && 'message' in cause
-          ? cause.message
-          : cause
+        cause && typeof cause === 'object' && 'message' in cause ? cause.message : cause
       }`,
     );
 

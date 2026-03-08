@@ -59,10 +59,7 @@ export const normalizedVertexFormatCatalog: Record<
   },
 };
 
-export const unnormalizedVertexFormatCatalog: Record<
-  number,
-  Record<number, GPUVertexFormat>
-> = {
+export const unnormalizedVertexFormatCatalog: Record<number, Record<number, GPUVertexFormat>> = {
   [gl.FLOAT]: {
     2: 'float32x2',
     3: 'float32x3',
@@ -75,10 +72,7 @@ export const unnormalizedVertexFormatCatalog: Record<
   },
 };
 
-export const shaderPrecisionFormatCatalog: Record<
-  GLenum,
-  WebGLShaderPrecisionFormat
-> = {
+export const shaderPrecisionFormatCatalog: Record<GLenum, WebGLShaderPrecisionFormat> = {
   [gl.HIGH_FLOAT]: Object.setPrototypeOf(
     {
       rangeMin: 127,

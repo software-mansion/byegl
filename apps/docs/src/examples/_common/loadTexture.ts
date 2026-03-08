@@ -8,10 +8,7 @@ export interface TextureInfo {
   height: number;
 }
 
-export function loadTexture(
-  gl: WebGLRenderingContext,
-  src: string,
-): Promise<TextureInfo> {
+export function loadTexture(gl: WebGLRenderingContext, src: string): Promise<TextureInfo> {
   const texture = gl.createTexture();
 
   // Asynchronously load an image
@@ -22,14 +19,7 @@ export function loadTexture(
     image.addEventListener('load', () => {
       // Now that the image has loaded copy it to the texture.
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        image,
-      );
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 
       // Check if the image is a power of 2 in both dimensions.
       if (isPowerOf2(image.width) && isPowerOf2(image.height)) {

@@ -101,32 +101,28 @@ const mockDevice = {
     return mockDevice;
   },
   features: new Set(['timestamp-query']),
-  createBindGroup: vi.fn(
-    (_descriptor: GPUBindGroupDescriptor) => 'mockBindGroup',
-  ),
+  createBindGroup: vi.fn((_descriptor: GPUBindGroupDescriptor) => 'mockBindGroup'),
   createBindGroupLayout: vi.fn(
     (_descriptor: GPUBindGroupLayoutDescriptor) => 'mockBindGroupLayout',
   ),
-  createBuffer: vi.fn(
-    ({ size, usage, mappedAtCreation, label }: GPUBufferDescriptor) => {
-      const mockBuffer = {
-        mapState: mappedAtCreation ? 'mapped' : 'unmapped',
-        size,
-        usage,
-        label: label ?? '<unnamed>',
-        getMappedRange: vi.fn(() => new ArrayBuffer(size)),
-        unmap: vi.fn(() => {
-          mockBuffer.mapState = 'unmapped';
-        }),
-        mapAsync: vi.fn(() => {
-          mockBuffer.mapState = 'mapped';
-        }),
-        destroy: vi.fn(),
-      };
+  createBuffer: vi.fn(({ size, usage, mappedAtCreation, label }: GPUBufferDescriptor) => {
+    const mockBuffer = {
+      mapState: mappedAtCreation ? 'mapped' : 'unmapped',
+      size,
+      usage,
+      label: label ?? '<unnamed>',
+      getMappedRange: vi.fn(() => new ArrayBuffer(size)),
+      unmap: vi.fn(() => {
+        mockBuffer.mapState = 'unmapped';
+      }),
+      mapAsync: vi.fn(() => {
+        mockBuffer.mapState = 'mapped';
+      }),
+      destroy: vi.fn(),
+    };
 
-      return mockBuffer;
-    },
-  ),
+    return mockBuffer;
+  }),
   createCommandEncoder: vi.fn(() => mockCommandEncoder),
   createComputePipeline: vi.fn(() => mockComputePipeline),
   createPipelineLayout: vi.fn(() => 'mockPipelineLayout'),

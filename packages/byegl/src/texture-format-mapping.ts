@@ -213,11 +213,7 @@ export function convertRGBToRGBA(
   width: number,
   height: number,
 ): Uint8Array {
-  const rgbArray = new Uint8Array(
-    rgbData.buffer,
-    rgbData.byteOffset,
-    rgbData.byteLength,
-  );
+  const rgbArray = new Uint8Array(rgbData.buffer, rgbData.byteOffset, rgbData.byteLength);
   const rgbaArray = new Uint8Array(width * height * 4);
 
   for (let i = 0, j = 0; i < rgbArray.length; i += 3, j += 4) {

@@ -324,8 +324,7 @@ class Snippet {
 /**
  * A helper function for creating "snippets"
  */
-const snip = (value: string, type: ByeglData | UnknownType) =>
-  new Snippet(value, type);
+const snip = (value: string, type: ByeglData | UnknownType) => new Snippet(value, type);
 
 interface GenState {
   shaderType: 'vertex' | 'fragment';
@@ -365,10 +364,7 @@ interface GenState {
   renames: Map<string, string>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
-  functions: Map<
-    string,
-    { params: { id: string; flow: 'in' | 'out' | 'inout' }[] }
-  >;
+  functions: Map<string, { params: { id: string; flow: 'in' | 'out' | 'inout' }[] }>;
   currentFunction: string | undefined;
 
   /** Used to track variable declarations with the `attribute` qualifier */
@@ -453,8 +449,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     let dataType: ByeglData | undefined;
     if (typeSpec.name in glslToWgslTypeMap) {
-      dataType =
-        glslToWgslTypeMap[typeSpec.name as keyof typeof glslToWgslTypeMap];
+      dataType = glslToWgslTypeMap[typeSpec.name as keyof typeof glslToWgslTypeMap];
     } else if (state.structDefs.has(typeSpec.name)) {
       dataType = state.structDefs.get(typeSpec.name)!;
     } else {
@@ -508,10 +503,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
   forkState<T>(propsToChange: Partial<GenState>, cb: () => T): T {
     const oldPropValues = Object.fromEntries(
-      Object.keys(propsToChange).map((key) => [
-        key,
-        this.#state[key as keyof GenState],
-      ]),
+      Object.keys(propsToChange).map((key) => [key, this.#state[key as keyof GenState]]),
     );
 
     Object.assign(this.#state, propsToChange);
@@ -587,9 +579,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       funcName = (define as shaderkit.Identifier).name;
     }
 
-    const args = expression.arguments.map((arg) =>
-      this.generateExpression(arg),
-    );
+    const args = expression.arguments.map((arg) => this.generateExpression(arg));
     let argsValue = args.map((arg) => arg.value).join(', ');
 
     if (funcName === 'mat3' && args.length === 1) {
@@ -602,27 +592,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       // if (args[0].type === UnknownType || args[0].type.type !== 'f32') {
       //   throw new Error(`Unsupported modf parameter type: ${String(args[0].type)}`);
       // }
-      return snip(
-        `${this.useModfWrapperFloat()}(${args[0].value}, &${args[1].value})`,
-        d.f32,
-      );
+      return snip(`${this.useModfWrapperFloat()}(${args[0].value}, &${args[1].value})`, d.f32);
     }
 
     if (funcName === 'texture2D' || funcName === 'texture') {
       const textureName = args[0].value;
       const sampler = state.textureToSamplerMap.get(textureName)!;
       const uv = args[1].value;
-      return snip(
-        `textureSample(${textureName}, ${sampler.id}, ${uv})`,
-        d.vec4f,
-      );
+      return snip(`textureSample(${textureName}, ${sampler.id}, ${uv})`, d.vec4f);
     }
 
     if (funcName === 'mod') {
-      return snip(
-        `${this.useModHelper()}(${args[0].value}, ${args[1].value})`,
-        args[0].type,
-      );
+      return snip(`${this.useModHelper()}(${args[0].value}, ${args[1].value})`, args[0].type);
     }
 
     if (funcName === 'atan' && args.length === 2) {
@@ -644,26 +625,19 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
       if (isVector(arg0.type) && !isVector(arg1.type)) {
         // If one argument is a vector, the other must be a scalar or vector of the same type
-        return snip(
-          `${funcName}(${arg0.value}, ${arg0.type}(${arg1.value}))`,
-          arg0.type,
-        );
+        return snip(`${funcName}(${arg0.value}, ${arg0.type}(${arg1.value}))`, arg0.type);
       }
 
       if (!isVector(arg0.type) && isVector(arg1.type)) {
         // If one argument is a vector, the other must be a scalar or vector of the same type
-        return snip(
-          `${funcName}(${arg0.type}(${arg0.value}), ${arg1.value})`,
-          arg1.type,
-        );
+        return snip(`${funcName}(${arg0.type}(${arg0.value}), ${arg1.value})`, arg1.type);
       }
 
       return snip(`${funcName}(${argsValue})`, arg0.type);
     }
 
     if (funcName in glslToWgslTypeMap) {
-      const dataType =
-        glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
+      const dataType = glslToWgslTypeMap[funcName as keyof typeof glslToWgslTypeMap];
       return snip(`${dataType.type}(${argsValue})`, dataType);
     }
 
@@ -704,10 +678,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
       // Access uniforms through the unified struct
       if (state.uniformStructMembers.has(expression.name)) {
-        return snip(
-          `_uniforms.${this.safeId(expression.name)}`,
-          varType ?? UnknownType,
-        );
+        return snip(`_uniforms.${this.safeId(expression.name)}`, varType ?? UnknownType);
       }
 
       return snip(this.safeId(expression.name), varType ?? UnknownType);
@@ -724,10 +695,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const consequent = this.generateExpression(expression.consequent);
       const alternate = this.generateExpression(expression.alternate);
       // TODO: Infer the type of the conditional expression based on the operands
-      return snip(
-        `select(${consequent.value}, ${alternate.value}, bool(${test.value}))`,
-        d.f32,
-      );
+      return snip(`select(${consequent.value}, ${alternate.value}, bool(${test.value}))`, d.f32);
     }
 
     if (expression.type === 'CallExpression') {
@@ -749,10 +717,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           }
         }
       }
-      return snip(
-        `${leftValue} ${expression.operator} ${right.value}`,
-        left.type,
-      );
+      return snip(`${leftValue} ${expression.operator} ${right.value}`, left.type);
     }
 
     if (expression.type === 'BinaryExpression') {
@@ -769,10 +734,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             (right.type as ByeglData).type?.startsWith('vec')) &&
           logicalOps.includes(expression.operator)
         ) {
-          return snip(
-            `all(${left.value} ${expression.operator} ${right.value})`,
-            d.bool,
-          );
+          return snip(`all(${left.value} ${expression.operator} ${right.value})`, d.bool);
         }
 
         if (myPrecedence < parentPrecedence) {
@@ -782,10 +744,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             UnknownType,
           );
         }
-        return snip(
-          `${left.value} ${expression.operator} ${right.value}`,
-          UnknownType,
-        );
+        return snip(`${left.value} ${expression.operator} ${right.value}`, UnknownType);
       } finally {
         state.parentPrecedence = parentPrecedence;
       }
@@ -922,10 +881,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         expression.callee.type === 'Identifier' &&
         (expression.callee as shaderkit.Identifier).name === 'defined'
       ) {
-        if (
-          expression.arguments.length !== 1 ||
-          expression.arguments[0].type !== 'Identifier'
-        ) {
+        if (expression.arguments.length !== 1 || expression.arguments[0].type !== 'Identifier') {
           throw new Error(
             `Invalid argument for defined() macro: ${JSON.stringify(expression.arguments)}`,
           );
@@ -936,14 +892,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       }
     }
 
-    throw new Error(
-      `Cannot precompute expression: ${JSON.stringify(expression)}`,
-    );
+    throw new Error(`Cannot precompute expression: ${JSON.stringify(expression)}`);
   }
 
-  generatePreprocessorStatement(
-    statement: shaderkit.PreprocessorStatement,
-  ): string {
+  generatePreprocessorStatement(statement: shaderkit.PreprocessorStatement): string {
     const state = this.#state;
 
     if (statement.name === 'endif') {
@@ -960,17 +912,14 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         statement.value.length !== 1 ||
         statement.value[0].type !== 'Identifier'
       ) {
-        throw new Error(
-          `Invalid #ifdef statement: ${JSON.stringify(statement.value)}`,
-        );
+        throw new Error(`Invalid #ifdef statement: ${JSON.stringify(statement.value)}`);
       }
 
       const isDefined = state.preprocessorDefines.has(statement.value[0].name);
       state.preprocessorScope++;
       if (
         !state.disabledAtScope &&
-        ((!isDefined && statement.name === 'ifdef') ||
-          (isDefined && statement.name === 'ifndef'))
+        ((!isDefined && statement.name === 'ifdef') || (isDefined && statement.name === 'ifndef'))
       ) {
         state.disabledAtScope = state.preprocessorScope;
       }
@@ -979,9 +928,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (statement.name === 'if') {
       if (!statement.value || statement.value.length !== 1) {
-        throw new Error(
-          `Invalid #if statement: ${JSON.stringify(statement.value)}`,
-        );
+        throw new Error(`Invalid #if statement: ${JSON.stringify(statement.value)}`);
       }
 
       const condition = this.precomputeExpression(statement.value[0]);
@@ -1026,21 +973,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (statement.name === 'define') {
-      if (
-        !statement.value ||
-        statement.value.length < 1 ||
-        statement.value.length > 2
-      ) {
-        throw new Error(
-          `Invalid #define statement: ${JSON.stringify(statement.value)}`,
-        );
+      if (!statement.value || statement.value.length < 1 || statement.value.length > 2) {
+        throw new Error(`Invalid #define statement: ${JSON.stringify(statement.value)}`);
       }
 
       if (statement.value[0].type === 'CallExpression') {
         if (!statement.value[1]) {
-          throw new Error(
-            `Malformed macro #define statement: ${JSON.stringify(statement.value)}`,
-          );
+          throw new Error(`Malformed macro #define statement: ${JSON.stringify(statement.value)}`);
         }
 
         const callee = statement.value[0].callee;
@@ -1152,8 +1091,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           qualifiers.includes('varying') ||
           (state.shaderType === 'vertex' && qualifiers.includes('out')) ||
           (state.shaderType === 'fragment' && qualifiers.includes('in'));
-        const isFragmentOut =
-          state.shaderType === 'fragment' && qualifiers.includes('out');
+        const isFragmentOut = state.shaderType === 'fragment' && qualifiers.includes('out');
 
         let { id, dataType } = this.getDataType(decl);
 
@@ -1240,10 +1178,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             };
             state.uniforms.set(state.lastBindingIdx, samplerUniformInfo);
             state.samplerToTextureMap.set(samplerUniformInfo, uniformInfo);
-            state.textureToSamplerMap.set(
-              this.safeId(uniformInfo.id),
-              samplerUniformInfo,
-            );
+            state.textureToSamplerMap.set(this.safeId(uniformInfo.id), samplerUniformInfo);
 
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${samplerId}: sampler;\n`;
           } else {
@@ -1344,16 +1279,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
             const paramsValue = paramSnippets
               .map(
-                (param) =>
-                  `${this.safeId(param.value)}: ${this.aliasOf(param.type as ByeglData)}`,
+                (param) => `${this.safeId(param.value)}: ${this.aliasOf(param.type as ByeglData)}`,
               )
               .join(', ');
 
             const { dataType: returnType } = this.getDataType(statement);
 
-            const body = statement.body?.body
-              .map((stmt) => this.generateStatement(stmt))
-              .join('');
+            const body = statement.body?.body.map((stmt) => this.generateStatement(stmt)).join('');
 
             if (returnType === d.Void) {
               return `\nfn ${this.safeId(funcName)}(${paramsValue}) {\n${body}}\n`;
@@ -1374,8 +1306,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         {
           lineStart: state.lineStart + '  ',
         },
-        () =>
-          statement.body.map((stmt) => this.generateStatement(stmt)).join(''),
+        () => statement.body.map((stmt) => this.generateStatement(stmt)).join(''),
       );
 
       return `${state.lineStart}{\n${body}${state.lineStart}}\n`;
@@ -1396,9 +1327,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (statement.type === 'IfStatement') {
       const condition = this.generateExpression(statement.test);
-      const consequent = this.generateStatementAsBlock(
-        statement.consequent,
-      ).trim();
+      const consequent = this.generateStatementAsBlock(statement.consequent).trim();
       const alternate = statement.alternate
         ? this.generateStatementAsBlock(statement.alternate).trim()
         : undefined;
@@ -1414,19 +1343,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       const initNode = statement.init;
       const init = initNode
         ? initNode.type === 'VariableDeclaration'
-          ? this.forkState({ lineStart: '' }, () =>
-              this.generateStatement(initNode).slice(0, -1),
-            )
+          ? this.forkState({ lineStart: '' }, () => this.generateStatement(initNode).slice(0, -1))
           : this.generateExpression(initNode).value
         : ';';
 
-      const test = statement.test
-        ? this.generateExpression(statement.test).value
-        : '';
+      const test = statement.test ? this.generateExpression(statement.test).value : '';
 
-      const update = statement.update
-        ? this.generateExpression(statement.update).value
-        : '';
+      const update = statement.update ? this.generateExpression(statement.update).value : '';
 
       const body = this.generateStatementAsBlock(statement.body).trim();
 

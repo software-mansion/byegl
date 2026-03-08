@@ -18,10 +18,7 @@ describe('remap8x3to8x4', () => {
   it('should work', async () => {
     const buffer3 = root
       .createBuffer(
-        d.disarrayOf(
-          d.uint8,
-          12 /* has to be a multiple of 4, normally would be 9 */,
-        ),
+        d.disarrayOf(d.uint8, 12 /* has to be a multiple of 4, normally would be 9 */),
         [
           // uint8x3
           1, 2, 3,
@@ -39,10 +36,7 @@ describe('remap8x3to8x4', () => {
     remapper.remap8x3to8x4(root.unwrap(buffer3), root.unwrap(buffer4));
 
     // Reinterpreting the buffer as an array of bytes
-    const uint8ResultBuffer = root.createBuffer(
-      d.disarrayOf(d.uint8, 4 * 3),
-      root.unwrap(buffer4),
-    );
+    const uint8ResultBuffer = root.createBuffer(d.disarrayOf(d.uint8, 4 * 3), root.unwrap(buffer4));
 
     const result = await uint8ResultBuffer.read();
     expect(result).toStrictEqual([

@@ -7,9 +7,7 @@ export interface ExampleMeta {
   usesHooks?: boolean | undefined;
 }
 
-export type ExampleExecute = (
-  ctx: ExampleContext,
-) => Promise<() => void | undefined>;
+export type ExampleExecute = (ctx: ExampleContext) => Promise<() => void | undefined>;
 
 export interface ExampleContent {
   meta: ExampleMeta;

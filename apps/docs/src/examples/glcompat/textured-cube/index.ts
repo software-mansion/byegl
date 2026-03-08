@@ -66,30 +66,19 @@ export default async function ({ canvas }: ExampleContext) {
   gl.bufferData(
     gl.ARRAY_BUFFER,
     new Float32Array([
-      ...[
-        1, -1, -1 /* bl */, 1, 1, -1 /* br */, 1, -1, 1 /* tl */, 1, 1,
-        1 /* tr */,
-      ], // X+
-      ...[
-        -1, -1, -1 /* bl */, -1, 1, -1 /* br */, -1, -1, 1 /* tl */, -1, 1,
-        1 /* tr */,
-      ], // X-
-      ...[
-        -1, 1, -1 /* bl */, 1, 1, -1 /* br */, -1, 1, 1 /* tl */, 1, 1,
-        1 /* tr */,
-      ], // Y+
-      ...[
-        -1, -1, -1 /* bl */, 1, -1, -1 /* br */, -1, -1, 1 /* tl */, 1, -1,
-        1 /* tr */,
-      ], // Y-
-      ...[
-        -1, -1, 1 /* bl */, 1, -1, 1 /* br */, -1, 1, 1 /* tl */, 1, 1,
-        1 /* tr */,
-      ], // Z+
-      ...[
-        -1, -1, -1 /* bl */, 1, -1, -1 /* br */, -1, 1, -1 /* tl */, 1, 1,
-        -1 /* tr */,
-      ], // Z-
+      // X+
+      1, -1, -1 /* bl */, 1, 1, -1 /* br */, 1, -1, 1 /* tl */, 1, 1, 1 /* tr */,
+      // X-
+
+      -1, -1, -1 /* bl */, -1, 1, -1 /* br */, -1, -1, 1 /* tl */, -1, 1, 1 /* tr */,
+      // Y+
+      -1, 1, -1 /* bl */, 1, 1, -1 /* br */, -1, 1, 1 /* tl */, 1, 1, 1 /* tr */,
+      // Y-
+      -1, -1, -1 /* bl */, 1, -1, -1 /* br */, -1, -1, 1 /* tl */, 1, -1, 1 /* tr */,
+      // Z+
+      -1, -1, 1 /* bl */, 1, -1, 1 /* br */, -1, 1, 1 /* tl */, 1, 1, 1 /* tr */,
+      // Z-
+      -1, -1, -1 /* bl */, 1, -1, -1 /* br */, -1, 1, -1 /* tl */, 1, 1, -1 /* tr */,
     ]),
     gl.STATIC_DRAW,
   );
@@ -102,12 +91,8 @@ export default async function ({ canvas }: ExampleContext) {
   gl.bufferData(
     gl.ARRAY_BUFFER,
     new Float32Array([
-      ...[0, 0, /* bl */ 1, 0 /* br */, 0, 1 /* tl */, 1, 1 /* tr */], // X+
-      ...[0, 0, /* bl */ 1, 0 /* br */, 0, 1 /* tl */, 1, 1 /* tr */], // X-
-      ...[0, 0, /* bl */ 1, 0 /* br */, 0, 1 /* tl */, 1, 1 /* tr */], // Y+
-      ...[0, 0, /* bl */ 1, 0 /* br */, 0, 1 /* tl */, 1, 1 /* tr */], // Y-
-      ...[0, 0, /* bl */ 1, 0 /* br */, 0, 1 /* tl */, 1, 1 /* tr */], // Z+
-      ...[0, 0, /* bl */ 1, 0 /* br */, 0, 1 /* tl */, 1, 1 /* tr */], // Z-
+      0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1,
+      1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1,
     ]),
     gl.STATIC_DRAW,
   );
@@ -139,13 +124,7 @@ export default async function ({ canvas }: ExampleContext) {
   const modelMatrix = mat4.create();
 
   const projectionMatrix = mat4.create();
-  mat4.perspective(
-    projectionMatrix,
-    Math.PI / 4,
-    canvas.width / canvas.height,
-    0.1,
-    100,
-  );
+  mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
 
   const mvpMatrix = mat4.create();
 

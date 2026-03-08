@@ -1,8 +1,8 @@
 {
   "name": "docs",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
-  "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -22,8 +22,8 @@
   },
   "devDependencies": {
     "@types/three": "^0.179.0",
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
     "@webgpu/types": "^0.1.64",
-    "daisyui": "^5.0.50",
-    "@vitejs/plugin-basic-ssl": "^2.1.0"
+    "daisyui": "^5.0.50"
   }
 }

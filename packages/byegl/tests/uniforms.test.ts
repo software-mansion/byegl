@@ -122,13 +122,12 @@ describe('getUniformLocation', () => {
     const { program } = toWgsl(gl, glsl);
 
     // Structs themselves don't get locations, only primitives
-    expect(
-      extractUniformInfo(gl.getUniformLocation(program, 'u_light[0]')),
-    ).toMatchInlineSnapshot(`null`);
+    expect(extractUniformInfo(gl.getUniformLocation(program, 'u_light[0]'))).toMatchInlineSnapshot(
+      `null`,
+    );
 
-    expect(
-      extractUniformInfo(gl.getUniformLocation(program, 'u_light[0].position')),
-    ).toMatchInlineSnapshot(`
+    expect(extractUniformInfo(gl.getUniformLocation(program, 'u_light[0].position')))
+      .toMatchInlineSnapshot(`
       {
         "byteOffset": 0,
         "dataType": "vec3f",
@@ -136,9 +135,8 @@ describe('getUniformLocation', () => {
       }
     `);
 
-    expect(
-      extractUniformInfo(gl.getUniformLocation(program, 'u_light[1].color')),
-    ).toMatchInlineSnapshot(`
+    expect(extractUniformInfo(gl.getUniformLocation(program, 'u_light[1].color')))
+      .toMatchInlineSnapshot(`
       {
         "byteOffset": 48,
         "dataType": "vec3f",
@@ -146,9 +144,8 @@ describe('getUniformLocation', () => {
       }
     `);
 
-    expect(
-      extractUniformInfo(gl.getUniformLocation(program, 'u_colors[0]')),
-    ).toMatchInlineSnapshot(`
+    expect(extractUniformInfo(gl.getUniformLocation(program, 'u_colors[0]')))
+      .toMatchInlineSnapshot(`
       {
         "byteOffset": 64,
         "dataType": "vec3f",
@@ -156,9 +153,8 @@ describe('getUniformLocation', () => {
       }
     `);
 
-    expect(
-      extractUniformInfo(gl.getUniformLocation(program, 'u_colors[1]')),
-    ).toMatchInlineSnapshot(`
+    expect(extractUniformInfo(gl.getUniformLocation(program, 'u_colors[1]')))
+      .toMatchInlineSnapshot(`
       {
         "byteOffset": 80,
         "dataType": "vec3f",

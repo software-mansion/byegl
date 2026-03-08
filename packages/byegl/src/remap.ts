@@ -1,8 +1,4 @@
-import tgpu, {
-  d,
-  type TgpuGuardedComputePipeline,
-  type TgpuRoot,
-} from 'typegpu';
+import tgpu, { d, type TgpuGuardedComputePipeline, type TgpuRoot } from 'typegpu';
 
 const layout = tgpu.bindGroupLayout({
   input: { storage: d.arrayOf(d.u32) },
@@ -58,8 +54,7 @@ export class Remapper {
 
   get #pipeline8x3to8x4() {
     if (!this.#pipeline8x3to8x4Cache) {
-      this.#pipeline8x3to8x4Cache =
-        this.root.createGuardedComputePipeline(remap8x3to8x4Shader);
+      this.#pipeline8x3to8x4Cache = this.root.createGuardedComputePipeline(remap8x3to8x4Shader);
     }
     return this.#pipeline8x3to8x4Cache;
   }

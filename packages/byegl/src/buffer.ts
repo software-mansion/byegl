@@ -92,8 +92,7 @@ export class ByeGLBufferInternal {
     this.#gpuBuffer = buffer;
     this.byteLength = buffer.size;
     this.gpuBufferDirty = false;
-    this.#boundAsIndexBuffer =
-      buffer.usage & GPUBufferUsage.INDEX ? true : false;
+    this.#boundAsIndexBuffer = buffer.usage & GPUBufferUsage.INDEX ? true : false;
 
     this.variant8x3to8x4Dirty = true;
   }

@@ -16,10 +16,7 @@ export default function ({ canvas, trace }: ExampleContext) {
       'MEDIUM_INT',
       'HIGH_INT',
     ] as const) {
-      const format = gl.getShaderPrecisionFormat(
-        gl[shaderType],
-        gl[precisionType],
-      );
+      const format = gl.getShaderPrecisionFormat(gl[shaderType], gl[precisionType]);
       trace({
         call: `gl.getShaderPrecisionFormat(${shaderType}, ${precisionType})`,
         rangeMin: format?.rangeMin,

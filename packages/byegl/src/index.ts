@@ -16,18 +16,9 @@ export async function enable() {
     contextId: string,
     ...args: unknown[]
   ) {
-    if (
-      contextId === 'webgl' ||
-      contextId === 'webgl2' ||
-      contextId === 'experimental-webgl'
-    ) {
+    if (contextId === 'webgl' || contextId === 'webgl2' || contextId === 'experimental-webgl') {
       const wgslGen = new ShaderkitWGSLGenerator();
-      return new ByeGLContext(
-        contextId === 'webgl2' ? 2 : 1,
-        root,
-        this,
-        wgslGen,
-      );
+      return new ByeGLContext(contextId === 'webgl2' ? 2 : 1, root, this, wgslGen);
     }
 
     return originalGetContext!.call(this, contextId, ...args);
@@ -38,15 +29,11 @@ export async function enable() {
   };
 }
 
-export function isIntercepted(
-  gl: WebGLRenderingContext | WebGL2RenderingContext,
-): boolean {
+export function isIntercepted(gl: WebGLRenderingContext | WebGL2RenderingContext): boolean {
   return gl instanceof ByeGLContext;
 }
 
-export function getDevice(
-  gl: WebGLRenderingContext | WebGL2RenderingContext,
-): GPUDevice {
+export function getDevice(gl: WebGLRenderingContext | WebGL2RenderingContext): GPUDevice {
   if (!(gl instanceof ByeGLContext)) {
     throw new Error('Cannot use byegl hooks on a vanilla WebGPU context');
   }

@@ -1,9 +1,5 @@
 import * as THREE from 'three';
-import {
-  klein,
-  mobius,
-  plane,
-} from 'three/addons/geometries/ParametricFunctions.js';
+import { klein, mobius, plane } from 'three/addons/geometries/ParametricFunctions.js';
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 
 import type { ExampleContext } from '../../types.ts';
@@ -35,10 +31,7 @@ export default function ({ canvas }: ExampleContext) {
   });
 
   {
-    const object = new THREE.Mesh(
-      new THREE.SphereGeometry(75, 20, 10),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.SphereGeometry(75, 20, 10), material);
     object.position.set(-300, 0, 300);
     scene.add(object);
   }
@@ -62,46 +55,31 @@ export default function ({ canvas }: ExampleContext) {
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.PlaneGeometry(100, 100, 4, 4),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.PlaneGeometry(100, 100, 4, 4), material);
     object.position.set(-300, 0, 100);
     scene.add(object);
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.BoxGeometry(100, 100, 100, 4, 4, 4),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.BoxGeometry(100, 100, 100, 4, 4, 4), material);
     object.position.set(-100, 0, 100);
     scene.add(object);
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.CircleGeometry(50, 20, 0, Math.PI * 2),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.CircleGeometry(50, 20, 0, Math.PI * 2), material);
     object.position.set(100, 0, 100);
     scene.add(object);
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.RingGeometry(10, 50, 20, 5, 0, Math.PI * 2),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.RingGeometry(10, 50, 20, 5, 0, Math.PI * 2), material);
     object.position.set(300, 0, 100);
     scene.add(object);
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.CylinderGeometry(25, 75, 100, 40, 5),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.CylinderGeometry(25, 75, 100, 40, 5), material);
     object.position.set(-300, 0, -100);
     scene.add(object);
   }
@@ -109,37 +87,23 @@ export default function ({ canvas }: ExampleContext) {
   const points: THREE.Vector2[] = [];
 
   for (let i = 0; i < 50; i++) {
-    points.push(
-      new THREE.Vector2(
-        Math.sin(i * 0.2) * Math.sin(i * 0.1) * 15 + 50,
-        (i - 5) * 2,
-      ),
-    );
+    points.push(new THREE.Vector2(Math.sin(i * 0.2) * Math.sin(i * 0.1) * 15 + 50, (i - 5) * 2));
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.LatheGeometry(points, 20),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.LatheGeometry(points, 20), material);
     object.position.set(-100, 0, -100);
     scene.add(object);
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.TorusGeometry(50, 20, 20, 20),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.TorusGeometry(50, 20, 20, 20), material);
     object.position.set(100, 0, -100);
     scene.add(object);
   }
 
   {
-    const object = new THREE.Mesh(
-      new THREE.TorusKnotGeometry(50, 10, 50, 20),
-      material,
-    );
+    const object = new THREE.Mesh(new THREE.TorusKnotGeometry(50, 10, 50, 20), material);
     object.position.set(300, 0, -100);
     scene.add(object);
   }

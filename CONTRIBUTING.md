@@ -13,18 +13,20 @@ byegl is a monorepo, consisting of the following packages:
 
 ### Prerequisites
 
-- Node.js 22.x or later
+- Node.js 24.x or later
 - pnpm 10.x or later
 
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/software-mansion/byegl.git
    cd byegl
    ```
 
 2. Install dependencies:
+
    ```bash
    pnpm install
    ```
@@ -47,6 +49,7 @@ byegl is a monorepo, consisting of the following packages:
 - `pnpm fix` - Auto-fix linting and formatting issues
 
 Before submitting a PR, ensure all checks pass:
+
 ```bash
 pnpm test:ci
 ```
@@ -73,6 +76,7 @@ pnpm test:ci
 ### Commit Messages
 
 Follow conventional commit format:
+
 - `feat:` - New features
 - `fix:` - Bug fixes
 - `docs:` - Documentation changes

@@ -85,19 +85,10 @@ export default function ({ canvas }: ExampleContext) {
   var normalLocation = gl.getAttribLocation(program, 'a_normal');
 
   // lookup uniforms
-  var worldViewProjectionLocation = gl.getUniformLocation(
-    program,
-    'u_worldViewProjection',
-  );
-  var worldInverseTransposeLocation = gl.getUniformLocation(
-    program,
-    'u_worldInverseTranspose',
-  );
+  var worldViewProjectionLocation = gl.getUniformLocation(program, 'u_worldViewProjection');
+  var worldInverseTransposeLocation = gl.getUniformLocation(program, 'u_worldInverseTranspose');
   var colorLocation = gl.getUniformLocation(program, 'u_color');
-  var reverseLightDirectionLocation = gl.getUniformLocation(
-    program,
-    'u_reverseLightDirection',
-  );
+  var reverseLightDirectionLocation = gl.getUniformLocation(program, 'u_reverseLightDirection');
 
   // Create a buffer to put positions in
   var positionBuffer = gl.createBuffer();
@@ -152,14 +143,7 @@ export default function ({ canvas }: ExampleContext) {
     var normalize = false; // don't normalize the data
     var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
     var offset = 0; // start at the beginning of the buffer
-    gl.vertexAttribPointer(
-      positionLocation,
-      size,
-      type,
-      normalize,
-      stride,
-      offset,
-    );
+    gl.vertexAttribPointer(positionLocation, size, type, normalize, stride, offset);
 
     // Turn on the normal attribute
     gl.enableVertexAttribArray(normalLocation);
@@ -173,26 +157,13 @@ export default function ({ canvas }: ExampleContext) {
     var normalize = false; // normalize the data (convert from 0-255 to 0-1)
     var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
     var offset = 0; // start at the beginning of the buffer
-    gl.vertexAttribPointer(
-      normalLocation,
-      size,
-      type,
-      normalize,
-      stride,
-      offset,
-    );
+    gl.vertexAttribPointer(normalLocation, size, type, normalize, stride, offset);
 
     // Compute the projection matrix
     var aspect = canvas.clientWidth / canvas.clientHeight;
     var zNear = 1;
     var zFar = 2000;
-    var projectionMatrix = mat4.perspective(
-      mat4.create(),
-      fieldOfViewRadians,
-      aspect,
-      zNear,
-      zFar,
-    );
+    var projectionMatrix = mat4.perspective(mat4.create(), fieldOfViewRadians, aspect, zNear, zFar);
 
     // Compute the camera's matrix
     var camera = [100, 150, 200];
@@ -204,47 +175,25 @@ export default function ({ canvas }: ExampleContext) {
     mat4.lookAt(viewMatrix, camera, target, up);
 
     // Compute a view projection matrix
-    var viewProjectionMatrix = mat4.multiply(
-      mat4.create(),
-      projectionMatrix,
-      viewMatrix,
-    );
+    var viewProjectionMatrix = mat4.multiply(mat4.create(), projectionMatrix, viewMatrix);
 
     // Draw a F at the origin
     var worldMatrix = mat4.fromYRotation(mat4.create(), fRotationRadians);
 
     // Multiply the matrices.
-    var worldViewProjectionMatrix = mat4.multiply(
-      mat4.create(),
-      viewProjectionMatrix,
-      worldMatrix,
-    );
+    var worldViewProjectionMatrix = mat4.multiply(mat4.create(), viewProjectionMatrix, worldMatrix);
     var worldInverseMatrix = mat4.invert(mat4.create(), worldMatrix)!;
-    var worldInverseTransposeMatrix = mat4.transpose(
-      mat4.create(),
-      worldInverseMatrix,
-    );
+    var worldInverseTransposeMatrix = mat4.transpose(mat4.create(), worldInverseMatrix);
 
     // Set the matrices
-    gl.uniformMatrix4fv(
-      worldViewProjectionLocation,
-      false,
-      worldViewProjectionMatrix,
-    );
-    gl.uniformMatrix4fv(
-      worldInverseTransposeLocation,
-      false,
-      worldInverseTransposeMatrix,
-    );
+    gl.uniformMatrix4fv(worldViewProjectionLocation, false, worldViewProjectionMatrix);
+    gl.uniformMatrix4fv(worldInverseTransposeLocation, false, worldInverseTransposeMatrix);
 
     // Set the color to use
     gl.uniform4fv(colorLocation, [0.2, 1, 0.2, 1]); // green
 
     // set the light direction.
-    gl.uniform3fv(
-      reverseLightDirectionLocation,
-      vec3.normalize(vec3.create(), [0.5, 0.7, 1]),
-    );
+    gl.uniform3fv(reverseLightDirectionLocation, vec3.normalize(vec3.create(), [0.5, 0.7, 1]));
 
     // Draw the geometry.
     var primitiveType = gl.TRIANGLES;

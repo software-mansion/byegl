@@ -50,10 +50,7 @@ export default function ({ canvas, trace }: ExampleContext) {
   gl.compileShader(vertexShader);
 
   if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-    console.error(
-      'Error compiling vertex shader:',
-      gl.getShaderInfoLog(vertexShader),
-    );
+    console.error('Error compiling vertex shader:', gl.getShaderInfoLog(vertexShader));
   }
 
   const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER) as WebGLShader;
@@ -61,10 +58,7 @@ export default function ({ canvas, trace }: ExampleContext) {
   gl.compileShader(fragmentShader);
 
   if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-    console.error(
-      'Error compiling fragment shader:',
-      gl.getShaderInfoLog(fragmentShader),
-    );
+    console.error('Error compiling fragment shader:', gl.getShaderInfoLog(fragmentShader));
   }
 
   const program = gl.createProgram();
@@ -77,20 +71,12 @@ export default function ({ canvas, trace }: ExampleContext) {
   }
 
   console.log('Uniforms:');
-  for (
-    let i = 0;
-    i < gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
-    i++
-  ) {
+  for (let i = 0; i < gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS); i++) {
     console.log(gl.getActiveUniform(program, i));
   }
 
   console.log('Attributes:');
-  for (
-    let i = 0;
-    i < gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
-    i++
-  ) {
+  for (let i = 0; i < gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES); i++) {
     console.log(gl.getActiveAttrib(program, i));
   }
 
@@ -167,10 +153,7 @@ export default function ({ canvas, trace }: ExampleContext) {
         Math.sin(timestamp * (0.002 + Math.sin(i) * 0.001) + i),
         Math.cos(timestamp * (0.001 + Math.sin(i) * 0.002) + i),
       );
-      gl.uniform3fv(
-        gl.getUniformLocation(program, `u_light[${i}].color`),
-        colors[i],
-      );
+      gl.uniform3fv(gl.getUniformLocation(program, `u_light[${i}].color`), colors[i]);
     }
 
     gl.clearColor(0, 0, 0, 1);

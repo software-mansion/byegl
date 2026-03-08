@@ -10,7 +10,7 @@ pnpm dev              # Start docs dev server
 pnpm test:ci          # Run all CI checks (style, node tests, types)
 pnpm test:node        # Run Node.js tests (jsdom)
 pnpm test:browser     # Run browser tests (webdriverio/chrome)
-pnpm test:style       # Run Biome linting/formatting
+pnpm test:style       # Run Oxc linting/formatting
 pnpm test:types       # TypeScript type checking
 pnpm fix              # Auto-fix linting/formatting issues
 ```
@@ -40,7 +40,6 @@ pnpm fix              # Auto-fix linting/formatting issues
 │       └── setup.ts               # Node test setup (WebGL mocks)
 ├── apps/docs/                # Astro documentation site
 │   └── src/examples/         # Interactive examples
-├── biome.json                # Linting/formatting config
 └── vitest.config.mjs         # Test configuration
 ```
 
@@ -73,6 +72,7 @@ cd apps/docs && pnpm build
 ## Before Committing
 
 Always run:
+
 ```bash
 pnpm test:ci && cd packages/byegl && pnpm build
 ```
@@ -90,23 +90,16 @@ pnpm test:ci && cd packages/byegl && pnpm build
 
 ```typescript
 // Always use .ts extensions
-import { ByeGLContext } from './byegl-context.ts';
-import { $internal } from './types.ts';
+import { ByeGLContext } from "./byegl-context.ts";
+import { $internal } from "./types.ts";
 
 // Type-only imports when appropriate
-import type { WebGLBuffer } from './types.ts';
+import type { WebGLBuffer } from "./types.ts";
 
-// External imports first, then internal (Biome auto-organizes)
-import tgpu from 'typegpu';
-import { ByeGLBuffer } from './buffer.ts';
+// External imports first, then internal
+import tgpu from "typegpu";
+import { ByeGLBuffer } from "./buffer.ts";
 ```
-
-### Formatting (Biome)
-
-- Single quotes
-- 2-space indentation
-- Semicolons required
-- Trailing commas (ES5 style)
 
 ### Naming
 
@@ -127,7 +120,7 @@ export class NotImplementedYetError extends Error {
 
 // Validation pattern
 if (!(gl instanceof ByeGLContext)) {
-  throw new Error('Cannot use byegl hooks on a vanilla WebGL context');
+  throw new Error("Cannot use byegl hooks on a vanilla WebGL context");
 }
 ```
 
@@ -155,11 +148,11 @@ export function getWebGPUBuffer(...): GPUBuffer { }
 Tests use Vitest with custom fixtures from `extendedTest.ts`:
 
 ```typescript
-import { describe, expect } from 'vitest';
-import { test, toWgsl } from './extendedTest.ts';
+import { describe, expect } from "vitest";
+import { test, toWgsl } from "./extendedTest.ts";
 
-describe('float uniform', () => {
-  test('shader generation', ({ gl }) => {
+describe("float uniform", () => {
+  test("shader generation", ({ gl }) => {
     const { wgsl } = toWgsl(gl, vertShader, fragShader);
     expect(wgsl).toMatchInlineSnapshot(`...`);
   });
@@ -196,7 +189,7 @@ expect(wgsl).toMatchInlineSnapshot(`
 Access internal state via the `$internal` symbol:
 
 ```typescript
-import { $internal } from './types.ts';
+import { $internal } from "./types.ts";
 
 // Access internal buffer state
 const gpuBuffer = (glBuffer as ByeGLBuffer)[$internal].gpuBuffer;
@@ -231,15 +224,17 @@ chore: update dependencies
 ## Dependencies
 
 ### Runtime
+
 - `typegpu` - WebGPU type system for shader generation
 - `@iwoplaza/shaderkit` - GLSL → WGSL translation
 
 ### Dev
+
 - `@webgpu/types` - WebGPU TypeScript types
 - `tsdown` - Build tool with typegpu plugin
 - `webgl-constants` - WebGL constant values for tests
 
 ## Prerequisites
 
-- Node.js 22.x+
+- Node.js 24.x+
 - pnpm 10.x+

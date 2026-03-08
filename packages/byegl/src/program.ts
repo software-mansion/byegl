@@ -3,11 +3,7 @@ import { isPrimitive } from './data-types.ts';
 import { roundUp } from './math-utils.ts';
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformLocation } from './uniform.ts';
-import {
-  AttributeInfo,
-  UniformBufferLayout,
-  WgslGeneratorResult,
-} from './wgsl/wgsl-generator.ts';
+import { AttributeInfo, UniformBufferLayout, WgslGeneratorResult } from './wgsl/wgsl-generator.ts';
 
 export class ByeGLShader implements WebGLShader {
   readonly [$internal]: {
@@ -57,10 +53,7 @@ export class ByeGLProgramInternals {
       }
 
       const elementType = dataType.elementType as d.AnyWgslData;
-      const elementSize = roundUp(
-        d.sizeOf(elementType),
-        d.alignmentOf(elementType),
-      );
+      const elementSize = roundUp(d.sizeOf(elementType), d.alignmentOf(elementType));
 
       for (let i = 0; i < elementCount; ++i) {
         const elementUniform: UniformLocation = {
@@ -73,10 +66,7 @@ export class ByeGLProgramInternals {
         };
 
         if (isPrimitive(elementType)) {
-          this.populateUniform(
-            { ...elementUniform, size: elementCount },
-            active && i === 0,
-          );
+          this.populateUniform({ ...elementUniform, size: elementCount }, active && i === 0);
 
           if (i === 0) {
             // An alias, not part of the active uniforms

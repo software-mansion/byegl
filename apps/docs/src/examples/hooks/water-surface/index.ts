@@ -2,10 +2,7 @@ import * as byegl from 'byegl';
 import { mat4 } from 'gl-matrix';
 import type { ExampleContext } from '../../types.ts';
 
-function createWaterSurface(
-  device: GPUDevice,
-  resolution: readonly [number, number],
-) {
+function createWaterSurface(device: GPUDevice, resolution: readonly [number, number]) {
   const indexBuffer = device.createBuffer({
     size: resolution[0] * resolution[1] * 2 * 6, // uint16 per vertex
     usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
@@ -30,14 +27,12 @@ function createWaterSurface(
 
   const positionBuffer = device.createBuffer({
     size: (resolution[0] + 1) * (resolution[1] + 1) * 16, // float32x3 (with 4 byte padding)
-    usage:
-      GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
 
   const normalBuffer = device.createBuffer({
     size: (resolution[0] + 1) * (resolution[1] + 1) * 16, // float32x3 (with 4 byte padding)
-    usage:
-      GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
 
   const timeBuffer = device.createBuffer({
@@ -97,11 +92,7 @@ function createWaterSurface(
     normalBuffer,
     indexBuffer,
     computeGeometry() {
-      device.queue.writeBuffer(
-        timeBuffer,
-        0,
-        new Float32Array([performance.now() / 1000]),
-      );
+      device.queue.writeBuffer(timeBuffer, 0, new Float32Array([performance.now() / 1000]));
       const encoder = device.createCommandEncoder();
       const pass = encoder.beginComputePass();
       pass.setPipeline(pipeline);
@@ -165,10 +156,7 @@ export default function ({ canvas }: ExampleContext) {
 
   const resolution = [64, 64] as const;
   const waterSurface = createWaterSurface(byegl.getDevice(gl), resolution);
-  const positionBuffer = byegl.importWebGPUBuffer(
-    gl,
-    waterSurface.positionBuffer,
-  );
+  const positionBuffer = byegl.importWebGPUBuffer(gl, waterSurface.positionBuffer);
   const normalBuffer = byegl.importWebGPUBuffer(gl, waterSurface.normalBuffer);
 
   const positionLocation = gl.getAttribLocation(program, 'a_position');
@@ -195,13 +183,7 @@ export default function ({ canvas }: ExampleContext) {
     mat4.identity(modelMatrix);
 
     const projectionMatrix = mat4.create();
-    mat4.perspective(
-      projectionMatrix,
-      Math.PI / 4,
-      gl.canvas.width / gl.canvas.height,
-      0.1,
-      100.0,
-    );
+    mat4.perspective(projectionMatrix, Math.PI / 4, gl.canvas.width / gl.canvas.height, 0.1, 100.0);
 
     const modelViewProjectionMatrix = mat4.create();
     mat4.mul(modelViewProjectionMatrix, projectionMatrix, viewMat);
@@ -215,12 +197,7 @@ export default function ({ canvas }: ExampleContext) {
     );
     gl.clearColor(0.85, 0.9, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.drawElements(
-      gl.TRIANGLES,
-      resolution[0] * resolution[1] * 6,
-      gl.UNSIGNED_SHORT,
-      0,
-    );
+    gl.drawElements(gl.TRIANGLES, resolution[0] * resolution[1] * 6, gl.UNSIGNED_SHORT, 0);
   }
 
   let handle = requestAnimationFrame(animate);

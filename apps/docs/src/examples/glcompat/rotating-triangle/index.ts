@@ -50,14 +50,7 @@ export default function ({ canvas }: ExampleContext) {
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    new Float32Array([
-      -Math.sin((2 * Math.PI) / 3),
-      -0.5,
-      Math.sin((2 * Math.PI) / 3),
-      -0.5,
-      0,
-      1,
-    ]),
+    new Float32Array([-Math.sin((2 * Math.PI) / 3), -0.5, Math.sin((2 * Math.PI) / 3), -0.5, 0, 1]),
     gl.STATIC_DRAW,
   );
   gl.enableVertexAttribArray(positionLocation);

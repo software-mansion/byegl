@@ -3,12 +3,7 @@ import type { ExampleContext } from '../../types.ts';
 
 export default function ({ canvas }: ExampleContext) {
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(
-    70,
-    canvas.width / canvas.height,
-    0.1,
-    100,
-  );
+  const camera = new THREE.PerspectiveCamera(70, canvas.width / canvas.height, 0.1, 100);
   camera.position.z = 2;
 
   const texture = new THREE.TextureLoader().load(

@@ -10,14 +10,15 @@
     "test:ci": "pnpm test:style && pnpm test:node && pnpm test:types",
     "test:node": "vitest run --project node",
     "test:browser": "vitest --project browser",
-    "test:style": "biome check",
+    "test:style": "oxlint && oxfmt --check",
     "test:types": "pnpm -r test:types",
-    "fix": "biome check --write"
+    "fix": "oxlint --fix && oxfmt"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.2.0",
     "@vitest/browser": "^3.2.4",
     "jsdom": "^26.1.0",
+    "oxfmt": "^0.36.0",
+    "oxlint": "^1.51.0",
     "unplugin-typegpu": "^0.10.1",
     "vitest": "^3.2.4",
     "webdriverio": "^9.19.1"

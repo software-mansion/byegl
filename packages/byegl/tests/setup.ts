@@ -20,7 +20,6 @@ globalThis.WebGLRenderingContext =
   WebGLConstants as unknown as typeof globalThis.WebGLRenderingContext;
 globalThis.WebGLRenderingContext.prototype =
   WebGLConstants as unknown as typeof globalThis.WebGLRenderingContext.prototype;
-globalThis.WebGLShaderPrecisionFormat =
-  {} as typeof globalThis.WebGLShaderPrecisionFormat;
+globalThis.WebGLShaderPrecisionFormat = {} as typeof globalThis.WebGLShaderPrecisionFormat;
 globalThis.WebGLShaderPrecisionFormat.prototype =
   {} as typeof globalThis.WebGLShaderPrecisionFormat.prototype;

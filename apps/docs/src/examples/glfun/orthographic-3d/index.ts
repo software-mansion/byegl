@@ -130,14 +130,7 @@ export default function main({ canvas }: ExampleContext) {
       const normalize = false; // don't normalize the data
       const stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
       const offset = 0; // start at the beginning of the buffer
-      gl.vertexAttribPointer(
-        positionLocation,
-        size,
-        type,
-        normalize,
-        stride,
-        offset,
-      );
+      gl.vertexAttribPointer(positionLocation, size, type, normalize, stride, offset);
     }
 
     // Bind the color buffer.
@@ -150,14 +143,7 @@ export default function main({ canvas }: ExampleContext) {
       const normalize = true; // normalize the data (convert from 0-255 to 0-1)
       const stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
       const offset = 0; // start at the beginning of the buffer
-      gl.vertexAttribPointer(
-        colorLocation,
-        size,
-        type,
-        normalize,
-        stride,
-        offset,
-      );
+      gl.vertexAttribPointer(colorLocation, size, type, normalize, stride, offset);
     }
 
     // Tell it to use our program (pair of shaders)
@@ -165,15 +151,7 @@ export default function main({ canvas }: ExampleContext) {
 
     // Compute the matrices
     let matrix = mat4.create();
-    mat4.ortho(
-      matrix,
-      0,
-      canvas.clientWidth,
-      0,
-      canvas.clientHeight,
-      -1000,
-      1000,
-    );
+    mat4.ortho(matrix, 0, canvas.clientWidth, 0, canvas.clientHeight, -1000, 1000);
     mat4.translate(matrix, matrix, translation);
     mat4.rotateX(matrix, matrix, rotation[0]);
     mat4.rotateY(matrix, matrix, rotation[1]);
@@ -258,68 +236,52 @@ function setColors(gl: WebGLRenderingContext) {
     gl.ARRAY_BUFFER,
     new Uint8Array([
       // left column front
-      200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200,
-      70, 120,
+      200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120,
 
       // top rung front
-      200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200,
-      70, 120,
+      200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120,
 
       // middle rung front
-      200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200,
-      70, 120,
+      200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120, 200, 70, 120,
 
       // left column back
-      80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70,
-      200,
+      80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200,
 
       // top rung back
-      80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70,
-      200,
+      80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200,
 
       // middle rung back
-      80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70,
-      200,
+      80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200, 80, 70, 200,
 
       // top
-      70, 200, 210, 70, 200, 210, 70, 200, 210, 70, 200, 210, 70, 200, 210, 70,
-      200, 210,
+      70, 200, 210, 70, 200, 210, 70, 200, 210, 70, 200, 210, 70, 200, 210, 70, 200, 210,
 
       // top rung right
-      200, 200, 70, 200, 200, 70, 200, 200, 70, 200, 200, 70, 200, 200, 70, 200,
-      200, 70,
+      200, 200, 70, 200, 200, 70, 200, 200, 70, 200, 200, 70, 200, 200, 70, 200, 200, 70,
 
       // under top rung
-      210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210,
-      100, 70,
+      210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70,
 
       // between top rung and middle
-      210, 160, 70, 210, 160, 70, 210, 160, 70, 210, 160, 70, 210, 160, 70, 210,
-      160, 70,
+      210, 160, 70, 210, 160, 70, 210, 160, 70, 210, 160, 70, 210, 160, 70, 210, 160, 70,
 
       // top of middle rung
-      70, 180, 210, 70, 180, 210, 70, 180, 210, 70, 180, 210, 70, 180, 210, 70,
-      180, 210,
+      70, 180, 210, 70, 180, 210, 70, 180, 210, 70, 180, 210, 70, 180, 210, 70, 180, 210,
 
       // right of middle rung
-      100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100,
-      70, 210,
+      100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210, 100, 70, 210,
 
       // bottom of middle rung.
-      76, 210, 100, 76, 210, 100, 76, 210, 100, 76, 210, 100, 76, 210, 100, 76,
-      210, 100,
+      76, 210, 100, 76, 210, 100, 76, 210, 100, 76, 210, 100, 76, 210, 100, 76, 210, 100,
 
       // right of bottom
-      140, 210, 80, 140, 210, 80, 140, 210, 80, 140, 210, 80, 140, 210, 80, 140,
-      210, 80,
+      140, 210, 80, 140, 210, 80, 140, 210, 80, 140, 210, 80, 140, 210, 80, 140, 210, 80,
 
       // bottom
-      90, 130, 110, 90, 130, 110, 90, 130, 110, 90, 130, 110, 90, 130, 110, 90,
-      130, 110,
+      90, 130, 110, 90, 130, 110, 90, 130, 110, 90, 130, 110, 90, 130, 110, 90, 130, 110,
 
       // left side
-      160, 160, 220, 160, 160, 220, 160, 160, 220, 160, 160, 220, 160, 160, 220,
-      160, 160, 220,
+      160, 160, 220, 160, 160, 220, 160, 160, 220, 160, 160, 220, 160, 160, 220, 160, 160, 220,
     ]),
     gl.STATIC_DRAW,
   );
