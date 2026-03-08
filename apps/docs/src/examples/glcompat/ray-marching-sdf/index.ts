@@ -1,6 +1,7 @@
 'use strict';
 
 import type { ExampleContext } from '../../types.ts';
+import * as byegl from 'byegl';
 
 const vertexShaderSource = /* glsl */ `
   attribute vec2 a_position;
@@ -19,7 +20,7 @@ const fragmentShaderSource = /* glsl */ `
   uniform float u_time;
   uniform vec2 u_resolution;
 
-  #define MAX_STEPS 120
+  #define MAX_STEPS 64
   #define MAX_DIST  30.0
   #define SURF_DIST 0.001
   #define PI        3.14159265359
@@ -65,8 +66,8 @@ const fragmentShaderSource = /* glsl */ `
   }
 
   float sdOctahedron(vec3 p, float s) {
-    p = abs(p);
-    return (p.x + p.y + p.z - s) * 0.57735027;
+    vec3 ap = abs(p);
+    return (ap.x + ap.y + ap.z - s) * 0.57735027;
   }
 
   float sdCylinder(vec3 p, float h, float r) {
@@ -190,13 +191,13 @@ const fragmentShaderSource = /* glsl */ `
     ));
   }
 
-  // ── Ambient occlusion (5 samples along the normal) ────────────────────────
+  // ── Ambient occlusion (2 samples along the normal) ────────────────────────
 
   float calcAO(vec3 pos, vec3 nor) {
     float occ = 0.0;
     float sca = 1.0;
-    for (int i = 0; i < 5; i++) {
-      float h = 0.01 + 0.16 * float(i) / 4.0;
+    for (int i = 0; i < 2; i++) {
+      float h = 0.01 + 0.16 * float(i) / 1.0;
       float d = mapScene(pos + h * nor).x;
       occ += (h - d) * sca;
       sca *= 0.75;
@@ -211,7 +212,7 @@ const fragmentShaderSource = /* glsl */ `
     float res = 1.0;
     float t   = mint;
     float ph  = 1.0e10;
-    for (int i = 0; i < 40; i++) {
+    for (int i = 0; i < 16; i++) {
       float h = mapScene(ro + rd * t).x;
       if (h < 0.0001) return 0.0;
       float y = h * h / (2.0 * ph);
@@ -288,23 +289,20 @@ const fragmentShaderSource = /* glsl */ `
       float diff1 = max(dot(nor, l1), 0.0);
       float sha1  = diff1 > 0.0 ? softShadow(offsetPos, l1, 0.01, 18.0, 18.0) : 0.0;
 
+      // Fill lights: diffuse only, no shadow ray
       float diff2 = max(dot(nor, l2), 0.0);
-      float sha2  = diff2 > 0.0 ? softShadow(offsetPos, l2, 0.01, 18.0, 12.0) : 0.0;
-
       float diff3 = max(dot(nor, l3), 0.0);
-      float sha3  = diff3 > 0.0 ? softShadow(offsetPos, l3, 0.01, 18.0,  8.0) : 0.0;
 
-      // Blinn-Phong specular from the main light
+      // Blinn-Phong specular from the main light only
       vec3  viewDir = normalize(-rd);
       float spec1   = pow(max(dot(nor, normalize(l1 + viewDir)), 0.0), 48.0) * sha1;
-      float spec2   = pow(max(dot(nor, normalize(l2 + viewDir)), 0.0), 24.0) * sha2;
 
       vec3 ambient = vec3(0.06, 0.08, 0.14) * ao;
       col  = ambient * baseColor;
       col += baseColor * diff1 * sha1 * vec3(1.00, 0.93, 0.80) * 1.1;
-      col += baseColor * diff2 * sha2 * vec3(0.65, 0.78, 1.00) * 0.45;
-      col += baseColor * diff3 * sha3 * vec3(0.88, 0.82, 1.00) * 0.25;
-      col += vec3(spec1 * 0.5 + spec2 * 0.2);
+      col += baseColor * diff2       * vec3(0.65, 0.78, 1.00) * 0.45;
+      col += baseColor * diff3       * vec3(0.88, 0.82, 1.00) * 0.25;
+      col += vec3(spec1 * 0.5);
 
       // Distance fog
       float fog = 1.0 - exp(-tHit * 0.045);
@@ -352,6 +350,11 @@ export default function ({ canvas }: ExampleContext) {
     console.error('Program link error:', gl.getProgramInfoLog(program));
   }
 
+  if (byegl.isIntercepted(gl)) {
+    const wgslSource = byegl.getWGSLSource(gl, program);
+    console.log(wgslSource);
+  }
+
   const posLoc = gl.getAttribLocation(program, 'a_position');
   const timeLoc = gl.getUniformLocation(program, 'u_time');
   const resLoc = gl.getUniformLocation(program, 'u_resolution');
@@ -359,11 +362,7 @@ export default function ({ canvas }: ExampleContext) {
   // Full-screen quad (triangle strip)
   const quadBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-    gl.STATIC_DRAW,
-  );
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
 
   function render(timestamp: number) {
     handle = requestAnimationFrame(render);
