@@ -13,8 +13,46 @@ export function getCurrentExampleFromUrl(): string | undefined {
   return key;
 }
 
+// --- rAF patching for per-context FPS tracking ---
+
+const originalRaf = window.requestAnimationFrame.bind(window);
+let activeContext: 'byegl' | 'groundTruth' | null = null;
+const frameCounts = { byegl: 0, groundTruth: 0 };
+
+window.requestAnimationFrame = function (callback: FrameRequestCallback) {
+  const capturedContext = activeContext;
+  return originalRaf((timestamp) => {
+    const prev = activeContext;
+    activeContext = capturedContext;
+    if (capturedContext) frameCounts[capturedContext]++;
+    callback(timestamp);
+    activeContext = prev;
+  });
+};
+
+export function getFrameCounts() {
+  return { ...frameCounts };
+}
+
+// --- Example state ---
+
 let prevCleanup: (() => void) | undefined;
 let prevGroundTruthCleanup: (() => void) | undefined;
+let currentExample: ExampleContent | null = null;
+
+export function getCurrentExample() {
+  return currentExample;
+}
+
+export function stopGroundTruth() {
+  prevGroundTruthCleanup?.();
+  prevGroundTruthCleanup = undefined;
+}
+
+export function stopByegl() {
+  prevCleanup?.();
+  prevCleanup = undefined;
+}
 
 function recreateCanvas(id: string): HTMLCanvasElement {
   const existingCanvas = document.querySelector<HTMLCanvasElement>(`#${id}`);
@@ -32,10 +70,15 @@ function recreateCanvas(id: string): HTMLCanvasElement {
 }
 
 export async function runExample(example: ExampleContent) {
+  currentExample = example;
   prevCleanup?.();
   prevCleanup = undefined;
   prevGroundTruthCleanup?.();
   prevGroundTruthCleanup = undefined;
+
+  // Reset frame counts for fresh measurement
+  frameCounts.byegl = 0;
+  frameCounts.groundTruth = 0;
 
   console.log('Running example: ', example.meta.name);
 
@@ -56,22 +99,26 @@ export async function runExample(example: ExampleContent) {
 
   if (!example.meta.usesHooks) {
     // Only run ground-truth if the example does not use byegl hooks
+    activeContext = 'groundTruth';
     prevGroundTruthCleanup = await (await example.execute())({
       canvas: groundTruthCanvas,
       trace(...values) {
         groundTruthTrace.push(...values);
       },
     });
+    activeContext = null;
   }
 
   const disable = await byegl.enable();
   try {
+    activeContext = 'byegl';
     prevCleanup = await (await example.execute())({
       canvas,
       trace(...values) {
         trace.push(...values);
       },
     });
+    activeContext = null;
   } finally {
     disable();
   }

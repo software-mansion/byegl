@@ -13,6 +13,10 @@
                 id="canvas"
                 class="h-[40vh] max-w-[min(40vh,80vw)] max-h-[min(40vh,80vw)] group-[[data-uses-hooks=true]]:h-[min(80vh,80vw)] group-[[data-uses-hooks=true]]:max-h-[80vh] group-[[data-uses-hooks=true]]:max-w-[80vh]"
             ></canvas>
+            <div class="group-[[data-uses-hooks=true]]:hidden flex items-center gap-3 mt-1">
+                <button id="solo-byegl-btn" class="btn btn-sm btn-outline">Solo</button>
+                <span id="byegl-metrics" class="text-sm font-mono hidden"></span>
+            </div>
         </div>
         <div class="group-[[data-uses-hooks=true]]:hidden">
             <h2 class="text-center">Ground Truth</h2>
@@ -23,6 +27,10 @@
                 id="ground-truth-canvas"
             >
             </canvas>
+            <div class="flex items-center gap-3 mt-1">
+                <button id="solo-ground-truth-btn" class="btn btn-sm btn-outline">Solo</button>
+                <span id="ground-truth-metrics" class="text-sm font-mono hidden"></span>
+            </div>
         </div>
     </div>
     <p
@@ -49,7 +57,152 @@
 
 <script>
     import { examples } from "../../examples/index.ts";
-    import { getCurrentExampleFromUrl, runExample } from "./example-runner.ts";
+    import {
+        getCurrentExampleFromUrl,
+        runExample,
+        getFrameCounts,
+        getCurrentExample,
+        stopGroundTruth,
+        stopByegl,
+    } from "./example-runner.ts";
+
+    // --- Solo state ---
+
+    type SoloState = "none" | "byegl" | "groundTruth";
+    let soloState: SoloState = "none";
+    let metricsInterval: ReturnType<typeof setInterval> | null = null;
+    let lastFrameCounts = { byegl: 0, groundTruth: 0 };
+    let lastMeasureTime = performance.now();
+
+    function startMetricsPolling() {
+        if (metricsInterval) clearInterval(metricsInterval);
+        lastMeasureTime = performance.now();
+        lastFrameCounts = getFrameCounts();
+
+        metricsInterval = setInterval(() => {
+            const now = performance.now();
+            const elapsed = now - lastMeasureTime;
+            const counts = getFrameCounts();
+
+            if (soloState === "byegl") {
+                const frames = counts.byegl - lastFrameCounts.byegl;
+                const fps = Math.round(frames / (elapsed / 1000));
+                const ms =
+                    frames > 0 ? (elapsed / frames).toFixed(1) : "\u2013";
+                const el = document.getElementById("byegl-metrics");
+                if (el) el.textContent = `${fps} FPS | ${ms}ms`;
+            } else if (soloState === "groundTruth") {
+                const frames =
+                    counts.groundTruth - lastFrameCounts.groundTruth;
+                const fps = Math.round(frames / (elapsed / 1000));
+                const ms =
+                    frames > 0 ? (elapsed / frames).toFixed(1) : "\u2013";
+                const el = document.getElementById("ground-truth-metrics");
+                if (el) el.textContent = `${fps} FPS | ${ms}ms`;
+            }
+
+            lastMeasureTime = now;
+            lastFrameCounts = { ...counts };
+        }, 500);
+    }
+
+    function stopMetricsPolling() {
+        if (metricsInterval) {
+            clearInterval(metricsInterval);
+            metricsInterval = null;
+        }
+    }
+
+    function updateSoloUI() {
+        const byeglCanvas = document.getElementById(
+            "canvas",
+        ) as HTMLCanvasElement | null;
+        const gtCanvas = document.getElementById(
+            "ground-truth-canvas",
+        ) as HTMLCanvasElement | null;
+        const byeglBtn = document.getElementById(
+            "solo-byegl-btn",
+        ) as HTMLButtonElement | null;
+        const gtBtn = document.getElementById(
+            "solo-ground-truth-btn",
+        ) as HTMLButtonElement | null;
+        const byeglMetrics = document.getElementById("byegl-metrics");
+        const gtMetrics = document.getElementById("ground-truth-metrics");
+
+        // Reset all
+        byeglCanvas?.classList.remove("opacity-30");
+        gtCanvas?.classList.remove("opacity-30");
+        byeglBtn?.classList.remove("btn-active");
+        gtBtn?.classList.remove("btn-active");
+        byeglMetrics?.classList.add("hidden");
+        gtMetrics?.classList.add("hidden");
+
+        if (soloState === "byegl") {
+            gtCanvas?.classList.add("opacity-30");
+            byeglBtn?.classList.add("btn-active");
+            byeglMetrics?.classList.remove("hidden");
+        } else if (soloState === "groundTruth") {
+            byeglCanvas?.classList.add("opacity-30");
+            gtBtn?.classList.add("btn-active");
+            gtMetrics?.classList.remove("hidden");
+        }
+    }
+
+    document
+        .getElementById("solo-byegl-btn")
+        ?.addEventListener("click", async () => {
+            const example = getCurrentExample();
+            if (!example) return;
+
+            stopMetricsPolling();
+
+            if (soloState === "byegl") {
+                soloState = "none";
+                updateSoloUI();
+                await runExample(example);
+            } else {
+                const switching = soloState !== "none";
+                soloState = "byegl";
+                if (switching) {
+                    // Restart both then stop the non-solo'd one
+                    await runExample(example);
+                    stopGroundTruth();
+                } else {
+                    stopGroundTruth();
+                }
+                updateSoloUI();
+                startMetricsPolling();
+            }
+        });
+
+    document
+        .getElementById("solo-ground-truth-btn")
+        ?.addEventListener("click", async () => {
+            const example = getCurrentExample();
+            if (!example) return;
+
+            stopMetricsPolling();
+
+            if (soloState === "groundTruth") {
+                soloState = "none";
+                updateSoloUI();
+                await runExample(example);
+            } else {
+                const switching = soloState !== "none";
+                soloState = "groundTruth";
+                if (switching) {
+                    // Restart both then stop the non-solo'd one
+                    await runExample(example);
+                    stopByegl();
+                } else {
+                    stopByegl();
+                }
+                updateSoloUI();
+                startMetricsPolling();
+            }
+        });
+
+    // --- Example runner ---
 
     function runCurrentExample() {
         const webgpuUnsupported = document.getElementById(
@@ -83,6 +236,11 @@
         // Set source code button
         sourceButton.href = `https://github.com/software-mansion-labs/byegl/blob/main/apps/docs/src/examples/${exampleKey}/index.ts`;
         sourceButton.classList.remove("hidden");
+
+        // Reset solo state when switching examples
+        soloState = "none";
+        stopMetricsPolling();
+        updateSoloUI();
 
         runExample(example).catch((err) => {
             console.error(err);
