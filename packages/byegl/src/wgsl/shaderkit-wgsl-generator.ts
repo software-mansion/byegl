@@ -293,6 +293,15 @@ const createMat3FromMat4 = tgpu.fn([d.mat4x4f], d.mat3x3f)`(arg4) {
   return mat3x3f(arg4[0].xyz, arg4[1].xyz, arg4[2].xyz);
 }`.$name('_byegl_createMat3FromMat4');
 
+/**
+ * A helper function that polyfills GLSL's `mod(x, y)` with floor-division semantics.
+ * WGSL's `%` uses truncation, which differs for negative values.
+ * Equivalent to: x - y * floor(x / y)
+ */
+const modHelper = tgpu.fn([d.f32, d.f32], d.f32)`(x, y) {
+  return y * fract(x / y);
+}`.$name('_byegl_mod');
+
 /*
  * A helper function that mimics the behavior of modf's `out` parameter
  */
@@ -540,6 +549,18 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
   }
 
   /**
+   * Adds the `modHelper` function to the shader.
+   * @returns the name of the function, which can be injected into the shader
+   */
+  useModHelper(): string {
+    const key = '_byegl_mod';
+    if (!this.#state.extraFunctions.has(key)) {
+      this.#state.extraFunctions.set(key, modHelper);
+    }
+    return key;
+  }
+
+  /**
    * Adds the `modfWrapperFloat` function to the shader.
    * @returns the name of the function, which can be injected into the shader
    */
@@ -598,7 +619,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (funcName === 'mod') {
-      return snip(`(${args[0].value} % ${args[1].value})`, args[0].type);
+      return snip(
+        `${this.useModHelper()}(${args[0].value}, ${args[1].value})`,
+        args[0].type,
+      );
     }
 
     if (funcName === 'atan' && args.length === 2) {
