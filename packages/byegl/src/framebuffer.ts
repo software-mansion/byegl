@@ -1,4 +1,4 @@
-import { TgpuRoot } from 'typegpu';
+import type { TgpuRoot } from 'typegpu';
 import { $internal } from './types.ts';
 
 const gl = WebGL2RenderingContext;

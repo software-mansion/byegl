@@ -1,5 +1,4 @@
-import tgpu, { TgpuRoot } from 'typegpu';
-import * as d from 'typegpu/data';
+import tgpu, { d, type TgpuRoot } from 'typegpu';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Remapper } from '../src/remap.ts';
 

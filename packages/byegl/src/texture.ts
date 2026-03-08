@@ -1,4 +1,4 @@
-import { TgpuRoot } from 'typegpu';
+import type { TgpuRoot } from 'typegpu';
 import type { TextureFormatInfo } from './texture-format-mapping.ts';
 import { $internal } from './types.ts';
 

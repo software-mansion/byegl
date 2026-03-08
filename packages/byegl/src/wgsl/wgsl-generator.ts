@@ -1,4 +1,4 @@
-import * as d from 'typegpu/data';
+import { d } from 'typegpu';
 import { ByeglData } from '../data-types.ts';
 
 export interface AttributeInfo {

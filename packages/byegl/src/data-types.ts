@@ -1,4 +1,4 @@
-import * as d from 'typegpu/data';
+import { d } from 'typegpu';
 
 /**
  * Used when we can't determine something's type (usually a hole in the implementation)

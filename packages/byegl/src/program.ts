@@ -1,9 +1,4 @@
-import {
-  type AnyWgslData,
-  alignmentOf,
-  isDecorated,
-  sizeOf,
-} from 'typegpu/data';
+import { d } from 'typegpu';
 import { isPrimitive } from './data-types.ts';
 import { roundUp } from './math-utils.ts';
 import { $internal } from './types.ts';
@@ -51,8 +46,8 @@ export class ByeGLProgramInternals {
   populateUniform(uniform: UniformLocation, active = true): void {
     let byteOffset = uniform.byteOffset;
     let dataType = uniform.dataType;
-    if (isDecorated(dataType)) {
-      dataType = dataType.inner as AnyWgslData;
+    if (d.isDecorated(dataType)) {
+      dataType = dataType.inner as d.AnyWgslData;
     }
 
     if (dataType.type === 'array') {
@@ -61,10 +56,10 @@ export class ByeGLProgramInternals {
         return;
       }
 
-      const elementType = dataType.elementType as AnyWgslData;
+      const elementType = dataType.elementType as d.AnyWgslData;
       const elementSize = roundUp(
-        sizeOf(elementType),
-        alignmentOf(elementType),
+        d.sizeOf(elementType),
+        d.alignmentOf(elementType),
       );
 
       for (let i = 0; i < elementCount; ++i) {
@@ -101,10 +96,10 @@ export class ByeGLProgramInternals {
     }
 
     if (dataType.type === 'struct') {
-      const propTypes = dataType.propTypes as Record<string, AnyWgslData>;
+      const propTypes = dataType.propTypes as Record<string, d.AnyWgslData>;
       for (const [propKey, propType] of Object.entries(propTypes)) {
         // Aligning to the start of the prop
-        byteOffset = roundUp(byteOffset, alignmentOf(propType));
+        byteOffset = roundUp(byteOffset, d.alignmentOf(propType));
 
         this.populateUniform(
           {
@@ -118,9 +113,9 @@ export class ByeGLProgramInternals {
           active,
         );
 
-        byteOffset += sizeOf(propType);
+        byteOffset += d.sizeOf(propType);
       }
-      byteOffset = roundUp(byteOffset, alignmentOf(dataType));
+      byteOffset = roundUp(byteOffset, d.alignmentOf(dataType));
 
       return;
     }
