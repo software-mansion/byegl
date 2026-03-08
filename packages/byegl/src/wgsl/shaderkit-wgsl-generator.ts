@@ -2,6 +2,7 @@ import * as shaderkit from '@iwoplaza/shaderkit';
 import tgpu, { d, type TgpuFn } from 'typegpu';
 import {
   ByeglData,
+  isVector,
   samplerType,
   texture1dType,
   texture2dArrayType,
@@ -606,6 +607,34 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (funcName === 'lessThanEqual') {
       return snip(`(${args[0].value} <= ${args[1].value})`, args[0].type);
+    }
+
+    if (funcName === 'max' || funcName === 'min') {
+      const arg0 = args[0];
+      const arg1 = args[1];
+
+      if (arg0.type === UnknownType || arg1.type === UnknownType) {
+        // Going with the most probable output, since we don't know the input types
+        return snip(`${funcName}(${argsValue})`, UnknownType);
+      }
+
+      if (isVector(arg0.type) && !isVector(arg1.type)) {
+        // If one argument is a vector, the other must be a scalar or vector of the same type
+        return snip(
+          `${funcName}(${arg0.value}, ${arg0.type}(${arg1.value}))`,
+          arg0.type,
+        );
+      }
+
+      if (!isVector(arg0.type) && isVector(arg1.type)) {
+        // If one argument is a vector, the other must be a scalar or vector of the same type
+        return snip(
+          `${funcName}(${arg0.type}(${arg0.value}), ${arg1.value})`,
+          arg1.type,
+        );
+      }
+
+      return snip(`${funcName}(${argsValue})`, arg0.type);
     }
 
     if (funcName in glslToWgslTypeMap) {

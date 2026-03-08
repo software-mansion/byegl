@@ -56,3 +56,6 @@ export type WgslSampler = typeof samplerType;
 export function isPrimitive(data: ByeglData): boolean {
   return data.type !== 'array' && data.type !== 'struct';
 }
+export function isVector(data: ByeglData): boolean {
+  return data.type.startsWith('vec');
+}
