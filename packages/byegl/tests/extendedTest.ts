@@ -1,6 +1,6 @@
 import { test as base, vi } from 'vitest';
 import './webgpuGlobals.ts';
-import tgpu, { TgpuRoot } from 'typegpu';
+import tgpu, { type TgpuRoot } from 'typegpu';
 import { ByeGLContext } from '../src/byegl-context.ts';
 import * as byegl from '../src/index.ts';
 import { ShaderkitWGSLGenerator } from '../src/wgsl/shaderkit-wgsl-generator.ts';

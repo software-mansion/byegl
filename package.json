@@ -1,8 +1,9 @@
 {
   "name": "byegl-monorepo",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "keywords": [],
+  "license": "MIT",
   "scripts": {
     "dev": "pnpm -r dev",
     "dev:host": "pnpm -r dev --host --mode https",
@@ -13,12 +14,11 @@
     "test:types": "pnpm -r test:types",
     "fix": "biome check --write"
   },
-  "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^2.2.0",
     "@vitest/browser": "^3.2.4",
     "jsdom": "^26.1.0",
-    "unplugin-typegpu": "^0.2.2",
+    "unplugin-typegpu": "^0.10.1",
     "vitest": "^3.2.4",
     "webdriverio": "^9.19.1"
   },

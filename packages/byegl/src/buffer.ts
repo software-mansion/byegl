@@ -1,4 +1,4 @@
-import { TgpuRoot } from 'typegpu';
+import type { TgpuRoot } from 'typegpu';
 import { Remapper } from './remap.ts';
 import { $internal } from './types.ts';
 

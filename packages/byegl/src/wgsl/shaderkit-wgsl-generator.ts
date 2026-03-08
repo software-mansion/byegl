@@ -1,7 +1,5 @@
 import * as shaderkit from '@iwoplaza/shaderkit';
-import tgpu, { TgpuFn } from 'typegpu';
-import * as d from 'typegpu/data';
-import { alignmentOf, sizeOf } from 'typegpu/data';
+import tgpu, { d, type TgpuFn } from 'typegpu';
 import {
   ByeglData,
   samplerType,
@@ -1344,11 +1342,11 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
       for (const uniformInfo of state.uniformStructInfos) {
         const dataType = uniformInfo.type as d.AnyWgslData;
         // Making the alignment be a multiple of 16
-        const alignment = Math.ceil(alignmentOf(dataType) / 16) * 16;
+        const alignment = Math.ceil(d.alignmentOf(dataType) / 16) * 16;
         // Align to the next boundary
         currentOffset = Math.ceil(currentOffset / alignment) * alignment;
         offsets.set(uniformInfo.id, currentOffset);
-        currentOffset += sizeOf(dataType);
+        currentOffset += d.sizeOf(dataType);
       }
 
       // Align total size to 16 bytes (uniform buffer alignment requirement)
