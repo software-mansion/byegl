@@ -26,6 +26,174 @@ interface PreprocessorMacro {
   expr: shaderkit.Expression;
 }
 
+// Full list of WGSL keywords and reserved words that cannot be used as identifiers.
+// Source: https://www.w3.org/TR/WGSL/#keyword-summary
+const WGSL_RESERVED_KEYWORDS: ReadonlySet<string> = new Set([
+  // Keywords
+  'alias',
+  'break',
+  'case',
+  'const',
+  'const_assert',
+  'continue',
+  'continuing',
+  'default',
+  'diagnostic',
+  'discard',
+  'else',
+  'enable',
+  'false',
+  'fn',
+  'for',
+  'if',
+  'let',
+  'loop',
+  'override',
+  'requires',
+  'return',
+  'struct',
+  'switch',
+  'true',
+  'var',
+  'while',
+  // Reserved words
+  'NULL',
+  'Self',
+  'abstract',
+  'active',
+  'alignas',
+  'alignof',
+  'as',
+  'asm',
+  'asm_fragment',
+  'async',
+  'attribute',
+  'auto',
+  'await',
+  'become',
+  'binding_array',
+  'cast',
+  'catch',
+  'class',
+  'co_await',
+  'co_return',
+  'co_yield',
+  'column_major',
+  'common',
+  'compile',
+  'compile_fragment',
+  'concept',
+  'const_cast',
+  'consteval',
+  'constexpr',
+  'constinit',
+  'ctype',
+  'debugger',
+  'decltype',
+  'delete',
+  'demote',
+  'demote_to_helper',
+  'do',
+  'dynamic_cast',
+  'enum',
+  'explicit',
+  'export',
+  'extends',
+  'extern',
+  'external',
+  'fallthrough',
+  'filter',
+  'final',
+  'finally',
+  'friend',
+  'from',
+  'fxgroup',
+  'get',
+  'goto',
+  'groupshared',
+  'highp',
+  'implements',
+  'import',
+  'inline',
+  'instanceof',
+  'interface',
+  'layout',
+  'lowp',
+  'mediump',
+  'meta',
+  'module',
+  'move',
+  'mut',
+  'mutable',
+  'namespace',
+  'new',
+  'nil',
+  'noexcept',
+  'noinline',
+  'nointerpolation',
+  'noperspective',
+  'null',
+  'nullptr',
+  'of',
+  'operator',
+  'package',
+  'packoffset',
+  'partition',
+  'pass',
+  'patch',
+  'pixelfragment',
+  'precise',
+  'precision',
+  'protected',
+  'public',
+  'pure',
+  'readonly',
+  'ref',
+  'regardless',
+  'register',
+  'reinterpret_cast',
+  'require',
+  'resource',
+  'restrict',
+  'self',
+  'set',
+  'shared',
+  'sizeof',
+  'smooth',
+  'snorm',
+  'static',
+  'static_assert',
+  'static_cast',
+  'std',
+  'subroutine',
+  'super',
+  'target',
+  'template',
+  'this',
+  'thread_local',
+  'throw',
+  'trait',
+  'try',
+  'type',
+  'typedef',
+  'typeid',
+  'typename',
+  'typeof',
+  'union',
+  'unless',
+  'unorm',
+  'unsafe',
+  'unsized',
+  'use',
+  'using',
+  'virtual',
+  'volatile',
+  'where',
+  'with',
+  'writeonly',
+  'yield',
+]);
+
 const glslToWgslTypeMap = {
   void: d.Void,
   int: d.i32,
@@ -179,6 +347,12 @@ interface GenState {
    * the two shaders, but with a different values.
    */
   alreadyDefined: Set<string>;
+  /**
+   * Maps GLSL identifiers that collide with WGSL reserved keywords to their
+   * generated safe replacements. Shared (not forked) so the mapping is
+   * consistent across all scopes.
+   */
+  renames: Map<string, string>;
   aliases: Map<ByeglData, string>;
   variables: Map<string, ByeglData>;
   functions: Map<
@@ -237,6 +411,25 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
   uniqueId(primer?: string | undefined): string {
     return `_byegl_${primer ?? 'item'}_${++this.#lastUniqueIdSuffix}`;
+  }
+
+  /**
+   * Returns a WGSL-safe version of a GLSL identifier. If the name collides
+   * with a WGSL reserved keyword a unique replacement is generated and cached
+   * in `state.renames` so every reference consistently uses the same name.
+   */
+  safeId(id: string): string {
+    const state = this.#state;
+    const cached = state.renames.get(id);
+    if (cached !== undefined) {
+      return cached;
+    }
+    if (WGSL_RESERVED_KEYWORDS.has(id)) {
+      const safe = this.uniqueId(id);
+      state.renames.set(id, safe);
+      return safe;
+    }
+    return id;
   }
 
   getDataType(decl: {
@@ -438,7 +631,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       argsValue = modifiedArgs.map((a) => a.value).join(', ');
     }
 
-    return snip(`${funcName}(${argsValue})`, UnknownType);
+    return snip(`${this.safeId(funcName)}(${argsValue})`, UnknownType);
   }
 
   generateExpression(expression: shaderkit.Expression): Snippet {
@@ -458,10 +651,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
       // Access uniforms through the unified struct
       if (state.uniformStructMembers.has(expression.name)) {
-        return snip(`_uniforms.${expression.name}`, varType ?? UnknownType);
+        return snip(
+          `_uniforms.${this.safeId(expression.name)}`,
+          varType ?? UnknownType,
+        );
       }
 
-      return snip(expression.name, varType ?? UnknownType);
+      return snip(this.safeId(expression.name), varType ?? UnknownType);
     }
 
     if (expression.type === 'Literal') {
@@ -838,6 +1034,24 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     return '';
   }
 
+  generateStatementAsBlock(statement: shaderkit.Statement): string {
+    const state = this.#state;
+
+    if (statement.type === 'BlockStatement') {
+      // Already a block.
+      return this.generateStatement(statement);
+    }
+
+    const stat = this.forkState(
+      {
+        lineStart: state.lineStart + '  ',
+      },
+      () => this.generateStatement(statement),
+    );
+
+    return `${state.lineStart}{\n${stat}${state.lineStart}}\n`;
+  }
+
   generateStatement(statement: shaderkit.Statement): string {
     const state = this.#state;
 
@@ -913,7 +1127,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             state.lastAttributeIdx++;
           } while (state.attributes.has(state.lastAttributeIdx));
 
-          state.attributePropKeys.set(state.lastAttributeIdx, id);
+          state.attributePropKeys.set(state.lastAttributeIdx, this.safeId(id));
 
           state.attributes.set(state.lastAttributeIdx, {
             id: id,
@@ -922,7 +1136,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           });
 
           // Defining proxies
-          code += `/* attribute */ var<private> ${id}: ${wgslTypeAlias};\n`;
+          code += `/* attribute */ var<private> ${this.safeId(id)}: ${wgslTypeAlias};\n`;
         } else if (isVarying) {
           // Finding the next available varying index
           do {
@@ -941,7 +1155,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             });
 
             // Defining proxies
-            code += `/* varying */ var<private> ${id}: ${wgslTypeAlias};\n`;
+            code += `/* varying */ var<private> ${this.safeId(id)}: ${wgslTypeAlias};\n`;
           }
         } else if (isUniform) {
           // Textures need an accompanying sampler - they get individual bindings
@@ -958,7 +1172,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             };
             state.uniforms.set(state.lastBindingIdx, uniformInfo);
 
-            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${id}: ${wgslTypeAlias};\n`;
+            code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${this.safeId(id)}: ${wgslTypeAlias};\n`;
 
             // Finding the next available uniform index for sampler
             do {
@@ -973,7 +1187,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             };
             state.uniforms.set(state.lastBindingIdx, samplerUniformInfo);
             state.samplerToTextureMap.set(samplerUniformInfo, uniformInfo);
-            state.textureToSamplerMap.set(uniformInfo.id, samplerUniformInfo);
+            state.textureToSamplerMap.set(
+              this.safeId(uniformInfo.id),
+              samplerUniformInfo,
+            );
 
             code += `@group(${this.#bindingGroupIdx}) @binding(${state.lastBindingIdx}) var ${samplerId}: sampler;\n`;
           } else {
@@ -996,13 +1213,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
           }
         } else if (isConst) {
           // Const
-          code += `${state.lineStart}const ${id}: ${wgslTypeAlias} = ${this.generateExpression(decl.init!).value};\n`;
+          code += `${state.lineStart}const ${this.safeId(id)}: ${wgslTypeAlias} = ${this.generateExpression(decl.init!).value};\n`;
         } else {
           // Regular variable
           if (decl.init) {
-            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${id}: ${wgslTypeAlias} = ${this.generateExpression(decl.init).value};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${this.safeId(id)}: ${wgslTypeAlias} = ${this.generateExpression(decl.init).value};\n`;
           } else {
-            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${id}: ${wgslTypeAlias};\n`;
+            code += `${state.lineStart}var${state.definingFunction ? '' : '<private>'} ${this.safeId(id)}: ${wgslTypeAlias};\n`;
           }
         }
 
@@ -1075,7 +1292,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
             const paramsValue = paramSnippets
               .map(
                 (param) =>
-                  `${param.value}: ${this.aliasOf(param.type as ByeglData)}`,
+                  `${this.safeId(param.value)}: ${this.aliasOf(param.type as ByeglData)}`,
               )
               .join(', ');
 
@@ -1086,9 +1303,9 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
               .join('');
 
             if (returnType === d.Void) {
-              return `\nfn ${funcName}(${paramsValue}) {\n${body}}\n`;
+              return `\nfn ${this.safeId(funcName)}(${paramsValue}) {\n${body}}\n`;
             } else {
-              return `\nfn ${funcName}(${paramsValue}) -> ${this.aliasOf(returnType)} {\n${body}}\n`;
+              return `\nfn ${this.safeId(funcName)}(${paramsValue}) -> ${this.aliasOf(returnType)} {\n${body}}\n`;
             }
           },
         ),
@@ -1100,11 +1317,15 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     }
 
     if (statement.type === 'BlockStatement') {
-      const body = statement.body
-        .map((stmt) => this.generateStatement(stmt))
-        .join('');
+      const body = this.forkState(
+        {
+          lineStart: state.lineStart + '  ',
+        },
+        () =>
+          statement.body.map((stmt) => this.generateStatement(stmt)).join(''),
+      );
 
-      return body;
+      return `${state.lineStart}{\n${body}${state.lineStart}}\n`;
     }
 
     if (statement.type === 'PrecisionQualifierStatement') {
@@ -1122,15 +1343,17 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
     if (statement.type === 'IfStatement') {
       const condition = this.generateExpression(statement.test);
-      const consequent = this.generateStatement(statement.consequent);
+      const consequent = this.generateStatementAsBlock(
+        statement.consequent,
+      ).trim();
       const alternate = statement.alternate
-        ? this.generateStatement(statement.alternate)
+        ? this.generateStatementAsBlock(statement.alternate).trim()
         : undefined;
 
       if (alternate) {
-        return `${state.lineStart}if (${condition.value}) {\n${consequent}\n} else {\n${alternate}\n}`;
+        return `${state.lineStart}if (${condition.value}) ${consequent} else ${alternate}\n`;
       } else {
-        return `${state.lineStart}if (${condition.value}) {\n${consequent}\n}`;
+        return `${state.lineStart}if (${condition.value}) ${consequent}\n`;
       }
     }
 
@@ -1152,14 +1375,13 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         ? this.generateExpression(statement.update).value
         : '';
 
-      const body = this.forkState(
-        {
-          lineStart: state.lineStart + '  ',
-        },
-        () => this.generateStatement(statement.body),
-      );
+      const body = this.generateStatementAsBlock(statement.body).trim();
 
-      return `${state.lineStart}for (${init} ${test}; ${update}) {\n${body}${state.lineStart}}\n`;
+      return `${state.lineStart}for (${init} ${test}; ${update}) ${body}\n`;
+    }
+
+    if (statement.type === 'BreakStatement') {
+      return `${state.lineStart}break;\n`;
     }
 
     throw new Error(`Cannot generate ${statement.type} statements yet.`);
@@ -1177,6 +1399,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       disabledAtScope: undefined,
 
       alreadyDefined: new Set(),
+      renames: new Map(),
       structDefs: new Map(),
       typeAliasMap: new Map(),
       extraFunctions: new Map(),
@@ -1364,7 +1587,7 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
       let uniformStructCode = `\nstruct ${uniformStructId} {\n`;
       for (const uniformInfo of state.uniformStructInfos) {
         const wgslType = this.aliasOf(uniformInfo.type);
-        uniformStructCode += `  @align(16) ${uniformInfo.id}: ${wgslType},\n`;
+        uniformStructCode += `  @align(16) ${this.safeId(uniformInfo.id)}: ${wgslType},\n`;
       }
       uniformStructCode += `}\n`;
       uniformStructCode += `@group(${this.#bindingGroupIdx}) @binding(${state.uniformStructBindingIdx}) var<uniform> _uniforms: ${uniformStructId};\n`;
