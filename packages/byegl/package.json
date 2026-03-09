@@ -22,8 +22,8 @@
   "publishConfig": {
     "exports": {
       ".": {
-        "import": "./dist/index.mjs",
-        "types": "./dist/index.d.mts"
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
       },
       "./package.json": "./package.json"
     }
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.64",
-    "tsdown": "^0.20.1",
+    "tsdown": "^0.21.1",
     "typescript": "^5.9.2",
     "unplugin-typegpu": "^0.10.1",
     "webgl-constants": "^1.1.1"
