@@ -197,7 +197,7 @@ chrome.runtime.onConnect.addListener((port) => {
       case 'SET_FORCE_BYEGL': {
         state.forceByegl = message.enabled;
         if (message.enabled) {
-          await registerContentScript(FORCE_BYEGL_SCRIPT_ID, 'injected/force-byegl.js');
+          await registerContentScript(FORCE_BYEGL_SCRIPT_ID, 'dist/injected/force-byegl.iife.js');
         } else {
           await unregisterContentScript(FORCE_BYEGL_SCRIPT_ID);
         }

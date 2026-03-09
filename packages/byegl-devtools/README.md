@@ -22,8 +22,12 @@ byegl-devtools/
 ├── devtools.html/js         # Creates the DevTools panel tab
 ├── panel.html/js            # Panel UI and logic
 ├── injected/
-│   ├── inspect-mode.js      # Sets __BYEGL_INSPECT__ = true (MAIN world, document_start)
-│   └── force-byegl.js       # Injects <script type="module"> that imports & enables byegl
+│   └── inspect-mode.js      # Sets __BYEGL_INSPECT__ = true (MAIN world, document_start)
+│
+├── dist/
+|   └── injected/
+│       └── force-byegl.iife.js   # Injects <script type="module"> that imports & enables byegl
+│
 └── icons/
     ├── byegl-on.svg         # Colored logomark (detected)
     └── byegl-off.svg        # Grayscale logomark (not detected)
@@ -37,10 +41,20 @@ Inspect Mode and Force ByeGL use `chrome.scripting.registerContentScripts()` wit
 
 ## Loading locally
 
+The **Force ByeGL** feature requires a build step to bundle byegl into the injected script:
+
+```sh
+pnpm install
+pnpm --filter byegl-devtools build
+```
+
+Then:
+
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked** → select the `packages/byegl-devtools/` directory
-4. The extension loads immediately — no build step required
+
+Re-run the build step whenever byegl or `src/force-byegl.ts` changes, then click the **↺ reload** button on the extension card.
 
 ## Testing
 
@@ -68,6 +82,8 @@ The icon and panel status should update within ~500 ms.
 1. Navigate to a page with WebGL that does **not** use ByeGL (e.g. a Three.js demo)
 2. Check **Force ByeGL** and click **Reload page**
 3. In the Console, verify `HTMLCanvasElement.prototype.getContext` has been patched by ByeGL
+
+**How it works:** `byegl.enableSync()` patches `getContext` synchronously at `document_start` using a `RecordingDevice` proxy. All WebGPU API calls made before the real device is ready are recorded and replayed once `tgpu.init()` resolves. Draw calls issued before activation are silently dropped — the page's render loop reissues them on the next frame.
 
 ### Iterating on extension code
 
