@@ -22,13 +22,14 @@ import { convertRGBToRGBA, getTextureFormat } from './texture-format-mapping.ts'
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
+import { isRecordingDevice, RecordingDevice } from './recording-device.ts';
 
 const gl = WebGL2RenderingContext;
 
 export class ByeGLContext {
   readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
 
-  #root: TgpuRoot;
+  readonly #root: TgpuRoot;
   #remapper: Remapper;
   #format: GPUTextureFormat;
   #wgslGen: WgslGenerator;
@@ -116,6 +117,14 @@ export class ByeGLContext {
 
   #boundAttributeState: AttributeState = this.#globalAttributeState;
 
+  /**
+   * False while the WebGPU canvas context has not yet been configured.
+   * This happens when the context was created via `enableSync()` and the real
+   * GPUDevice is still initialising. Draw calls are silently skipped until
+   * `activateRoot()` is called.
+   */
+  #canvasConfigured = true;
+
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     const state = this.#boundAttributeState;
     return state.vertexBufferSegments.filter((segment) =>
@@ -134,13 +143,35 @@ export class ByeGLContext {
     if (!canvasCtx) {
       throw new Error('Failed to get WebGPU context');
     }
-    canvasCtx.configure({
-      device: this.#root.device,
+    this.#canvas = canvas;
+    this.#canvasContext = canvasCtx;
+
+    if (isRecordingDevice(root.device)) {
+      // The real GPUDevice is not yet available. Canvas configuration and draw
+      // calls are deferred until activateRoot() is called.
+      this.#canvasConfigured = false;
+    } else {
+      canvasCtx.configure({
+        device: this.#root.device,
+        format: this.#format,
+        alphaMode: 'premultiplied',
+      });
+    }
+  }
+
+  /**
+   * Called by `enableSync()` once the real GPUDevice is ready.
+   * Configures the WebGPU canvas context and updates the public device reference.
+   * All subsequent WebGPU calls made through `this.#root` are transparently
+   * forwarded to the real device by the RecordingDevice proxy.
+   */
+  activateRoot(realRoot: TgpuRoot): void {
+    this.#canvasContext.configure({
+      device: realRoot.device,
       format: this.#format,
       alphaMode: 'premultiplied',
     });
-    this.#canvas = canvas;
-    this.#canvasContext = canvasCtx;
+    this.#canvasConfigured = true;
   }
 
   #getBufferForTarget(target: GLenum): ByeGLBuffer | null {
@@ -572,6 +603,7 @@ export class ByeGLContext {
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
+    if (!this.#canvasConfigured) return;
     const program = this.#program?.[$internal];
     if (!program) {
       throw new Error('No program bound');
@@ -588,6 +620,7 @@ export class ByeGLContext {
   }
 
   drawElements(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr): void {
+    if (!this.#canvasConfigured) return;
     const program = this.#program?.[$internal];
     if (!program) {
       throw new Error('No program bound');
