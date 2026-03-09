@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "ByeGL DevTools",
+  "version": "0.1.0",
+  "description": "Developer tools for ByeGL — WebGL running on WebGPU",
+  "icons": {
+    "128": "icons/byegl-on.svg"
+  },
+  "action": {
+    "default_title": "ByeGL DevTools"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-detect-main.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-detect.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "devtools_page": "devtools.html",
+  "permissions": ["scripting", "storage", "tabs"],
+  "host_permissions": ["<all_urls>"]
+}
