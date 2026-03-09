@@ -227,7 +227,7 @@ export class ByeGLContext {
    * Called before gl.linkProgram, which means we can store these indices and
    * tell the WGSL generator to use them instead of generating them automatically.
    */
-  bindAttribLocation(program: ByeGLProgram, index: GLuint, name: string): void {
+  bindAttribLocation(_program: ByeGLProgram, _index: GLuint, _name: string): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.bindAttribLocation');
   }
@@ -249,12 +249,12 @@ export class ByeGLContext {
     }
   }
 
-  bindFramebuffer(target: GLenum, framebuffer: WebGLFramebuffer | null): void {
+  bindFramebuffer(_target: GLenum, _framebuffer: WebGLFramebuffer | null): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.bindFramebuffer');
   }
 
-  bindRenderbuffer(target: GLenum, renderbuffer: WebGLRenderbuffer | null): void {
+  bindRenderbuffer(_target: GLenum, _renderbuffer: WebGLRenderbuffer | null): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.bindRenderbuffer');
   }
@@ -293,7 +293,7 @@ export class ByeGLContext {
     }
   }
 
-  blendColor(r: number, g: number, b: number, a: number): void {
+  blendColor(_r: number, _g: number, _b: number, _a: number): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.blendColor');
   }
@@ -327,7 +327,7 @@ export class ByeGLContext {
   bufferData(
     target: GLenum,
     dataOrSize: AllowSharedBufferSource | GLsizeiptr | null,
-    usage: GLenum,
+    _usage: GLenum,
   ): void {
     const buffer = this.#getBufferForTarget(target);
     if (!buffer) {
@@ -369,17 +369,17 @@ export class ByeGLContext {
     length?: number | undefined,
   ): void;
   bufferSubData(
-    target: GLenum,
-    offset: GLintptr,
-    data?: BufferSource | undefined,
-    srcOffset?: GLuint | undefined,
-    length: number = 0,
+    _target: GLenum,
+    _offset: GLintptr,
+    _data?: BufferSource | undefined,
+    _srcOffset?: GLuint | undefined,
+    _length: number = 0,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.bufferSubData');
   }
 
-  checkFramebufferStatus(target: GLenum): GLenum {
+  checkFramebufferStatus(_target: GLenum): GLenum {
     // TODO: Implement
     throw new NotImplementedYetError('gl.checkFramebufferStatus');
   }
@@ -417,55 +417,55 @@ export class ByeGLContext {
   }
 
   compressedTexImage2D(
-    target: GLenum,
-    level: GLint,
-    internalformat: GLenum,
-    width: GLsizei,
-    height: GLsizei,
-    border: GLint,
-    data: ArrayBufferView | null,
+    _target: GLenum,
+    _level: GLint,
+    _internalformat: GLenum,
+    _width: GLsizei,
+    _height: GLsizei,
+    _border: GLint,
+    _data: ArrayBufferView | null,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.compressedTexImage2D');
   }
 
   compressedTexSubImage2D(
-    target: GLenum,
-    level: GLint,
-    xoffset: GLint,
-    yoffset: GLint,
-    width: GLsizei,
-    height: GLsizei,
-    format: GLenum,
-    data: ArrayBufferView | null,
+    _target: GLenum,
+    _level: GLint,
+    _xoffset: GLint,
+    _yoffset: GLint,
+    _width: GLsizei,
+    _height: GLsizei,
+    _format: GLenum,
+    _data: ArrayBufferView | null,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.compressedTexSubImage2D');
   }
 
   copyTexImage2D(
-    target: GLenum,
-    level: GLint,
-    internalformat: GLenum,
-    x: GLint,
-    y: GLint,
-    width: GLsizei,
-    height: GLsizei,
-    border: GLint,
+    _target: GLenum,
+    _level: GLint,
+    _internalformat: GLenum,
+    _x: GLint,
+    _y: GLint,
+    _width: GLsizei,
+    _height: GLsizei,
+    _border: GLint,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.copyTexImage2D');
   }
 
   copyTexSubImage2D(
-    target: GLenum,
-    level: GLint,
-    xoffset: GLint,
-    yoffset: GLint,
-    x: GLint,
-    y: GLint,
-    width: GLsizei,
-    height: GLsizei,
+    _target: GLenum,
+    _level: GLint,
+    _xoffset: GLint,
+    _yoffset: GLint,
+    _x: GLint,
+    _y: GLint,
+    _width: GLsizei,
+    _height: GLsizei,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.copyTexSubImage2D');
@@ -516,17 +516,17 @@ export class ByeGLContext {
     }
   }
 
-  deleteProgram(program: ByeGLProgram | null): void {
+  deleteProgram(_program: ByeGLProgram | null): void {
     // Nothing to delete
     // TODO: Verify the behavior of deleting a program that is currently in use
   }
 
-  deleteRenderbuffer(renderbuffer: WebGLRenderbuffer | null): void {
+  deleteRenderbuffer(_renderbuffer: WebGLRenderbuffer | null): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.deleteRenderbuffer');
   }
 
-  deleteShader(shader: WebGLShader | null): void {
+  deleteShader(_shader: WebGLShader | null): void {
     // Nothing to delete
     // TODO: Verify the behavior of deleting a shader that is bound to a used program
   }
@@ -538,7 +538,9 @@ export class ByeGLContext {
   }
 
   deleteVertexArray(vao: ByeGLVertexArrayObject | null): void {
-    vao && destroyVAO(vao);
+    if (vao) {
+      destroyVAO(vao);
+    }
   }
 
   depthFunc(func: GLenum): void {
@@ -556,7 +558,7 @@ export class ByeGLContext {
     this.#parameters.set(gl.DEPTH_RANGE, [zNear, zFar]);
   }
 
-  detachShader(program: WebGLProgram, shader: WebGLShader): void {
+  detachShader(_program: WebGLProgram, _shader: WebGLShader): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.detachShader');
   }
@@ -638,20 +640,20 @@ export class ByeGLContext {
   }
 
   framebufferRenderbuffer(
-    target: GLenum,
-    attachment: GLenum,
-    renderbuffer: WebGLRenderbuffer,
+    _target: GLenum,
+    _attachment: GLenum,
+    _renderbuffer: WebGLRenderbuffer,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.framebufferRenderbuffer');
   }
 
   framebufferTexture2D(
-    target: GLenum,
-    attachment: GLenum,
-    textarget: GLenum,
-    texture: WebGLTexture,
-    level: GLint,
+    _target: GLenum,
+    _attachment: GLenum,
+    _textarget: GLenum,
+    _texture: WebGLTexture,
+    _level: GLint,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.framebufferTexture2D');
@@ -661,7 +663,7 @@ export class ByeGLContext {
     this.#parameters.set(gl.FRONT_FACE, mode);
   }
 
-  generateMipmap(target: GLenum): void {
+  generateMipmap(_target: GLenum): void {
     // TODO: Implement
   }
 
@@ -703,7 +705,7 @@ export class ByeGLContext {
     };
   }
 
-  getAttachedShaders(program: WebGLProgram): WebGLShader[] | null {
+  getAttachedShaders(_program: WebGLProgram): WebGLShader[] | null {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getAttachedShaders');
   }
@@ -716,7 +718,7 @@ export class ByeGLContext {
     return compiled.attributes.find((a) => a.id === name)?.location ?? -1;
   }
 
-  getBufferParameter(target: GLenum, pname: GLenum): GLint {
+  getBufferParameter(_target: GLenum, _pname: GLenum): GLint {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getBufferParameter');
   }
@@ -732,12 +734,12 @@ export class ByeGLContext {
     return error;
   }
 
-  getExtension<T extends keyof ExtensionMap>(name: T): ExtensionMap[T] | null {
+  getExtension<T extends keyof ExtensionMap>(_name: T): ExtensionMap[T] | null {
     // TODO: Implement extensions. Not supporting any extension for now.
     return null;
   }
 
-  getFramebufferAttachmentParameter(target: GLenum, attachment: GLenum, pname: GLenum): GLint {
+  getFramebufferAttachmentParameter(_target: GLenum, _attachment: GLenum, _pname: GLenum): GLint {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getFramebufferAttachmentParameter');
   }
@@ -1024,7 +1026,7 @@ export class ByeGLContext {
     throw new NotImplementedYetError(`gl.getProgramParameter (pname=${pname})`);
   }
 
-  getRenderbufferParameter(target: GLenum, pname: GLenum): any {
+  getRenderbufferParameter(_target: GLenum, _pname: GLenum): any {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getRenderbufferParameter');
   }
@@ -1065,12 +1067,12 @@ export class ByeGLContext {
     return [];
   }
 
-  getTexParameter(target: GLenum, pname: GLenum): any {
+  getTexParameter(_target: GLenum, _pname: GLenum): any {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getTexParameter');
   }
 
-  getUniform(program: WebGLProgram, location: WebGLUniformLocation): any {
+  getUniform(_program: WebGLProgram, _location: WebGLUniformLocation): any {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getUniform');
   }
@@ -1086,17 +1088,17 @@ export class ByeGLContext {
     return uniform;
   }
 
-  getVertexAttrib(index: GLuint, pname: GLenum): any {
+  getVertexAttrib(_index: GLuint, _pname: GLenum): any {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getVertexAttrib');
   }
 
-  getVertexAttribOffset(index: GLuint, pname: GLenum): GLintptr {
+  getVertexAttribOffset(_index: GLuint, _pname: GLenum): GLintptr {
     // TODO: Implement
     throw new NotImplementedYetError('gl.getVertexAttribOffset');
   }
 
-  hint(target: GLenum, mode: GLenum): void {
+  hint(_target: GLenum, _mode: GLenum): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.hint');
   }
@@ -1114,7 +1116,7 @@ export class ByeGLContext {
     return this.#enabledCapabilities.has(cap);
   }
 
-  isFramebuffer(framebuffer: WebGLFramebuffer): boolean {
+  isFramebuffer(_framebuffer: WebGLFramebuffer): boolean {
     // TODO: Implement
     throw new NotImplementedYetError('gl.isFramebuffer');
   }
@@ -1131,7 +1133,7 @@ export class ByeGLContext {
     return texture instanceof ByeGLTexture;
   }
 
-  lineWidth(width: GLfloat): void {
+  lineWidth(_width: GLfloat): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.lineWidth');
   }
@@ -1202,40 +1204,40 @@ export class ByeGLContext {
     this.#parameters.set(pname, param);
   }
 
-  polygonOffset(factor: GLfloat, units: GLfloat): void {
+  polygonOffset(_factor: GLfloat, _units: GLfloat): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.polygonOffset');
   }
 
   readPixels(
-    x: GLint,
-    y: GLint,
-    width: GLsizei,
-    height: GLsizei,
-    format: GLenum,
-    type: GLenum,
-    pixels: ArrayBufferView,
+    _x: GLint,
+    _y: GLint,
+    _width: GLsizei,
+    _height: GLsizei,
+    _format: GLenum,
+    _type: GLenum,
+    _pixels: ArrayBufferView,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.readPixels');
   }
 
   renderbufferStorage(
-    target: GLenum,
-    internalformat: GLenum,
-    width: GLsizei,
-    height: GLsizei,
+    _target: GLenum,
+    _internalformat: GLenum,
+    _width: GLsizei,
+    _height: GLsizei,
   ): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.renderbufferStorage');
   }
 
-  sampleCoverage(value: GLclampf, invert: GLboolean): void {
+  sampleCoverage(_value: GLclampf, _invert: GLboolean): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.sampleCoverage');
   }
 
-  scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+  scissor(_x: GLint, _y: GLint, _width: GLsizei, _height: GLsizei): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.scissor');
   }
@@ -1244,12 +1246,12 @@ export class ByeGLContext {
     shader[$internal].source = source;
   }
 
-  stencilFunc(func: GLenum, ref: GLint, mask: GLuint): void {
+  stencilFunc(_func: GLenum, _ref: GLint, _mask: GLuint): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.stencilFunc');
   }
 
-  stencilFuncSeparate(face: GLenum, func: GLenum, ref: GLint, mask: GLuint): void {
+  stencilFuncSeparate(_face: GLenum, _func: GLenum, _ref: GLint, _mask: GLuint): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.stencilFuncSeparate');
   }
@@ -1272,12 +1274,12 @@ export class ByeGLContext {
     }
   }
 
-  stencilOp(opFail: GLenum, opZFail: GLenum, opZPass: GLenum): void {
+  stencilOp(_opFail: GLenum, _opZFail: GLenum, _opZPass: GLenum): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.stencilOp');
   }
 
-  stencilOpSeparate(face: GLenum, opFail: GLenum, opZFail: GLenum, opZPass: GLenum): void {
+  stencilOpSeparate(_face: GLenum, _opFail: GLenum, _opZFail: GLenum, _opZPass: GLenum): void {
     // TODO: Implement
     throw new NotImplementedYetError('gl.stencilOpSeparate');
   }
@@ -1302,7 +1304,7 @@ export class ByeGLContext {
     }
 
     if (rest.length === 6) {
-      const [width_, height_, border, format_, type_, pixels] = rest;
+      const [width_, height_, _border, format_, type_, pixels] = rest;
       width = width_;
       height = height_;
       format = format_;
@@ -1387,9 +1389,9 @@ export class ByeGLContext {
     height: GLsizei,
     depth: GLsizei,
     border: GLint,
-    format: GLenum,
-    type: GLenum,
-    srcData: ArrayBufferView | TexImageSource | GLintptr,
+    _format: GLenum,
+    _type: GLenum,
+    _srcData: ArrayBufferView | TexImageSource | GLintptr,
   ): void {
     if (border !== 0) {
       // According to the docs, border must be 0.
@@ -1492,7 +1494,7 @@ export class ByeGLContext {
         throw new NotImplementedYetError(`gl.texSubImage2D with format=${format}, type=${type}`);
       }
     } else {
-      const [format, type, source] = rest;
+      const [_format, _type, source] = rest;
       const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
 
       let width: number, height: number;
@@ -1753,7 +1755,7 @@ export class ByeGLContext {
     this.#setAttribute(segment);
   }
 
-  viewport(x: number, y: number, width: number, height: number): void {
+  viewport(_x: number, _y: number, _width: number, _height: number): void {
     // TODO: Change which part of the target texture we're drawing to
   }
 
@@ -1789,7 +1791,7 @@ export class ByeGLContext {
   }
 
   #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
-    const program = this.#program?.[$internal]!;
+    const program = this.#program![$internal];
     const compiled = program.compiled!;
     const currentTexture = this.#canvasContext.getCurrentTexture();
 

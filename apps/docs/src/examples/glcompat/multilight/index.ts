@@ -1,6 +1,6 @@
 import type { ExampleContext } from '../../types.ts';
 
-export default function ({ canvas, trace }: ExampleContext) {
+export default function ({ canvas }: ExampleContext) {
   const gl = canvas.getContext('webgl')!;
 
   if (!gl) {

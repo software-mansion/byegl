@@ -79,10 +79,6 @@ export default function main({ canvas }: ExampleContext) {
   // Put geometry data into buffer
   setColors(gl);
 
-  function radToDeg(r: number) {
-    return (r * 180) / Math.PI;
-  }
-
   function degToRad(d: number) {
     return (d * Math.PI) / 180;
   }

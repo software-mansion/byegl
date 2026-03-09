@@ -1,3 +1,4 @@
+// oxlint-disable no-unused-vars
 import { test as base, vi } from 'vitest';
 import './webgpuGlobals.ts';
 import tgpu, { type TgpuRoot } from 'typegpu';
@@ -25,7 +26,7 @@ const canvasMock = {
 
 const adapterMock = {
   features: new Set(['timestamp-query']),
-  requestDevice: vi.fn((descriptor) => Promise.resolve(mockDevice)),
+  requestDevice: vi.fn((_descriptor) => Promise.resolve(mockDevice)),
   limits: {
     maxStorageBufferBindingSize: 64 * 1024 * 1024,
   },

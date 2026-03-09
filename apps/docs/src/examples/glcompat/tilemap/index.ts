@@ -236,7 +236,7 @@ export default async function ({ canvas }: ExampleContext) {
 
   const mvpMatrix = mat4.create();
 
-  function animate(timestamp: number) {
+  function animate(_timestamp: number) {
     handle = requestAnimationFrame(animate);
 
     mat4.identity(modelMatrix);

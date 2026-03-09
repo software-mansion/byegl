@@ -1,5 +1,4 @@
 import { describe, expect } from 'vitest';
-import * as byegl from '../src/index.ts';
 import { $internal } from '../src/types.ts';
 import { ByeGLUniformLocation } from '../src/uniform.ts';
 import { test, toWgsl } from './extendedTest.ts';
