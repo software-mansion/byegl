@@ -19,6 +19,17 @@ const gl = canvas.getContext('webgl');
 Enabling byegl will intercept calls to `.getContext('webgl' | 'webgl2' | 'experimental-webgl')` on all canvases and return
 a virtualized WebGL context.
 
+## Non-polyfill approach
+
+You can also create a custom context directly:
+
+```ts
+// instead of: const gl = canvas.getContext('webgl2');
+const gl = await byegl.createContext({ canvas, version: 2 /* WebGL 2 */ });
+```
+
+This allows you to use ByeGL on platforms that don't support WebGL natively (like React Native).
+
 ## Importing WebGPU resources
 
 Once your WebGL app is running on byegl, you can can hook into the underlying WebGPU API directly.
@@ -87,7 +98,6 @@ const disable = await byegl.enable();
 
 disable(); // Bye byegl 👋
 ```
-
 
 ## Things to consider when mixing GLSL and WGSL
 
