@@ -7,178 +7,238 @@
  */
 
 /** Symbol present on every proxy object created by RecordingDevice. */
-export const RECORDING_PROXY_ID = Symbol('byegl_recording_proxy_id');
+const RECORDING_PROXY = Symbol('byegl_recording_proxy');
 
-export function isRecordingDevice(device: GPUDevice): boolean {
-  return !!(device as any)?.[RECORDING_PROXY_ID];
+/** Symbol present on every proxy object created by RecordingDevice. */
+const REAL_VALUE = Symbol('byegl_real_value');
+
+export function isRecordingProxy(value: unknown): boolean {
+  return !!(value as any)?.[RECORDING_PROXY];
 }
 
-interface RecordedOp {
-  targetId: symbol;
-  method: string;
-  args: unknown[];
-  resultId: symbol;
+function unwrapProxy<T>(proxyOrValue: T): T {
+  if (isRecordingProxy(proxyOrValue)) {
+    return ((proxyOrValue as any)?.[REAL_VALUE]);
+  }
+  return proxyOrValue;
 }
+
+function unwrapProxiesDeep<T>(proxyOrValue: T): T {
+  if (isRecordingProxy(proxyOrValue)) {
+    return ((proxyOrValue as any)?.[REAL_VALUE]);
+  }
+
+  if (Array.isArray(proxyOrValue)) {
+    return proxyOrValue.map(unwrapProxiesDeep) as unknown as T;
+  }
+
+  if (typeof proxyOrValue === 'object' && Object.getPrototypeOf(proxyOrValue) === Object.prototype) {
+    const swapped = { ...proxyOrValue };
+    let swappedSome = false;
+    for (const key in swapped) {
+      const value = unwrapProxiesDeep(swapped[key])
+      if (swapped[key] !== value) {
+        swapped[key] = value;
+        swappedSome = true;
+      }
+    }
+    return swappedSome ? swapped : proxyOrValue;
+  }
+
+  return proxyOrValue;
+}
+
+type RecordedOp = () => void;
 
 /** WebGPU spec-minimum limits, used while the real device is not yet available. */
 const FAKE_LIMITS: Record<string, number> = {
-  maxTextureDimension1D: 8192,
-  maxTextureDimension2D: 8192,
-  maxTextureDimension3D: 2048,
-  maxTextureArrayLayers: 256,
   maxBindGroups: 4,
   maxBindGroupsPlusVertexBuffers: 24,
-  maxBindingsPerBindGroup: 640,
-  maxDynamicUniformBuffersPerPipelineLayout: 8,
-  maxDynamicStorageBuffersPerPipelineLayout: 4,
-  maxSampledTexturesPerShaderStage: 16,
-  maxSamplersPerShaderStage: 16,
-  maxStorageBuffersPerShaderStage: 8,
-  maxStorageTexturesPerShaderStage: 4,
-  maxUniformBuffersPerShaderStage: 12,
-  maxUniformBufferBindingSize: 65536,
-  maxStorageBufferBindingSize: 134217728,
-  minUniformBufferOffsetAlignment: 256,
-  minStorageBufferOffsetAlignment: 256,
-  maxVertexBuffers: 8,
+  maxBindingsPerBindGroup: 1000,
   maxBufferSize: 268435456,
-  maxVertexAttributes: 16,
-  maxVertexBufferArrayStride: 2048,
-  maxInterStageShaderVariables: 16,
-  maxColorAttachments: 8,
   maxColorAttachmentBytesPerSample: 32,
-  maxComputeWorkgroupStorageSize: 16352,
+  maxColorAttachments: 8,
   maxComputeInvocationsPerWorkgroup: 256,
   maxComputeWorkgroupSizeX: 256,
   maxComputeWorkgroupSizeY: 256,
   maxComputeWorkgroupSizeZ: 64,
+  maxComputeWorkgroupStorageSize: 16384,
   maxComputeWorkgroupsPerDimension: 65535,
+  maxDynamicStorageBuffersPerPipelineLayout: 4,
+  maxDynamicUniformBuffersPerPipelineLayout: 8,
+  maxInterStageShaderVariables: 16,
+  maxSampledTexturesPerShaderStage: 16,
+  maxSamplersPerShaderStage: 16,
+  maxStorageBufferBindingSize: 134217728,
+  maxStorageBuffersPerShaderStage: 8,
+  maxStorageTexturesPerShaderStage: 4,
+  maxTextureArrayLayers: 256,
+  maxTextureDimension1D: 8192,
+  maxTextureDimension2D: 8192,
+  maxTextureDimension3D: 2048,
+  maxUniformBufferBindingSize: 65536,
+  maxUniformBuffersPerShaderStage: 12,
+  maxVertexAttributes: 16,
+  maxVertexBufferArrayStride: 2048,
+  maxVertexBuffers: 8,
+  minStorageBufferOffsetAlignment: 256,
+  minUniformBufferOffsetAlignment: 256,
 };
 
+//
+// const device = root.device; // Proxy<GPUDevice>
+// const queue = device.queue; // Proxy<GPUQueue>
+// const buffer = device.createBuffer(...); // Proxy<GPUBuffer>
+// const renderPipeline = device.createRenderPipeline(...); // Proxy<GPURenderPipeline>
+// // --- ACTIVATE ---
+// // After activation, proxies should still be returned, as they have to handle unwrapping
+// // prior made proxies when passed as arguments
+// buffer; // Proxy<GPUBuffer>
+// device.createBuffer(...); // Proxy<GPUBuffer>
+//
+
+const knownFakes = {
+  'device': {
+    'limits': () => ({ [RECORDING_PROXY]: true, ...FAKE_LIMITS }),
+    'features': () => {
+      const features = new Set<GPUFeatureName>();
+      (features as any)[RECORDING_PROXY] = true;
+      return features;
+    },
+  }
+};
+
+// TODO: Cache accessed prop proxies
 export class RecordingDevice {
-  private readonly ops: RecordedOp[] = [];
-  /** Maps proxy-id symbol → real GPU object, populated by activate(). */
-  readonly realMap = new Map<symbol, unknown>();
+  #ops: RecordedOp[] = [];
   activated = false;
 
-  /** Stable symbol IDs for the device and queue (never re-created). */
-  readonly DEVICE_ID = Symbol('device');
-  readonly QUEUE_ID = Symbol('queue');
-
-  private readonly _deviceProxy: GPUDevice;
-  private readonly _queueProxy: unknown;
+  #deviceProxy: GPUDevice;
 
   constructor() {
-    this._queueProxy = this._makeProxy(this.QUEUE_ID);
-    this._deviceProxy = this._makeProxy(this.DEVICE_ID) as GPUDevice;
+    this.#deviceProxy = this.#makeProxy('device', []) as GPUDevice;
+    this.#ops = [];
   }
 
   get deviceProxy(): GPUDevice {
-    return this._deviceProxy;
+    return this.#deviceProxy;
   }
 
   // ---------------------------------------------------------------------------
   // Proxy factory
   // ---------------------------------------------------------------------------
 
-  private _makeProxy(id: symbol): unknown {
-    const rec = this;
-    return new Proxy({ [RECORDING_PROXY_ID]: id } as Record<string | symbol, unknown>, {
-      get(target, prop) {
-        if (prop === RECORDING_PROXY_ID) return id;
-        // Prevent Promise.resolve / async/await from treating this as a thenable
-        if (prop === 'then') return undefined;
+  #makeProxy(type: 'device' | 'queue' | 'buffer' | 'unknown', accessPath: (string | symbol)[], initRealValue?: unknown): unknown {
+    const base = (() => { }) as ((...args: never[]) => unknown) & Record<string | symbol, any>;
+    base[RECORDING_PROXY] = true;
+    base.label = type === 'device' ? 'ByeGL Recording Device' : undefined;
+    if (initRealValue !== undefined) {
+      base[REAL_VALUE] = initRealValue;
+    }
 
-        if (rec.activated) {
-          return rec._forwardGet(id, prop);
+    // Creating a callable proxy
+    return new Proxy(base, {
+      apply: (target, thisArg, args: never[]) => {
+        let result: any;
+        // We clear out the access path after a call
+        if (accessPath[accessPath.length - 1] === 'createBuffer') {
+          result = this.#makeProxy('buffer', []);
+        } else {
+          result = this.#makeProxy('unknown', []);
         }
 
-        // --- Recording mode ---
-        const propStr = String(prop);
-
-        // Known stable sub-objects and read-only device properties
-        if (id === rec.DEVICE_ID) {
-          if (propStr === 'queue') return rec._queueProxy;
-          if (propStr === 'limits') return FAKE_LIMITS;
-          if (propStr === 'features') return new Set<GPUFeatureName>();
-          if (propStr === 'label') return 'ByeGL Recording Device';
+        if (this.activated) {
+          // Calling this function again once we're dealing with real values
+          const realResult = unwrapProxy(target).apply(unwrapProxy(thisArg), args.map(unwrapProxiesDeep));
+          if (typeof realResult !== 'function' && typeof realResult !== 'object') {
+            // It's a primitive value, so we can return it directly
+            result = realResult;
+          } else {
+            // The proxy now knows what it's real value is
+            result[REAL_VALUE] = realResult;
+          }
+        } else {
+          this.#ops.push(() => {
+            // Calling this function again once we're dealing with real values
+            const realResult = unwrapProxy(target).apply(unwrapProxy(thisArg), args.map(unwrapProxiesDeep));
+            // The proxy now knows what it's real value is
+            result[REAL_VALUE] = realResult;
+          });
         }
-        if (propStr === 'label') return String(id.description);
 
-        // Every other property is assumed to be a method call.
-        // Return a function that records the call and returns a child proxy.
-        return (...args: unknown[]) => {
-          const resultId = Symbol(propStr);
-          rec.ops.push({ targetId: id, method: propStr, args, resultId });
-          return rec._makeProxy(resultId);
-        };
+        return result;
       },
-      set: () => true, // Silently accept label / property assignments
-    });
-  }
+      get: (_target, prop) => {
+        const newAccessPath = [...accessPath, prop];
+        // Proxy-specific props
+        if (prop === RECORDING_PROXY || prop === REAL_VALUE || prop === 'label' || prop === 'then') {
+          return Reflect.get(base, prop);
+        }
 
-  /** Forwarding-mode property access: resolve the real object and wrap the result. */
-  private _forwardGet(id: symbol, prop: string | symbol): unknown {
-    const real = this.realMap.get(id);
-    if (real == null) return undefined;
+        const target = this.activated ? base[REAL_VALUE] : base;
 
-    const val = (real as Record<string | symbol, unknown>)[prop];
-    if (typeof val === 'function') {
-      return (...args: unknown[]) => {
-        const resolved = args.map((a) => this._resolveDeep(a));
-        const result = (val as (...a: unknown[]) => unknown).apply(real, resolved);
-        return this._wrapResult(result);
-      };
-    }
-    return this._wrapResult(val);
-  }
+        // Capturing 'then' prevents Promise.resolve / async/await from treating this as a thenable
+        if (prop === 'label' || prop === 'then') {
+          return Reflect.get(target, prop);
+        }
 
-  /**
-   * Wrap a returned value in a forwarding proxy so that any subsequent method
-   * calls on it also resolve proxy arguments.  Primitives and buffers are
-   * returned as-is.
-   */
-  private _wrapResult(value: unknown): unknown {
-    if (value === null || value === undefined) return value;
-    if (typeof value !== 'object' && typeof value !== 'function') return value;
-    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return value;
+        if (prop in base) {
+          // Already cached
+          return base[prop];
+        }
 
-    const resultId = Symbol('fwd');
-    this.realMap.set(resultId, value);
-    return this._makeProxy(resultId);
-  }
+        let propProxy: any;
+        const knownFake = (knownFakes as any)[type]?.[newAccessPath.join('.')];
+        if (knownFake) {
+          if (this.activated) {
+            // We know this won't contain any nested proxies, so we don't need to proxy it further
+            return base[REAL_VALUE][prop];
+          } else {
+            propProxy = knownFake();
+            this.#ops.push(() => {
+              const resultReal = base[REAL_VALUE][prop];
+              // The proxy now knows what it's real value is
+              propProxy[REAL_VALUE] = resultReal;
+            });
+          }
+        } else {
+          if (this.activated) {
+            const realProp = base[REAL_VALUE][prop];
+            if (typeof realProp !== 'function' && typeof realProp !== 'object') {
+              // It's a primitive value, so we can return it directly
+              return realProp;
+            }
+            propProxy = this.#makeProxy('unknown', newAccessPath, realProp);
+          } else {
+            propProxy = this.#makeProxy('unknown', newAccessPath);
+            this.#ops.push(() => {
+              const resultReal = base[REAL_VALUE][prop];
+              // The proxy now knows what it's real value is
+              propProxy[REAL_VALUE] = resultReal;
+            });
+          }
+        }
 
-  // ---------------------------------------------------------------------------
-  // Deep argument resolution  (proxy → real, descend into plain objects/arrays)
-  // ---------------------------------------------------------------------------
+        base[prop] = propProxy;
+        return propProxy;
+      },
+      set: (_target, prop, value) => {
+        if (prop === REAL_VALUE) {
+          return Reflect.set(base, prop, value);
+        }
 
-  _resolveDeep(value: unknown): unknown {
-    if (value === null || value === undefined) return value;
+        if (this.activated) {
+          return Reflect.set(base[REAL_VALUE] as any, prop, value);
+        }
 
-    // Resolve recording proxy → real object
-    if (typeof value === 'object' && RECORDING_PROXY_ID in (value as object)) {
-      const id = (value as Record<symbol, symbol>)[RECORDING_PROXY_ID];
-      return this.realMap.get(id) ?? value;
-    }
-
-    if (Array.isArray(value)) {
-      return value.map((v) => this._resolveDeep(v));
-    }
-
-    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
-      return value;
-    }
-
-    if (typeof value === 'object') {
-      // Deep-resolve plain descriptor objects (GPUBufferDescriptor, etc.)
-      const resolved: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value as object)) {
-        resolved[k] = this._resolveDeep(v);
-      }
-      return resolved;
-    }
-
-    return value;
+        this.#ops.push(() => {
+          if (base[REAL_VALUE]) {
+            (base[REAL_VALUE] as any)[prop] = value
+          }
+        });
+        return Reflect.set(base, prop, value);
+      },
+    }) as unknown as GPUDevice;
   }
 
   // ---------------------------------------------------------------------------
@@ -186,32 +246,14 @@ export class RecordingDevice {
   // ---------------------------------------------------------------------------
 
   activate(realDevice: GPUDevice): void {
-    this.realMap.set(this.DEVICE_ID, realDevice);
-    this.realMap.set(this.QUEUE_ID, realDevice.queue);
+    (this.#deviceProxy as any)[REAL_VALUE] = realDevice;
 
-    for (const { targetId, method, args, resultId } of this.ops) {
-      const target = this.realMap.get(targetId);
-      if (target == null) {
-        console.warn(`[ByeGL] RecordingDevice: target for op "${method}" not found during replay`);
-        continue;
-      }
-
-      const resolved = args.map((a) => this._resolveDeep(a));
-
-      let result: unknown;
-      try {
-        result = (target as Record<string, (...a: unknown[]) => unknown>)[method](...resolved);
-      } catch (e) {
-        console.warn(`[ByeGL] RecordingDevice: failed to replay "${method}":`, e);
-        continue;
-      }
-
-      if (result !== undefined && result !== null) {
-        this.realMap.set(resultId, result);
-      }
+    console.log('🥯🐶: Replaying commands recorded before activation...')
+    for (const op of this.#ops) {
+      op();
     }
 
-    this.ops.length = 0;
+    this.#ops = [];
     this.activated = true;
   }
 }

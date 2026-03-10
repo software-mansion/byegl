@@ -22,13 +22,14 @@ import { convertRGBToRGBA, getTextureFormat } from './texture-format-mapping.ts'
 import { $internal } from './types.ts';
 import { ByeGLUniformLocation, UniformBufferCache } from './uniform.ts';
 import type { UniformInfo, WgslGenerator } from './wgsl/wgsl-generator.ts';
-import { isRecordingDevice, RecordingDevice } from './recording-device.ts';
+import { isRecordingProxy } from './recording-device.ts';
 
 const gl = WebGL2RenderingContext;
 
 export class ByeGLContext {
-  readonly [$internal]: { device: GPUDevice; glVersion: 1 | 2 };
+  readonly [$internal]: { device: GPUDevice | undefined };
 
+  readonly #glVersion: 1 | 2;
   readonly #root: TgpuRoot;
   #remapper: Remapper;
   #format: GPUTextureFormat;
@@ -124,6 +125,7 @@ export class ByeGLContext {
    * `activateRoot()` is called.
    */
   #canvasConfigured = true;
+  #skippedDrawCalls = 0;
 
   get #enabledVertexBufferSegments(): VertexBufferSegment[] {
     const state = this.#boundAttributeState;
@@ -133,7 +135,7 @@ export class ByeGLContext {
   }
 
   constructor(glVersion: 1 | 2, root: TgpuRoot, canvas: HTMLCanvasElement, wgslGen: WgslGenerator) {
-    this[$internal] = { device: root.device, glVersion };
+    this.#glVersion = glVersion;
     this.#root = root;
     this.#remapper = new Remapper(root);
     this.#uniformBufferCache = new UniformBufferCache(root);
@@ -146,11 +148,13 @@ export class ByeGLContext {
     this.#canvas = canvas;
     this.#canvasContext = canvasCtx;
 
-    if (isRecordingDevice(root.device)) {
+    if (isRecordingProxy(root.device)) {
+      this[$internal] = { device: undefined };
       // The real GPUDevice is not yet available. Canvas configuration and draw
       // calls are deferred until activateRoot() is called.
       this.#canvasConfigured = false;
     } else {
+      this[$internal] = { device: root.device };
       canvasCtx.configure({
         device: this.#root.device,
         format: this.#format,
@@ -166,6 +170,8 @@ export class ByeGLContext {
    * forwarded to the real device by the RecordingDevice proxy.
    */
   activateRoot(realRoot: TgpuRoot): void {
+    // This device is returned by getDevice(gl), so we make it available.
+    this[$internal].device = realRoot.device;
     this.#canvasContext.configure({
       device: realRoot.device,
       format: this.#format,
@@ -620,7 +626,13 @@ export class ByeGLContext {
   }
 
   drawElements(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr): void {
-    if (!this.#canvasConfigured) return;
+    if (!this.#canvasConfigured) {
+      if (this.#skippedDrawCalls % 10 === 0) {
+        console.warn(`Some draw calls have been skipped due to canvas not being configured (${this.#skippedDrawCalls+1} so far)`);
+      }
+      this.#skippedDrawCalls++;
+      return;
+    }
     const program = this.#program?.[$internal];
     if (!program) {
       throw new Error('No program bound');
@@ -926,7 +938,7 @@ export class ByeGLContext {
         // TODO: Relevant when implementing gl.scissor
         return false;
       case gl.SHADING_LANGUAGE_VERSION:
-        return this[$internal].glVersion === 2
+        return this.#glVersion === 2
           ? 'WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0)'
           : 'WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0)';
       /*
@@ -957,7 +969,7 @@ export class ByeGLContext {
       gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL	GLboolean
       gl.VENDOR	string*/
       case gl.VERSION:
-        return this[$internal].glVersion === 2
+        return this.#glVersion === 2
           ? 'WebGL 2.0 (OpenGL ES 3.0)'
           : 'WebGL 1.0 (OpenGL ES 2.0)';
       case gl.VIEWPORT:
