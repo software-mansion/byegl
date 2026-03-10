@@ -7,6 +7,16 @@ const gl = WebGL2RenderingContext;
 // Part of the 'EXT_texture_filter_anisotropic' extension
 const TEXTURE_MAX_ANISOTROPY_EXT = 0x84fe;
 
+function glWrapToAddressMode(wrap: number | boolean | undefined): GPUAddressMode {
+  if (wrap === WebGL2RenderingContext.CLAMP_TO_EDGE) {
+    return 'clamp-to-edge';
+  }
+  if (wrap === WebGL2RenderingContext.MIRRORED_REPEAT) {
+    return 'mirror-repeat';
+  }
+  return 'repeat';
+}
+
 /**
  * The internal state of byegl textures
  */
@@ -93,6 +103,7 @@ export class ByeGLTextureInternal {
 
   setParameter(parameter: GLenum, value: GLint | GLboolean | GLenum) {
     this.#parameters.set(parameter, value);
+    this.gpuSamplerDirty = true;
   }
 
   setFormatInfo(formatInfo: TextureFormatInfo) {
@@ -187,10 +198,15 @@ export class ByeGLTextureInternal {
       magFilter = 'linear';
     }
 
+    const glWrapS = this.#parameters.get(gl.TEXTURE_WRAP_S);
+    const glWrapT = this.#parameters.get(gl.TEXTURE_WRAP_T);
+    const glWrapR = this.#parameters.get(gl.TEXTURE_WRAP_R);
+
     this.#gpuSampler = this.#root.device.createSampler({
       label: 'ByeGL Sampler',
-      addressModeU: 'clamp-to-edge',
-      addressModeV: 'clamp-to-edge',
+      addressModeU: glWrapToAddressMode(glWrapS),
+      addressModeV: glWrapToAddressMode(glWrapT),
+      addressModeW: glWrapToAddressMode(glWrapR),
       magFilter,
       minFilter,
       mipmapFilter,
