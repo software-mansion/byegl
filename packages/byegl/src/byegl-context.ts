@@ -76,6 +76,12 @@ export class ByeGLContext {
    */
   #boundTexturesMap: Map<number, Map<GLenum, ByeGLTexture>> = new Map();
 
+  /**
+   * The currently bound framebuffer. Null means the default (canvas) framebuffer.
+   * Set using gl.bindFramebuffer.
+   */
+  #boundFramebuffer: ByeGLFramebuffer | null = null;
+
   #uniformBufferCache: UniformBufferCache;
 
   /**
@@ -210,13 +216,17 @@ export class ByeGLContext {
       segment.offset !== newSegment.offset ||
       segment.buffer !== newSegment.buffer ||
       segment.format !== newSegment.format ||
-      segment.shaderLocation !== newSegment.shaderLocation
+      segment.shaderLocation !== newSegment.shaderLocation ||
+      segment.remappedStride !== newSegment.remappedStride ||
+      segment.remappedFormat !== newSegment.remappedFormat
     ) {
       segment.stride = newSegment.stride;
       segment.offset = newSegment.offset;
       segment.buffer = newSegment.buffer;
       segment.format = newSegment.format;
       segment.shaderLocation = newSegment.shaderLocation;
+      segment.remappedStride = newSegment.remappedStride;
+      segment.remappedFormat = newSegment.remappedFormat;
     }
   }
 
@@ -286,9 +296,8 @@ export class ByeGLContext {
     }
   }
 
-  bindFramebuffer(_target: GLenum, _framebuffer: WebGLFramebuffer | null): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.bindFramebuffer');
+  bindFramebuffer(_target: GLenum, framebuffer: ByeGLFramebuffer | null): void {
+    this.#boundFramebuffer = framebuffer;
   }
 
   bindRenderbuffer(_target: GLenum, _renderbuffer: WebGLRenderbuffer | null): void {
@@ -417,8 +426,14 @@ export class ByeGLContext {
   }
 
   checkFramebufferStatus(_target: GLenum): GLenum {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.checkFramebufferStatus');
+    if (!this.#boundFramebuffer) {
+      return gl.FRAMEBUFFER_COMPLETE;
+    }
+    const fbo = this.#boundFramebuffer[$internal];
+    if (fbo.colorAttachment) {
+      return gl.FRAMEBUFFER_COMPLETE;
+    }
+    return gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
   }
 
   /**
@@ -705,13 +720,18 @@ export class ByeGLContext {
 
   framebufferTexture2D(
     _target: GLenum,
-    _attachment: GLenum,
+    attachment: GLenum,
     _textarget: GLenum,
-    _texture: WebGLTexture,
+    texture: ByeGLTexture | null,
     _level: GLint,
   ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.framebufferTexture2D');
+    if (!this.#boundFramebuffer) {
+      return;
+    }
+    const fbo = this.#boundFramebuffer[$internal];
+    if (attachment === gl.COLOR_ATTACHMENT0) {
+      fbo.colorAttachment = texture;
+    }
   }
 
   frontFace(mode: GLenum): void {
@@ -1846,7 +1866,26 @@ export class ByeGLContext {
   #createRenderPass(encoder: GPUCommandEncoder, mode: GLenum) {
     const program = this.#program![$internal];
     const compiled = program.compiled!;
-    const currentTexture = this.#canvasContext.getCurrentTexture();
+
+    // Determine the render target: either the FBO's color attachment or the canvas
+    const fbo = this.#boundFramebuffer?.[$internal];
+    const fboColorInternal = fbo?.colorAttachment?.[$internal];
+    let renderTargetView: GPUTextureView;
+    let renderTargetFormat: GPUTextureFormat;
+    let renderWidth: number;
+    let renderHeight: number;
+    if (fboColorInternal) {
+      renderTargetFormat = fboColorInternal.formatInfo.webgpuFormat;
+      renderWidth = fboColorInternal.gpuTexture.width;
+      renderHeight = fboColorInternal.gpuTexture.height;
+      renderTargetView = fboColorInternal.gpuTextureView;
+    } else {
+      const currentTexture = this.#canvasContext.getCurrentTexture();
+      renderTargetFormat = this.#format;
+      renderWidth = currentTexture.width;
+      renderHeight = currentTexture.height;
+      renderTargetView = currentTexture.createView();
+    }
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
       (segment): GPUVertexBufferLayout => ({
@@ -1867,19 +1906,25 @@ export class ByeGLContext {
     let depthTextureView: GPUTextureView | undefined;
 
     if (this.#enabledCapabilities.has(gl.DEPTH_TEST)) {
-      if (
-        !this.#depthTexture ||
-        this.#depthTexture.width !== currentTexture.width ||
-        this.#depthTexture.height !== currentTexture.height
-      ) {
-        this.#depthTexture?.destroy();
-        this.#depthTexture = this.#root.device.createTexture({
-          size: [currentTexture.width, currentTexture.height],
-          format: 'depth24plus',
-          usage: GPUTextureUsage.RENDER_ATTACHMENT,
-        });
+      let depthTexture: GPUTexture;
+      if (fbo) {
+        depthTexture = fbo.getOrCreateDepthTexture(renderWidth, renderHeight);
+      } else {
+        if (
+          !this.#depthTexture ||
+          this.#depthTexture.width !== renderWidth ||
+          this.#depthTexture.height !== renderHeight
+        ) {
+          this.#depthTexture?.destroy();
+          this.#depthTexture = this.#root.device.createTexture({
+            size: [renderWidth, renderHeight],
+            format: 'depth24plus',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+        }
+        depthTexture = this.#depthTexture;
       }
-      depthTextureView = this.#depthTexture.createView();
+      depthTextureView = depthTexture.createView();
       const glDepthFunc = this.#parameters.get(gl.DEPTH_FUNC);
       depthStencil = {
         format: 'depth24plus',
@@ -1974,7 +2019,7 @@ export class ByeGLContext {
         module: program.wgpuShaderModule!,
         targets: [
           {
-            format: this.#format,
+            format: renderTargetFormat,
             writeMask:
               (colorMask[0] ? GPUColorWrite.RED : 0) |
               (colorMask[1] ? GPUColorWrite.GREEN : 0) |
@@ -2003,7 +2048,7 @@ export class ByeGLContext {
       label: 'ByeGL Render Pass',
       colorAttachments: [
         {
-          view: currentTexture.createView(),
+          view: renderTargetView,
           loadOp: this.#bitsToClear & gl.COLOR_BUFFER_BIT ? 'clear' : 'load',
           storeOp: 'store',
           clearValue: clearColorValue,
