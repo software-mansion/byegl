@@ -122,6 +122,8 @@ export class ByeGLContext {
     [gl.UNPACK_ALIGNMENT, 4],
   ]);
 
+  #scissorBox: [GLint, GLint, GLsizei, GLsizei] | null = null;
+
   #globalAttributeState: AttributeState = {
     boundElementArrayBuffer: null,
     enabledVertexAttribArrays: new Set(),
@@ -974,11 +976,9 @@ export class ByeGLContext {
         // TODO: Relevant when implementing gl.sampleCoverage
         return 0;
       case gl.SCISSOR_BOX:
-        // TODO: Relevant when implementing gl.scissor
-        return new Int32Array([0, 0, 0, 0]);
+        return new Int32Array(this.#scissorBox ?? [0, 0, this.#canvas.width, this.#canvas.height]);
       case gl.SCISSOR_TEST:
-        // TODO: Relevant when implementing gl.scissor
-        return false;
+        return this.#enabledCapabilities.has(gl.SCISSOR_TEST);
       case gl.SHADING_LANGUAGE_VERSION:
         return this.#glVersion === 2
           ? 'WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0)'
@@ -1322,9 +1322,8 @@ export class ByeGLContext {
     throw new NotImplementedYetError('gl.sampleCoverage');
   }
 
-  scissor(_x: GLint, _y: GLint, _width: GLsizei, _height: GLsizei): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.scissor');
+  scissor(x: GLint, y: GLint, width: GLsizei, height: GLsizei): void {
+    this.#scissorBox = [x, y, width, height];
   }
 
   shaderSource(shader: ByeGLShader, source: string): void {
@@ -2109,6 +2108,17 @@ export class ByeGLContext {
     this.#bitsToClear = 0;
 
     renderPass.setPipeline(pipeline);
+
+    if (this.#enabledCapabilities.has(gl.SCISSOR_TEST)) {
+      const [sx, sy, sw, sh] = this.#scissorBox ?? [
+        0,
+        0,
+        resolvedRenderWidth,
+        resolvedRenderHeight,
+      ];
+      // WebGL uses bottom-left origin; WebGPU uses top-left — flip the y axis.
+      renderPass.setScissorRect(sx, resolvedRenderHeight - sy - sh, sw, sh);
+    }
 
     // Vertex buffers
     let vertexBufferIdx = 0;
