@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "description": "Developer tools for ByeGL — WebGL running on WebGPU",
   "icons": {
-    "128": "icons/byegl-on.svg"
+    "16": "icons/byegl-on-16.png",
+    "48": "icons/byegl-on-48.png"
   },
   "action": {
     "default_title": "ByeGL DevTools"

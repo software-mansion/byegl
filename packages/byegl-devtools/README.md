@@ -29,8 +29,12 @@ byegl-devtools/
 │       └── force-byegl.iife.js   # Injects <script type="module"> that imports & enables byegl
 │
 └── icons/
-    ├── byegl-on.svg         # Colored logomark (detected)
-    └── byegl-off.svg        # Grayscale logomark (not detected)
+    ├── byegl-on-16.png      # Colored logomark (detected) — 16×16
+    ├── byegl-on-48.png      # Colored logomark (detected) — 48×48
+    ├── byegl-off-16.png     # Grayscale logomark (not detected) — 16×16
+    ├── byegl-off-48.png     # Grayscale logomark (not detected) — 48×48
+    ├── byegl-on.svg         # Colored logomark SVG source
+    └── byegl-off.svg        # Grayscale logomark SVG source
 ```
 
 ### How injection works
@@ -91,4 +95,4 @@ After editing any file, go to `chrome://extensions` and click the **↺ reload**
 
 ## Icons
 
-`byegl-on.svg` and `byegl-off.svg` are SVG placeholders derived from the ByeGL logomark. The toolbar icon is drawn programmatically via `OffscreenCanvas` in the service worker. To use custom PNG variants, add `byegl-on-16.png`, `byegl-on-48.png`, etc. to `icons/` and update `background.js` to load them instead.
+The toolbar icon uses PNG files at 16×16 and 48×48 — `byegl-on-{size}.png` when ByeGL is detected, `byegl-off-{size}.png` otherwise. The SVG sources (`byegl-on.svg`, `byegl-off.svg`) are kept as originals.

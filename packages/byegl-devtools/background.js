@@ -7,86 +7,16 @@ const panelPorts = new Map();
 const INSPECT_MODE_SCRIPT_ID = 'byegl-inspect-mode';
 const FORCE_BYEGL_SCRIPT_ID = 'byegl-force-byegl';
 
-// --- Icon Drawing ---
-
-function drawIcon(size, detected) {
-  const canvas = new OffscreenCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  const s = size;
-
-  const headColor = detected ? '#FFC97E' : '#C0C0C0';
-  const bodyColor = detected ? '#FF8B7E' : '#A0A0A0';
-  const sideColor = detected ? '#E46551' : '#888888';
-  const eyeColor = detected ? '#323232' : '#606060';
-
-  // Sides / arms
-  ctx.fillStyle = sideColor;
-  ctx.beginPath();
-  ctx.roundRect(
-    0,
-    Math.round(s * 0.5),
-    Math.round(s * 0.14),
-    Math.round(s * 0.36),
-    Math.round(s * 0.06),
-  );
-  ctx.fill();
-  ctx.beginPath();
-  ctx.roundRect(
-    Math.round(s * 0.86),
-    Math.round(s * 0.5),
-    Math.round(s * 0.14),
-    Math.round(s * 0.36),
-    Math.round(s * 0.06),
-  );
-  ctx.fill();
-
-  // Body
-  ctx.fillStyle = bodyColor;
-  ctx.beginPath();
-  ctx.ellipse(
-    Math.round(s * 0.5),
-    Math.round(s * 0.67),
-    Math.round(s * 0.38),
-    Math.round(s * 0.28),
-    0,
-    0,
-    Math.PI * 2,
-  );
-  ctx.fill();
-
-  // Head
-  ctx.fillStyle = headColor;
-  ctx.beginPath();
-  ctx.ellipse(
-    Math.round(s * 0.5),
-    Math.round(s * 0.36),
-    Math.round(s * 0.34),
-    Math.round(s * 0.27),
-    0,
-    0,
-    Math.PI * 2,
-  );
-  ctx.fill();
-
-  // Eyes
-  ctx.fillStyle = eyeColor;
-  ctx.beginPath();
-  ctx.arc(Math.round(s * 0.37), Math.round(s * 0.34), Math.round(s * 0.075), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(Math.round(s * 0.63), Math.round(s * 0.32), Math.round(s * 0.075), 0, Math.PI * 2);
-  ctx.fill();
-
-  return ctx.getImageData(0, 0, s, s);
-}
+// --- Icon ---
 
 async function updateTabIcon(tabId, detected) {
+  const variant = detected ? 'on' : 'off';
   try {
     await chrome.action.setIcon({
       tabId,
-      imageData: {
-        16: drawIcon(16, detected),
-        32: drawIcon(32, detected),
+      path: {
+        16: `icons/byegl-${variant}-16.png`,
+        48: `icons/byegl-${variant}-48.png`,
       },
     });
   } catch {
