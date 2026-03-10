@@ -94,12 +94,9 @@ function pollContexts() {
 
   // Also re-check the version if not yet known
   if (state.detected && state.version == null) {
-    chrome.devtools.inspectedWindow.eval(
-      'globalThis.__BYEGL__?.version ?? null',
-      (result) => {
-        if (result != null) applyState({ version: result });
-      },
-    );
+    chrome.devtools.inspectedWindow.eval('globalThis.__BYEGL__?.version ?? null', (result) => {
+      if (result != null) applyState({ version: result });
+    });
   }
 }
 

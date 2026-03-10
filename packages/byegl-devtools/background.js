@@ -22,22 +22,50 @@ function drawIcon(size, detected) {
   // Sides / arms
   ctx.fillStyle = sideColor;
   ctx.beginPath();
-  ctx.roundRect(0, Math.round(s * 0.5), Math.round(s * 0.14), Math.round(s * 0.36), Math.round(s * 0.06));
+  ctx.roundRect(
+    0,
+    Math.round(s * 0.5),
+    Math.round(s * 0.14),
+    Math.round(s * 0.36),
+    Math.round(s * 0.06),
+  );
   ctx.fill();
   ctx.beginPath();
-  ctx.roundRect(Math.round(s * 0.86), Math.round(s * 0.5), Math.round(s * 0.14), Math.round(s * 0.36), Math.round(s * 0.06));
+  ctx.roundRect(
+    Math.round(s * 0.86),
+    Math.round(s * 0.5),
+    Math.round(s * 0.14),
+    Math.round(s * 0.36),
+    Math.round(s * 0.06),
+  );
   ctx.fill();
 
   // Body
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
-  ctx.ellipse(Math.round(s * 0.5), Math.round(s * 0.67), Math.round(s * 0.38), Math.round(s * 0.28), 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    Math.round(s * 0.5),
+    Math.round(s * 0.67),
+    Math.round(s * 0.38),
+    Math.round(s * 0.28),
+    0,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
 
   // Head
   ctx.fillStyle = headColor;
   ctx.beginPath();
-  ctx.ellipse(Math.round(s * 0.5), Math.round(s * 0.36), Math.round(s * 0.34), Math.round(s * 0.27), 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    Math.round(s * 0.5),
+    Math.round(s * 0.36),
+    Math.round(s * 0.34),
+    Math.round(s * 0.27),
+    0,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
 
   // Eyes
@@ -83,14 +111,16 @@ function notifyPanel(tabId, message) {
 
 async function registerContentScript(id, file) {
   try {
-    await chrome.scripting.registerContentScripts([{
-      id,
-      matches: ['<all_urls>'],
-      js: [file],
-      world: 'MAIN',
-      runAt: 'document_start',
-      persistAcrossSessions: false,
-    }]);
+    await chrome.scripting.registerContentScripts([
+      {
+        id,
+        matches: ['<all_urls>'],
+        js: [file],
+        world: 'MAIN',
+        runAt: 'document_start',
+        persistAcrossSessions: false,
+      },
+    ]);
   } catch {
     // Already registered — update it instead
     try {

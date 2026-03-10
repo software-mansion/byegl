@@ -164,7 +164,9 @@
         cursor: pointer;
         flex-shrink: 0;
         position: relative;
-        transition: background 0.1s, border-color 0.1s;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
       }
 
       .toggle-row input[type='checkbox']:checked {
@@ -216,7 +218,9 @@
         font-size: 13px;
         font-family: var(--font);
         cursor: pointer;
-        transition: background 0.1s, border-color 0.1s;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
         white-space: nowrap;
       }
 
@@ -312,7 +316,9 @@
         <input type="checkbox" id="inspect-checkbox" />
         <label class="toggle-label" for="inspect-checkbox">
           <strong>Inspect Mode</strong>
-          <span class="toggle-hint">Sets <code>globalThis.__BYEGL_INSPECT__ = true</code> before page scripts run</span>
+          <span class="toggle-hint"
+            >Sets <code>globalThis.__BYEGL_INSPECT__ = true</code> before page scripts run</span
+          >
         </label>
       </div>
 
@@ -320,14 +326,14 @@
         <input type="checkbox" id="force-byegl-checkbox" />
         <label class="toggle-label" for="force-byegl-checkbox">
           <strong>Force ByeGL</strong>
-          <span class="toggle-hint">Imports byegl from esm.sh and calls <code>enable()</code> early</span>
+          <span class="toggle-hint"
+            >Imports byegl from esm.sh and calls <code>enable()</code> early</span
+          >
         </label>
       </div>
 
       <div class="btn-row">
-        <button class="btn btn-primary" id="reload-btn">
-          ▶ Reload page
-        </button>
+        <button class="btn btn-primary" id="reload-btn">▶ Reload page</button>
       </div>
     </div>
 
