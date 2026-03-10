@@ -22,6 +22,7 @@ export class MockWGSLGenerator implements WgslGenerator {
       textureUniforms: [],
       samplerToTextureMap: new Map(),
       uniformBufferLayout: undefined,
+      fragmentOutputCount: 1,
     };
   }
 }
