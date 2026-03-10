@@ -171,12 +171,7 @@ export class RecordingDevice {
       get: (_target, prop) => {
         const newAccessPath = [...accessPath, prop];
         // Proxy-specific props
-        if (
-          prop === RECORDING_PROXY ||
-          prop === REAL_VALUE ||
-          prop === 'label' ||
-          prop === 'then'
-        ) {
+        if (typeof prop === 'symbol' || prop === 'label' || prop === 'then') {
           return Reflect.get(base, prop);
         }
 
