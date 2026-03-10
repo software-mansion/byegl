@@ -1,4 +1,5 @@
 import type { TgpuRoot } from 'typegpu';
+import type { ByeGLRenderbuffer } from './renderbuffer.ts';
 import type { ByeGLTexture } from './texture.ts';
 import { $internal } from './types.ts';
 
@@ -8,7 +9,17 @@ import { $internal } from './types.ts';
 export class ByeGLFramebufferInternal {
   readonly #root: TgpuRoot;
 
-  colorAttachments: (ByeGLTexture | null)[] = Array.from({ length: 16 }, () => null);
+  colorAttachments: (ByeGLTexture | ByeGLRenderbuffer | null)[] = Array.from(
+    { length: 16 },
+    () => null,
+  );
+
+  /**
+   * A renderbuffer explicitly attached as the depth (or depth-stencil)
+   * attachment via gl.framebufferRenderbuffer. When set, it takes precedence
+   * over the auto-created depth texture.
+   */
+  depthRenderbuffer: ByeGLRenderbuffer | null = null;
 
   #depthTexture: GPUTexture | undefined;
 

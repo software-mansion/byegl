@@ -1497,7 +1497,10 @@ ${[...state.attributes.values()].map((attribute) => `  ${attribute.id} = input.$
   var output: ${vertOutStructId};
   output.${posOutParamId} = gl_Position;
   // NOTE: OpenGL uses z in the range [-1, 1], while WebGPU uses z in the range [0, 1].
-  output.${posOutParamId}.z = output.${posOutParamId}.z * 0.5 + 0.5;
+  // The remapping must be done in homogeneous clip space (before the perspective divide)
+  // as z * 0.5 + w * 0.5, so that after dividing by w the result is in [0, 1].
+  // Using a scalar + 0.5 instead of + w * 0.5 is only correct when w == 1 (orthographic).
+  output.${posOutParamId}.z = output.${posOutParamId}.z * 0.5 + output.${posOutParamId}.w * 0.5;
 ${[...state.varyings.values()].map((varying) => `  output.${varying.id} = ${varying.id};\n`).join('')}
   return output;
 }

@@ -15,6 +15,7 @@ import {
 import { NotImplementedYetError } from './errors.ts';
 import type { ExtensionMap } from './extensions/types.ts';
 import { ByeGLFramebuffer } from './framebuffer.ts';
+import { ByeGLRenderbuffer } from './renderbuffer.ts';
 import { ByeGLProgram, ByeGLShader } from './program.ts';
 import { Remapper } from './remap.ts';
 import { ByeGLTexture } from './texture.ts';
@@ -81,6 +82,11 @@ export class ByeGLContext {
    * Set using gl.bindFramebuffer.
    */
   #boundFramebuffer: ByeGLFramebuffer | null = null;
+
+  /**
+   * The currently bound renderbuffer. Set using gl.bindRenderbuffer.
+   */
+  #boundRenderbuffer: ByeGLRenderbuffer | null = null;
 
   /**
    * Active draw buffer slots. Mirrors the WebGL2 drawBuffers state.
@@ -310,9 +316,8 @@ export class ByeGLContext {
     this.#drawBuffers = framebuffer !== null ? [gl.COLOR_ATTACHMENT0] : [gl.BACK];
   }
 
-  bindRenderbuffer(_target: GLenum, _renderbuffer: WebGLRenderbuffer | null): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.bindRenderbuffer');
+  bindRenderbuffer(_target: GLenum, renderbuffer: ByeGLRenderbuffer | null): void {
+    this.#boundRenderbuffer = renderbuffer;
   }
 
   bindTexture(target: GLenum, texture: ByeGLTexture | null): void {
@@ -425,14 +430,37 @@ export class ByeGLContext {
     length?: number | undefined,
   ): void;
   bufferSubData(
-    _target: GLenum,
-    _offset: GLintptr,
-    _data?: BufferSource | undefined,
-    _srcOffset?: GLuint | undefined,
-    _length: number = 0,
+    target: GLenum,
+    offset: GLintptr,
+    data?: BufferSource | undefined,
+    srcOffset?: GLuint | undefined,
+    length: number = 0,
   ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.bufferSubData');
+    if (!data) {
+      return;
+    }
+
+    const buffer = this.#getBufferForTarget(target);
+    if (!buffer) {
+      return;
+    }
+
+    const gpuBuffer = buffer[$internal].gpuBuffer;
+
+    if (srcOffset !== undefined) {
+      // WebGL2 form: srcOffset and length are in elements of the typed array.
+      // GPUQueue.writeBuffer() uses the same element-based unit for TypedArrays,
+      // so the values can be forwarded directly.
+      this.#root.device.queue.writeBuffer(
+        gpuBuffer,
+        offset,
+        data as ArrayBuffer,
+        srcOffset,
+        length === 0 ? undefined : length,
+      );
+    } else {
+      this.#root.device.queue.writeBuffer(gpuBuffer, offset, data as ArrayBuffer);
+    }
   }
 
   checkFramebufferStatus(_target: GLenum): GLenum {
@@ -546,8 +574,7 @@ export class ByeGLContext {
   }
 
   createRenderbuffer(): WebGLRenderbuffer {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.createRenderbuffer');
+    return new ByeGLRenderbuffer(this.#root);
   }
 
   createShader(type: GLenum): WebGLShader | null {
@@ -583,9 +610,10 @@ export class ByeGLContext {
     // TODO: Verify the behavior of deleting a program that is currently in use
   }
 
-  deleteRenderbuffer(_renderbuffer: WebGLRenderbuffer | null): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.deleteRenderbuffer');
+  deleteRenderbuffer(renderbuffer: ByeGLRenderbuffer | null): void {
+    if (renderbuffer) {
+      renderbuffer[$internal].destroy();
+    }
   }
 
   deleteShader(_shader: WebGLShader | null): void {
@@ -725,11 +753,27 @@ export class ByeGLContext {
 
   framebufferRenderbuffer(
     _target: GLenum,
-    _attachment: GLenum,
-    _renderbuffer: WebGLRenderbuffer,
+    attachment: GLenum,
+    _renderbuffertarget: GLenum,
+    renderbuffer: ByeGLRenderbuffer | null,
   ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.framebufferRenderbuffer');
+    if (!this.#boundFramebuffer) {
+      return;
+    }
+    const fbo = this.#boundFramebuffer[$internal];
+
+    if (
+      attachment === gl.DEPTH_ATTACHMENT ||
+      attachment === gl.STENCIL_ATTACHMENT ||
+      attachment === gl.DEPTH_STENCIL_ATTACHMENT
+    ) {
+      fbo.depthRenderbuffer = renderbuffer;
+    } else {
+      const idx = attachment - gl.COLOR_ATTACHMENT0;
+      if (idx >= 0 && idx < 16) {
+        fbo.colorAttachments[idx] = renderbuffer;
+      }
+    }
   }
 
   framebufferTexture2D(
@@ -959,8 +1003,7 @@ export class ByeGLContext {
         // (e.g. rgba16float)
         return 8;
       case gl.RENDERBUFFER_BINDING:
-        // TODO: Implement
-        return null;
+        return this.#boundRenderbuffer;
       case gl.RENDERER:
         return 'byegl';
       case gl.SAMPLE_BUFFERS:
@@ -1111,9 +1154,30 @@ export class ByeGLContext {
     throw new NotImplementedYetError(`gl.getProgramParameter (pname=${pname})`);
   }
 
-  getRenderbufferParameter(_target: GLenum, _pname: GLenum): any {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.getRenderbufferParameter');
+  getRenderbufferParameter(_target: GLenum, pname: GLenum): any {
+    const rbo = this.#boundRenderbuffer?.[$internal];
+    if (!rbo) {
+      return 0;
+    }
+    switch (pname) {
+      case gl.RENDERBUFFER_WIDTH:
+        return rbo.width;
+      case gl.RENDERBUFFER_HEIGHT:
+        return rbo.height;
+      case gl.RENDERBUFFER_INTERNAL_FORMAT:
+        return rbo.internalFormat;
+      case gl.RENDERBUFFER_RED_SIZE:
+      case gl.RENDERBUFFER_GREEN_SIZE:
+      case gl.RENDERBUFFER_BLUE_SIZE:
+      case gl.RENDERBUFFER_ALPHA_SIZE:
+        return 8;
+      case gl.RENDERBUFFER_DEPTH_SIZE:
+        return 24;
+      case gl.RENDERBUFFER_STENCIL_SIZE:
+        return 0;
+      default:
+        return 0;
+    }
   }
 
   getShaderInfoLog(_shader: ByeGLShader): string {
@@ -1308,12 +1372,11 @@ export class ByeGLContext {
 
   renderbufferStorage(
     _target: GLenum,
-    _internalformat: GLenum,
-    _width: GLsizei,
-    _height: GLsizei,
+    internalformat: GLenum,
+    width: GLsizei,
+    height: GLsizei,
   ): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.renderbufferStorage');
+    this.#boundRenderbuffer?.[$internal].allocate(internalformat, width, height);
   }
 
   sampleCoverage(_value: GLclampf, _invert: GLboolean): void {
@@ -1958,8 +2021,17 @@ export class ByeGLContext {
 
     if (this.#enabledCapabilities.has(gl.DEPTH_TEST)) {
       let depthTexture: GPUTexture;
+      let depthFormat: GPUTextureFormat = 'depth24plus';
+
       if (fbo) {
-        depthTexture = fbo.getOrCreateDepthTexture(renderWidth, renderHeight);
+        const depthRbo = fbo.depthRenderbuffer;
+        if (depthRbo) {
+          const rboInternal = depthRbo[$internal];
+          depthTexture = rboInternal.gpuTexture;
+          depthFormat = rboInternal.formatInfo.webgpuFormat;
+        } else {
+          depthTexture = fbo.getOrCreateDepthTexture(renderWidth, renderHeight);
+        }
       } else {
         if (
           !this.#depthTexture ||
@@ -1978,7 +2050,7 @@ export class ByeGLContext {
       depthTextureView = depthTexture.createView();
       const glDepthFunc = this.#parameters.get(gl.DEPTH_FUNC);
       depthStencil = {
-        format: 'depth24plus',
+        format: depthFormat,
         depthWriteEnabled: true,
         depthCompare: depthFuncCatalog[glDepthFunc as keyof typeof depthFuncCatalog],
       };
