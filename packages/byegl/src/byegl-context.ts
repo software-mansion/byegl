@@ -116,6 +116,7 @@ export class ByeGLContext {
     [gl.BLEND_DST_RGB, gl.ZERO],
     [gl.BLEND_SRC_ALPHA, gl.ONE],
     [gl.BLEND_DST_ALPHA, gl.ZERO],
+    [gl.LINE_WIDTH, 1.0],
     [gl.UNPACK_FLIP_Y_WEBGL, 0],
     [gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0],
     [gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL],
@@ -851,7 +852,7 @@ export class ByeGLContext {
         // TODO: Implement
         return gl.TEXTURE0;
       case gl.ALIASED_LINE_WIDTH_RANGE:
-        // TODO: Implement
+        // WebGPU does not expose variable line widths; only 1px is supported.
         return new Float32Array([1, 1]);
       case gl.ALIASED_POINT_SIZE_RANGE:
         // TODO: Implement
@@ -920,8 +921,7 @@ export class ByeGLContext {
         // TODO: Respect this values when implementing gl.readPixels
         return gl.UNSIGNED_BYTE;
       case gl.LINE_WIDTH:
-        // TODO: Maybe simulate thick line widths? Not a priority though
-        return 1.0;
+        return this.#parameters.get(gl.LINE_WIDTH) ?? 1.0;
       case gl.MAX_TEXTURE_IMAGE_UNITS:
       case gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS:
         return limits.maxSampledTexturesPerShaderStage;
@@ -1218,9 +1218,8 @@ export class ByeGLContext {
     return texture instanceof ByeGLTexture;
   }
 
-  lineWidth(_width: GLfloat): void {
-    // TODO: Implement
-    throw new NotImplementedYetError('gl.lineWidth');
+  lineWidth(width: GLfloat): void {
+    this.#parameters.set(gl.LINE_WIDTH, width);
   }
 
   linkProgram(glProgram: ByeGLProgram): void {
