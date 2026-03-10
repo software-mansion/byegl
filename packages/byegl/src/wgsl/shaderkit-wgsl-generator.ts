@@ -265,23 +265,25 @@ const primitiveTypes: Set<ByeglData> = new Set([
 
 const opToPrecedence = {
   ',': 0,
-  '+': 1,
-  '-': 1,
-  '*': 2,
-  '/': 2,
-  '%': 2,
-  '==': 3,
-  '!=': 3,
-  '<': 3,
-  '<=': 3,
-  '>': 3,
-  '>=': 3,
-  '<<': 3,
-  '>>': 3,
-  '|': 3,
-  '^': 3,
-  '&': 3,
-  '.': 4,
+  '||': 1,
+  '&&': 2,
+  '+': 3,
+  '-': 3,
+  '*': 4,
+  '/': 4,
+  '%': 4,
+  '==': 5,
+  '!=': 5,
+  '<': 5,
+  '<=': 5,
+  '>': 5,
+  '>=': 5,
+  '<<': 5,
+  '>>': 5,
+  '|': 5,
+  '^': 5,
+  '&': 5,
+  '.': 6,
 };
 
 const logicalOps = ['==', '!=', '>', '>=', '<', '<=', '!'];
@@ -792,6 +794,24 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
         return snip(`${expression.operator}${argument.value}`, UnknownType);
       } else {
         return snip(`${argument.value}${expression.operator}`, UnknownType);
+      }
+    }
+
+    if (expression.type === 'LogicalExpression') {
+      const parentPrecedence = state.parentPrecedence;
+      try {
+        const myPrecedence = opToPrecedence[expression.operator as keyof typeof opToPrecedence];
+        state.parentPrecedence = myPrecedence;
+        const left = this.generateExpression(expression.left);
+        const right = this.generateExpression(expression.right);
+        state.parentPrecedence = parentPrecedence;
+
+        if (myPrecedence < parentPrecedence) {
+          return snip(`(${left.value} ${expression.operator} ${right.value})`, d.bool);
+        }
+        return snip(`${left.value} ${expression.operator} ${right.value}`, d.bool);
+      } finally {
+        state.parentPrecedence = parentPrecedence;
       }
     }
 
