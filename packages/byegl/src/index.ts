@@ -34,7 +34,7 @@ export function enable(): EnableResult {
     HTMLCanvasElement.prototype.getContext = originalGetContext;
   };
 
-  const result = enableResult = tgpu.init().then((root) => {
+  const result = (enableResult = tgpu.init().then((root) => {
     if (cancelled) {
       return;
     }
@@ -55,12 +55,11 @@ export function enable(): EnableResult {
     };
 
     return disable;
-  }) as EnableResult;
+  }) as EnableResult);
   result.disable = disable;
 
   return result;
 }
-
 
 /**
  * A synchronous variant of `enable()` for use in environments where
@@ -98,7 +97,12 @@ export function enableSync(): EnableResult {
   ) {
     if (contextId === 'webgl' || contextId === 'webgl2' || contextId === 'experimental-webgl') {
       const wgslGen = new ShaderkitWGSLGenerator();
-      const ctx = new ByeGLContext(contextId === 'webgl2' ? 2 : 1, realRoot ?? pendingRoot, this, wgslGen);
+      const ctx = new ByeGLContext(
+        contextId === 'webgl2' ? 2 : 1,
+        realRoot ?? pendingRoot,
+        this,
+        wgslGen,
+      );
       addContext(ctx);
       pendingContexts.push(ctx);
       return ctx;
@@ -112,7 +116,7 @@ export function enableSync(): EnableResult {
     HTMLCanvasElement.prototype.getContext = originalGetContext;
   };
 
-  const result = enableResult = tgpu.init().then((root) => {
+  const result = (enableResult = tgpu.init().then((root) => {
     realRoot = root;
     // We still let the devices activate, as the recording device may still be in use.
     // We only want to stop other calls to `getContext` from being polyfilled.
@@ -127,7 +131,7 @@ export function enableSync(): EnableResult {
     pendingContexts = [];
 
     return disable;
-  }) as EnableResult;
+  }) as EnableResult);
   result.disable = disable;
 
   return result;
@@ -163,7 +167,9 @@ export function isIntercepted(gl: WebGLRenderingContext | WebGL2RenderingContext
   return gl instanceof ByeGLContext;
 }
 
-export function getDevice(gl: WebGLRenderingContext | WebGL2RenderingContext): GPUDevice | undefined {
+export function getDevice(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+): GPUDevice | undefined {
   if (!(gl instanceof ByeGLContext)) {
     throw new Error('Cannot use byegl hooks on a vanilla WebGPU context');
   }

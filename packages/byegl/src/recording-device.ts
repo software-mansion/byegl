@@ -18,25 +18,28 @@ export function isRecordingProxy(value: unknown): boolean {
 
 function unwrapProxy<T>(proxyOrValue: T): T {
   if (isRecordingProxy(proxyOrValue)) {
-    return ((proxyOrValue as any)?.[REAL_VALUE]);
+    return (proxyOrValue as any)?.[REAL_VALUE];
   }
   return proxyOrValue;
 }
 
 function unwrapProxiesDeep<T>(proxyOrValue: T): T {
   if (isRecordingProxy(proxyOrValue)) {
-    return ((proxyOrValue as any)?.[REAL_VALUE]);
+    return (proxyOrValue as any)?.[REAL_VALUE];
   }
 
   if (Array.isArray(proxyOrValue)) {
     return proxyOrValue.map(unwrapProxiesDeep) as unknown as T;
   }
 
-  if (typeof proxyOrValue === 'object' && Object.getPrototypeOf(proxyOrValue) === Object.prototype) {
+  if (
+    typeof proxyOrValue === 'object' &&
+    Object.getPrototypeOf(proxyOrValue) === Object.prototype
+  ) {
     const swapped = { ...proxyOrValue };
     let swappedSome = false;
     for (const key in swapped) {
-      const value = unwrapProxiesDeep(swapped[key])
+      const value = unwrapProxiesDeep(swapped[key]);
       if (swapped[key] !== value) {
         swapped[key] = value;
         swappedSome = true;
@@ -98,14 +101,14 @@ const FAKE_LIMITS: Record<string, number> = {
 //
 
 const knownFakes = {
-  'device': {
-    'limits': () => ({ [RECORDING_PROXY]: true, ...FAKE_LIMITS }),
-    'features': () => {
+  device: {
+    limits: () => ({ [RECORDING_PROXY]: true, ...FAKE_LIMITS }),
+    features: () => {
       const features = new Set<GPUFeatureName>();
       (features as any)[RECORDING_PROXY] = true;
       return features;
     },
-  }
+  },
 };
 
 // TODO: Cache accessed prop proxies
@@ -128,8 +131,12 @@ export class RecordingDevice {
   // Proxy factory
   // ---------------------------------------------------------------------------
 
-  #makeProxy(type: 'device' | 'queue' | 'buffer' | 'unknown', accessPath: (string | symbol)[], initRealValue?: unknown): unknown {
-    const base = (() => { }) as ((...args: never[]) => unknown) & Record<string | symbol, any>;
+  #makeProxy(
+    type: 'device' | 'queue' | 'buffer' | 'unknown',
+    accessPath: (string | symbol)[],
+    initRealValue?: unknown,
+  ): unknown {
+    const base = (() => {}) as ((...args: never[]) => unknown) & Record<string | symbol, any>;
     base[RECORDING_PROXY] = true;
     base.label = type === 'device' ? 'ByeGL Recording Device' : undefined;
     if (initRealValue !== undefined) {
@@ -149,7 +156,10 @@ export class RecordingDevice {
 
         if (this.activated) {
           // Calling this function again once we're dealing with real values
-          const realResult = unwrapProxy(target).apply(unwrapProxy(thisArg), args.map(unwrapProxiesDeep));
+          const realResult = unwrapProxy(target).apply(
+            unwrapProxy(thisArg),
+            args.map(unwrapProxiesDeep),
+          );
           if (typeof realResult !== 'function' && typeof realResult !== 'object') {
             // It's a primitive value, so we can return it directly
             result = realResult;
@@ -160,7 +170,10 @@ export class RecordingDevice {
         } else {
           this.#ops.push(() => {
             // Calling this function again once we're dealing with real values
-            const realResult = unwrapProxy(target).apply(unwrapProxy(thisArg), args.map(unwrapProxiesDeep));
+            const realResult = unwrapProxy(target).apply(
+              unwrapProxy(thisArg),
+              args.map(unwrapProxiesDeep),
+            );
             // The proxy now knows what it's real value is
             result[REAL_VALUE] = realResult;
           });
@@ -171,7 +184,12 @@ export class RecordingDevice {
       get: (_target, prop) => {
         const newAccessPath = [...accessPath, prop];
         // Proxy-specific props
-        if (prop === RECORDING_PROXY || prop === REAL_VALUE || prop === 'label' || prop === 'then') {
+        if (
+          prop === RECORDING_PROXY ||
+          prop === REAL_VALUE ||
+          prop === 'label' ||
+          prop === 'then'
+        ) {
           return Reflect.get(base, prop);
         }
 
@@ -233,7 +251,7 @@ export class RecordingDevice {
 
         this.#ops.push(() => {
           if (base[REAL_VALUE]) {
-            (base[REAL_VALUE] as any)[prop] = value
+            (base[REAL_VALUE] as any)[prop] = value;
           }
         });
         return Reflect.set(base, prop, value);
@@ -248,7 +266,7 @@ export class RecordingDevice {
   activate(realDevice: GPUDevice): void {
     (this.#deviceProxy as any)[REAL_VALUE] = realDevice;
 
-    console.log('🥯🐶: Replaying commands recorded before activation...')
+    console.log('🥯🐶: Replaying commands recorded before activation...');
     for (const op of this.#ops) {
       op();
     }

@@ -628,7 +628,9 @@ export class ByeGLContext {
   drawElements(mode: GLenum, count: GLsizei, type: GLenum, offset: GLintptr): void {
     if (!this.#canvasConfigured) {
       if (this.#skippedDrawCalls % 10 === 0) {
-        console.warn(`Some draw calls have been skipped due to canvas not being configured (${this.#skippedDrawCalls+1} so far)`);
+        console.warn(
+          `Some draw calls have been skipped due to canvas not being configured (${this.#skippedDrawCalls + 1} so far)`,
+        );
       }
       this.#skippedDrawCalls++;
       return;
@@ -969,9 +971,7 @@ export class ByeGLContext {
       gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL	GLboolean
       gl.VENDOR	string*/
       case gl.VERSION:
-        return this.#glVersion === 2
-          ? 'WebGL 2.0 (OpenGL ES 3.0)'
-          : 'WebGL 1.0 (OpenGL ES 2.0)';
+        return this.#glVersion === 2 ? 'WebGL 2.0 (OpenGL ES 3.0)' : 'WebGL 1.0 (OpenGL ES 2.0)';
       case gl.VIEWPORT:
         // TODO: Adjust based on the passed in viewport
         return new Int32Array([0, 0, this.#canvas.width, this.#canvas.height]);
