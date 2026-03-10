@@ -88,18 +88,6 @@ const FAKE_LIMITS: Record<string, number> = {
   minUniformBufferOffsetAlignment: 256,
 };
 
-//
-// const device = root.device; // Proxy<GPUDevice>
-// const queue = device.queue; // Proxy<GPUQueue>
-// const buffer = device.createBuffer(...); // Proxy<GPUBuffer>
-// const renderPipeline = device.createRenderPipeline(...); // Proxy<GPURenderPipeline>
-// // --- ACTIVATE ---
-// // After activation, proxies should still be returned, as they have to handle unwrapping
-// // prior made proxies when passed as arguments
-// buffer; // Proxy<GPUBuffer>
-// device.createBuffer(...); // Proxy<GPUBuffer>
-//
-
 const knownFakes = {
   device: {
     limits: () => ({ [RECORDING_PROXY]: true, ...FAKE_LIMITS }),
@@ -111,7 +99,6 @@ const knownFakes = {
   },
 };
 
-// TODO: Cache accessed prop proxies
 export class RecordingDevice {
   #ops: RecordedOp[] = [];
   activated = false;
