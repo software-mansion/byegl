@@ -111,6 +111,7 @@ export async function runExample(example: ExampleContent) {
     activeContext = null;
   }
 
+  // const { disable } = byegl.enableSync();
   const disable = await byegl.enable();
   try {
     activeContext = 'byegl';
