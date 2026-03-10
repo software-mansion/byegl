@@ -79,6 +79,12 @@ export interface WgslGeneratorResult {
    * Layout info for non-texture uniforms. Undefined if there are no such uniforms.
    */
   uniformBufferLayout?: UniformBufferLayout;
+
+  /**
+   * Number of distinct fragment output locations.
+   * 1 for classic gl_FragColor shaders; N for MRT shaders using layout(location = N) out vec4 outN.
+   */
+  fragmentOutputCount: number;
 }
 
 export interface WgslGenerator {

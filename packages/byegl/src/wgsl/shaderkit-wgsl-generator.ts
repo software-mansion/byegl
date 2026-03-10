@@ -387,7 +387,11 @@ interface GenState {
 
   fakeVertexMainId?: string | undefined;
   fakeFragmentMainId?: string | undefined;
-  fragmentOutProxyId: string;
+  /**
+   * Maps output location index → GLSL variable name (proxy).
+   * Location 0 defaults to 'gl_FragColor' (the legacy builtin proxy).
+   */
+  fragmentOutputs: Map<number, string>;
 
   lineStart: string;
   definingFunction: boolean;
@@ -1111,7 +1115,10 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
 
         if (isFragmentOut) {
           // We don't generate the variable, as it replaced the builtin 'gl_FragColor' proxy.
-          state.fragmentOutProxyId = id;
+          // Read explicit location from layout(location = N), defaulting to 0.
+          const locationStr = decl.layout?.['location'];
+          const location = locationStr !== undefined ? parseInt(String(locationStr), 10) : 0;
+          state.fragmentOutputs.set(location, id);
         } else if (isAttribute) {
           // Finding the next available attribute index
           do {
@@ -1405,7 +1412,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
       uniformStructInfos: [],
       uniformStructBindingIdx: undefined,
 
-      fragmentOutProxyId: 'gl_FragColor',
+      fragmentOutputs: new Map([[0, 'gl_FragColor']]),
 
       lineStart: '',
       definingFunction: false,
@@ -1452,7 +1459,7 @@ export class ShaderkitWGSLGenerator implements WgslGenerator {
     wgsl += `
 var<private> gl_Position: vec4f;
 var<private> gl_FrontFacing: bool;
-var<private> ${state.fragmentOutProxyId}: vec4f;
+${[...state.fragmentOutputs.values()].map((varId) => `var<private> ${varId}: vec4f;`).join('\n')}
 `;
 
     // Generating the real entry functions
@@ -1512,16 +1519,49 @@ ${fragInParams}
 
 `;
 
-      wgsl += `
+      const fragOutputs = state.fragmentOutputs;
+      const maxLocation = Math.max(...fragOutputs.keys());
+      const isMRT = fragOutputs.size > 1 || maxLocation > 0;
+
+      if (isMRT) {
+        const fragOutStructId = this.uniqueId('FragOut');
+        let fragOutStruct = `struct ${fragOutStructId} {\n`;
+        for (let i = 0; i <= maxLocation; i++) {
+          fragOutStruct += `  @location(${i}) out${i}: vec4f,\n`;
+        }
+        fragOutStruct += `}\n`;
+        wgsl += fragOutStruct;
+
+        let assignments = '';
+        for (let i = 0; i <= maxLocation; i++) {
+          const varId = fragOutputs.get(i);
+          assignments += `  _fragout.out${i} = ${varId ?? 'vec4f(0.0)'};\n`;
+        }
+
+        wgsl += `
+@fragment
+fn ${this.uniqueId('frag_main')}(${fragInStructId ? `input: ${fragInStructId}` : ''}) -> ${fragOutStructId} {
+  // Filling proxies with varying data
+  gl_FrontFacing = input.${frontFacingParamId};
+${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
+  ${state.fakeFragmentMainId}();
+  var _fragout: ${fragOutStructId};
+${assignments}  return _fragout;
+}
+`;
+      } else {
+        const singleOutId = fragOutputs.get(0) ?? 'gl_FragColor';
+        wgsl += `
 @fragment
 fn ${this.uniqueId('frag_main')}(${fragInStructId ? `input: ${fragInStructId}` : ''}) -> @location(0) vec4f {
   // Filling proxies with varying data
   gl_FrontFacing = input.${frontFacingParamId};
 ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varying.id};\n`).join('')}
   ${state.fakeFragmentMainId}();
-  return ${state.fragmentOutProxyId};
+  return ${singleOutId};
 }
 `;
+      }
     }
 
     // Generate the unified uniform struct and calculate layout
@@ -1589,6 +1629,7 @@ ${[...state.varyings.values()].map((varying) => `  ${varying.id} = input.${varyi
       textureUniforms,
       samplerToTextureMap: state.samplerToTextureMap,
       uniformBufferLayout,
+      fragmentOutputCount: Math.max(...state.fragmentOutputs.keys()) + 1,
     };
   }
 }

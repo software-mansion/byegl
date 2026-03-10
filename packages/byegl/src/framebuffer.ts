@@ -8,7 +8,7 @@ import { $internal } from './types.ts';
 export class ByeGLFramebufferInternal {
   readonly #root: TgpuRoot;
 
-  colorAttachment: ByeGLTexture | null = null;
+  colorAttachments: (ByeGLTexture | null)[] = Array.from({ length: 16 }, () => null);
 
   #depthTexture: GPUTexture | undefined;
 
