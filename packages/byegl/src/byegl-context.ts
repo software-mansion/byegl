@@ -609,7 +609,15 @@ export class ByeGLContext {
   }
 
   drawArrays(mode: GLenum, first: GLint, count: GLsizei): void {
-    if (!this.#canvasConfigured) return;
+    if (!this.#canvasConfigured) {
+      if (this.#skippedDrawCalls % 10 === 0) {
+        console.warn(
+          `Some draw calls have been skipped due to canvas not being configured (${this.#skippedDrawCalls + 1} so far)`,
+        );
+      }
+      this.#skippedDrawCalls++;
+      return;
+    }
     const program = this.#program?.[$internal];
     if (!program) {
       throw new Error('No program bound');
