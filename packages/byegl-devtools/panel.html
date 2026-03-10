@@ -1,0 +1,342 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        --bg: #1e1e1e;
+        --surface: #2a2a2a;
+        --surface-hover: #333;
+        --border: #3a3a3a;
+        --text: #d4d4d4;
+        --text-muted: #808080;
+        --accent: #6788f3;
+        --green: #4caf6e;
+        --red: #e46551;
+        --yellow: #ffc97e;
+        --radius: 6px;
+        --font: system-ui, -apple-system, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 13px;
+        line-height: 1.5;
+        padding: 16px;
+        min-width: 320px;
+      }
+
+      /* ---- Header ---- */
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      .header img {
+        width: 28px;
+        height: 28px;
+      }
+
+      .header h1 {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+
+      /* ---- Status badge ---- */
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 16px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .dot.on {
+        background: var(--green);
+        box-shadow: 0 0 6px var(--green);
+      }
+
+      .dot.off {
+        background: var(--text-muted);
+      }
+
+      .status-label {
+        font-weight: 500;
+      }
+
+      .status-version {
+        color: var(--text-muted);
+        font-size: 11px;
+        margin-left: auto;
+      }
+
+      /* ---- Contexts counter ---- */
+
+      .contexts-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 10px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 16px;
+      }
+
+      .contexts-count {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+        min-width: 2ch;
+      }
+
+      .contexts-label {
+        color: var(--text-muted);
+      }
+
+      /* ---- Section ---- */
+
+      .section {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .section-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      /* ---- Toggle row ---- */
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 4px 0;
+      }
+
+      .toggle-row + .toggle-row {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+
+      /* Custom checkbox */
+      .toggle-row input[type='checkbox'] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--border);
+        border-radius: 3px;
+        background: var(--bg);
+        cursor: pointer;
+        flex-shrink: 0;
+        position: relative;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
+      }
+
+      .toggle-row input[type='checkbox']:checked {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .toggle-row input[type='checkbox']:checked::after {
+        content: '';
+        display: block;
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 5px;
+        height: 9px;
+        border: 2px solid white;
+        border-top: none;
+        border-left: none;
+        transform: rotate(45deg);
+      }
+
+      .toggle-label {
+        flex: 1;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .toggle-label strong {
+        display: block;
+      }
+
+      .toggle-hint {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 1px;
+      }
+
+      /* ---- Buttons ---- */
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 13px;
+        font-family: var(--font);
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
+        white-space: nowrap;
+      }
+
+      .btn:hover {
+        background: var(--surface-hover);
+        border-color: #555;
+      }
+
+      .btn:active {
+        background: #3a3a3a;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: white;
+        font-weight: 500;
+      }
+
+      .btn-primary:hover {
+        background: #7898f5;
+        border-color: #7898f5;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+
+      /* ---- Inspect Mode active banner ---- */
+
+      .inspect-banner {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: color-mix(in srgb, var(--accent) 15%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+        border-radius: var(--radius);
+        margin-bottom: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--accent);
+      }
+
+      .inspect-banner.active {
+        display: flex;
+      }
+
+      .inspect-banner .dot {
+        background: var(--accent);
+        box-shadow: 0 0 5px var(--accent);
+      }
+
+      /* ---- Hidden ---- */
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <img src="icons/byegl-on.svg" alt="ByeGL" />
+      <h1>ByeGL DevTools</h1>
+    </div>
+
+    <!-- Detection status -->
+    <div class="status-row" id="status-row">
+      <div class="dot off" id="status-dot"></div>
+      <span class="status-label" id="status-label">Not detected</span>
+      <span class="status-version hidden" id="status-version"></span>
+    </div>
+
+    <!-- Inspect Mode active banner -->
+    <div class="inspect-banner" id="inspect-banner">
+      <div class="dot"></div>
+      Inspect Mode active — context tracking enabled
+    </div>
+
+    <!-- Context count (shown only in inspect mode when detected) -->
+    <div class="contexts-row hidden" id="contexts-row">
+      <span class="contexts-count" id="contexts-count">0</span>
+      <span class="contexts-label">WebGL context(s) created</span>
+    </div>
+
+    <!-- Settings section -->
+    <div class="section">
+      <div class="section-title">Injection</div>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="inspect-checkbox" />
+        <label class="toggle-label" for="inspect-checkbox">
+          <strong>Inspect Mode</strong>
+          <span class="toggle-hint"
+            >Sets <code>globalThis.__BYEGL_INSPECT__ = true</code> before page scripts run</span
+          >
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="force-byegl-checkbox" />
+        <label class="toggle-label" for="force-byegl-checkbox">
+          <strong>Force ByeGL</strong>
+          <span class="toggle-hint"
+            >Imports byegl from esm.sh and calls <code>enable()</code> early</span
+          >
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="reload-btn">▶ Reload page</button>
+      </div>
+    </div>
+
+    <script src="panel.js"></script>
+  </body>
+</html>

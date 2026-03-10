@@ -1,0 +1,18 @@
+{
+  "name": "byegl-devtools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome DevTools extension for ByeGL — WebGL running on WebGPU",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "byegl": "workspace:*"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.64",
+    "tsdown": "^0.21.1",
+    "typescript": "^5.9.2"
+  }
+}
