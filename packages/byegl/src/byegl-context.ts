@@ -1448,7 +1448,7 @@ export class ByeGLContext {
       const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
 
       this.#root.device.queue.copyExternalImageToTexture(
-        { source, flipY },
+        { source, flipY: !flipY },
         { texture: texture.gpuTexture },
         size
       );
@@ -1592,7 +1592,7 @@ export class ByeGLContext {
       }
 
       this.#root.device.queue.copyExternalImageToTexture(
-        { source, flipY },
+        { source, flipY: !flipY },
         {
           texture: texture.gpuTexture,
           origin: { x: xoffset, y: yoffset, z: 0 },
