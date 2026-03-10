@@ -82,6 +82,12 @@ export class ByeGLContext {
    */
   #boundFramebuffer: ByeGLFramebuffer | null = null;
 
+  /**
+   * Active draw buffer slots. Mirrors the WebGL2 drawBuffers state.
+   * Default: [gl.BACK] for the default framebuffer; resets to [gl.COLOR_ATTACHMENT0] when an FBO is bound.
+   */
+  #drawBuffers: GLenum[] = [WebGL2RenderingContext.BACK];
+
   #uniformBufferCache: UniformBufferCache;
 
   /**
@@ -298,6 +304,7 @@ export class ByeGLContext {
 
   bindFramebuffer(_target: GLenum, framebuffer: ByeGLFramebuffer | null): void {
     this.#boundFramebuffer = framebuffer;
+    this.#drawBuffers = framebuffer !== null ? [gl.COLOR_ATTACHMENT0] : [gl.BACK];
   }
 
   bindRenderbuffer(_target: GLenum, _renderbuffer: WebGLRenderbuffer | null): void {
@@ -430,7 +437,7 @@ export class ByeGLContext {
       return gl.FRAMEBUFFER_COMPLETE;
     }
     const fbo = this.#boundFramebuffer[$internal];
-    if (fbo.colorAttachment) {
+    if (fbo.colorAttachments.some((a) => a !== null)) {
       return gl.FRAMEBUFFER_COMPLETE;
     }
     return gl.FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT;
@@ -691,6 +698,10 @@ export class ByeGLContext {
     this.#root.device.queue.submit([encoder.finish()]);
   }
 
+  drawBuffers(buffers: GLenum[]): void {
+    this.#drawBuffers = [...buffers];
+  }
+
   enable(cap: GLenum): void {
     this.#enabledCapabilities.add(cap);
   }
@@ -729,8 +740,9 @@ export class ByeGLContext {
       return;
     }
     const fbo = this.#boundFramebuffer[$internal];
-    if (attachment === gl.COLOR_ATTACHMENT0) {
-      fbo.colorAttachment = texture;
+    const attachmentIndex = attachment - gl.COLOR_ATTACHMENT0;
+    if (attachmentIndex >= 0 && attachmentIndex < 16) {
+      fbo.colorAttachments[attachmentIndex] = texture;
     }
   }
 
@@ -1436,7 +1448,7 @@ export class ByeGLContext {
       const flipY = !!this.#parameters.get(gl.UNPACK_FLIP_Y_WEBGL);
 
       this.#root.device.queue.copyExternalImageToTexture(
-        { source, flipY },
+        { source, flipY: !flipY },
         { texture: texture.gpuTexture },
         size
       );
@@ -1580,7 +1592,7 @@ export class ByeGLContext {
       }
 
       this.#root.device.queue.copyExternalImageToTexture(
-        { source, flipY },
+        { source, flipY: !flipY },
         {
           texture: texture.gpuTexture,
           origin: { x: xoffset, y: yoffset, z: 0 },
@@ -1867,25 +1879,66 @@ export class ByeGLContext {
     const program = this.#program![$internal];
     const compiled = program.compiled!;
 
-    // Determine the render target: either the FBO's color attachment or the canvas
+    // Determine render targets based on the active draw buffers state
     const fbo = this.#boundFramebuffer?.[$internal];
-    const fboColorInternal = fbo?.colorAttachment?.[$internal];
-    let renderTargetView: GPUTextureView;
-    let renderTargetFormat: GPUTextureFormat;
-    let renderWidth: number;
-    let renderHeight: number;
-    if (fboColorInternal) {
-      renderTargetFormat = fboColorInternal.formatInfo.webgpuFormat;
-      renderWidth = fboColorInternal.gpuTexture.width;
-      renderHeight = fboColorInternal.gpuTexture.height;
-      renderTargetView = fboColorInternal.gpuTextureView;
-    } else {
-      const currentTexture = this.#canvasContext.getCurrentTexture();
-      renderTargetFormat = this.#format;
-      renderWidth = currentTexture.width;
-      renderHeight = currentTexture.height;
-      renderTargetView = currentTexture.createView();
+    let renderWidth = 0;
+    let renderHeight = 0;
+
+    const colorAttachmentDescriptors: (GPURenderPassColorAttachment | null)[] = [];
+    const fragmentTargets: (GPUColorTargetState | null)[] = [];
+
+    // We'll fill these in the loop below; used for depth texture sizing
+    let resolvedRenderWidth = 0;
+    let resolvedRenderHeight = 0;
+
+    const colorMaskForTarget = this.#parameters.get(gl.COLOR_WRITEMASK);
+    const writeMask =
+      (colorMaskForTarget[0] ? GPUColorWrite.RED : 0) |
+      (colorMaskForTarget[1] ? GPUColorWrite.GREEN : 0) |
+      (colorMaskForTarget[2] ? GPUColorWrite.BLUE : 0) |
+      (colorMaskForTarget[3] ? GPUColorWrite.ALPHA : 0);
+
+    for (const drawBuffer of this.#drawBuffers) {
+      if (drawBuffer === gl.NONE) {
+        colorAttachmentDescriptors.push(null);
+        fragmentTargets.push(null);
+        continue;
+      }
+
+      let view: GPUTextureView;
+      let format: GPUTextureFormat;
+
+      if (!fbo || drawBuffer === gl.BACK) {
+        const currentTexture = this.#canvasContext.getCurrentTexture();
+        view = currentTexture.createView();
+        format = this.#format;
+        resolvedRenderWidth = currentTexture.width;
+        resolvedRenderHeight = currentTexture.height;
+      } else {
+        const idx = drawBuffer - gl.COLOR_ATTACHMENT0;
+        const texInternal = fbo.colorAttachments[idx]?.[$internal];
+        if (!texInternal) {
+          colorAttachmentDescriptors.push(null);
+          fragmentTargets.push(null);
+          continue;
+        }
+        view = texInternal.gpuTextureView;
+        format = texInternal.formatInfo.webgpuFormat;
+        resolvedRenderWidth = texInternal.gpuTexture.width;
+        resolvedRenderHeight = texInternal.gpuTexture.height;
+      }
+
+      colorAttachmentDescriptors.push({
+        view,
+        loadOp: this.#bitsToClear & gl.COLOR_BUFFER_BIT ? 'clear' : 'load',
+        storeOp: 'store',
+        clearValue: this.#parameters.get(gl.COLOR_CLEAR_VALUE),
+      });
+      fragmentTargets.push({ format, writeMask });
     }
+
+    renderWidth = resolvedRenderWidth;
+    renderHeight = resolvedRenderHeight;
 
     const vertexLayout = this.#enabledVertexBufferSegments.map(
       (segment): GPUVertexBufferLayout => ({
@@ -1933,7 +1986,6 @@ export class ByeGLContext {
       };
     }
 
-    const colorMask = this.#parameters.get(gl.COLOR_WRITEMASK);
     const cullFaceMode = this.#parameters.get(gl.CULL_FACE_MODE);
     const topology = primitiveMap[mode as keyof typeof primitiveMap];
 
@@ -1983,7 +2035,6 @@ export class ByeGLContext {
           })
         : undefined;
 
-    let blend: GPUBlendState | undefined;
     if (this.#enabledCapabilities.has(gl.BLEND)) {
       const srcRgbFac = this.#parameters.get(gl.BLEND_SRC_RGB);
       const dstRgbFac = this.#parameters.get(gl.BLEND_DST_RGB);
@@ -1992,7 +2043,7 @@ export class ByeGLContext {
       const dstAlphaFac = this.#parameters.get(gl.BLEND_DST_ALPHA);
       const alphaFn = this.#parameters.get(gl.BLEND_EQUATION_ALPHA);
 
-      blend = {
+      const blend: GPUBlendState = {
         color: {
           srcFactor: blendFactorMap[srcRgbFac as keyof typeof blendFactorMap],
           dstFactor: blendFactorMap[dstRgbFac as keyof typeof blendFactorMap],
@@ -2004,6 +2055,9 @@ export class ByeGLContext {
           operation: blendEquationMap[alphaFn as keyof typeof blendEquationMap],
         },
       };
+      for (const target of fragmentTargets) {
+        if (target) target.blend = blend;
+      }
     }
 
     const pipeline = this.#root.device.createRenderPipeline({
@@ -2017,17 +2071,7 @@ export class ByeGLContext {
       },
       fragment: {
         module: program.wgpuShaderModule!,
-        targets: [
-          {
-            format: renderTargetFormat,
-            writeMask:
-              (colorMask[0] ? GPUColorWrite.RED : 0) |
-              (colorMask[1] ? GPUColorWrite.GREEN : 0) |
-              (colorMask[2] ? GPUColorWrite.BLUE : 0) |
-              (colorMask[3] ? GPUColorWrite.ALPHA : 0),
-            blend,
-          },
-        ],
+        targets: fragmentTargets,
       },
       depthStencil,
       primitive: {
@@ -2040,20 +2084,12 @@ export class ByeGLContext {
       },
     });
 
-    const clearColorValue: Float32Array = this.#parameters.get(gl.COLOR_CLEAR_VALUE);
     const clearDepthValue: number = this.#parameters.get(gl.DEPTH_CLEAR_VALUE);
     const clearStencilValue: number = this.#parameters.get(gl.STENCIL_CLEAR_VALUE);
 
     const renderPass = encoder.beginRenderPass({
       label: 'ByeGL Render Pass',
-      colorAttachments: [
-        {
-          view: renderTargetView,
-          loadOp: this.#bitsToClear & gl.COLOR_BUFFER_BIT ? 'clear' : 'load',
-          storeOp: 'store',
-          clearValue: clearColorValue,
-        },
-      ],
+      colorAttachments: colorAttachmentDescriptors,
       depthStencilAttachment: depthTextureView
         ? {
             view: depthTextureView!,
